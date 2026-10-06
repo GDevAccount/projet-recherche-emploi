@@ -80,6 +80,24 @@ docker build -t recherche-emploi .
 docker run -p 8501:8501 -v recherche-emploi-data:/data --env-file .env -e APP_PASSWORD=un-mot-de-passe recherche-emploi
 ```
 
+### Instance déployée sur Fly.io
+
+Le projet est déployé sur [Fly.io](https://fly.io/), à l'adresse <https://projet-recherche-emploi.fly.dev/>. La configuration est dans `fly.toml`.
+
+À faire une seule fois, avant le premier déploiement :
+
+```bash
+fly scale count 1                                # une seule machine : un volume n'est pas partagé entre machines
+fly volumes create data --region cdg --size 1    # volume monté sur /data (CV et base)
+fly secrets set TAVILY_API_KEY=... OPENAI_API_KEY=... APP_PASSWORD=...
+```
+
+Pour publier une nouvelle version :
+
+```bash
+fly deploy
+```
+
 ## Fonctionnement
 
 La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/) de trois étapes exécutées à la suite :

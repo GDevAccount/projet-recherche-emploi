@@ -16,8 +16,12 @@ primary_region = 'cdg'
   min_machines_running = 0
   processes = ['app']
 
+# Sans ce volume, /data est remis à zéro à chaque redémarrage de la machine
+[mounts]
+  source = 'data'
+  destination = '/data'
+
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 256
