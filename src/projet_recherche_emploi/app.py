@@ -103,6 +103,7 @@ def run_search() -> None:
         status.update(label="Recherche terminée", state="complete")
         st.write(
             f"{len(result.get('jobs', []))} page(s) trouvée(s), "
+            f"{len(result.get('new_jobs', []))} pas encore en base, "
             f"{len(result.get('filtered_jobs', []))} offre(s) retenue(s), "
             f"{result.get('inserted_count', 0)} nouvelle(s) en base."
         )

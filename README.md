@@ -45,11 +45,11 @@ La commande doit être lancée depuis la racine : `cv.pdf`, `jobs.db` et `graph.
 
 1. **Déposer son CV.** Dans la barre latérale, choisir un PDF puis cliquer sur « Enregistrer ce CV ». Il est enregistré à la racine sous le nom `cv.pdf` et remplace le précédent.
 2. **Choisir les postes recherchés.** La barre latérale liste les recherches enregistrées. Chacune associe un type de contrat à une phrase de recherche, par exemple « offre d'emploi data engineer en CDI à Lyon ». Le formulaire en ajoute une, le bouton ✕ en supprime une. Elles sont conservées en base d'une session à l'autre.
-3. **Lancer une recherche.** Le bouton « Lancer une recherche » est actif dès qu'un CV et au moins une recherche sont enregistrés. La page reste en attente pendant la recherche, qui peut prendre quelques minutes, puis indique le nombre de pages trouvées, d'offres retenues et de nouvelles offres en base.
+3. **Lancer une recherche.** Le bouton « Lancer une recherche » est actif dès qu'un CV et au moins une recherche sont enregistrés. La page reste en attente pendant la recherche, qui peut prendre quelques minutes, puis indique le nombre de pages trouvées, de pages pas encore en base, d'offres retenues et de nouvelles offres en base.
 4. **Suivre ses candidatures.** Le tableau liste les offres, de la plus récente à la plus ancienne, avec un lien vers l'annonce et la raison pour laquelle elle a été retenue. Cocher « Postulé » enregistre la candidature et sa date. Un filtre par type de contrat et un interrupteur masquant les offres déjà postulées sont disponibles au-dessus du tableau.
 5. **Supprimer une offre.** Cocher « Supprimer » sur une ou plusieurs lignes, puis cliquer sur le bouton « Supprimer N offre(s) » qui apparaît sous le tableau. Une offre supprimée ne revient pas aux recherches suivantes.
 
-Chaque recherche consomme des crédits Tavily (une recherche avancée par poste recherché) et OpenAI (un appel par résultat, jusqu'à 20 par poste recherché).
+Chaque recherche consomme des crédits Tavily (une recherche avancée par poste recherché) et OpenAI (un appel par résultat qui n'est pas déjà en base, jusqu'à 20 par poste recherché).
 
 Au premier lancement d'une recherche, un schéma du graph est généré dans `graph.png`. Il est produit par le service en ligne mermaid.ink, donc une connexion internet est nécessaire.
 
@@ -123,12 +123,13 @@ L'application n'a pas de comptes utilisateurs : la seule protection est le mot d
 
 ## Fonctionnement
 
-La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/) de trois étapes exécutées à la suite :
+La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/) de quatre étapes exécutées à la suite :
 
 | Étape | Rôle |
 |---|---|
 | `searchJobs` | Lance une recherche Tavily par poste recherché enregistré, limitée aux sites d'emploi et aux annonces de la dernière semaine, puis supprime les doublons. |
-| `FilterJobs` | Lit le CV (PDF) et demande à un modèle OpenAI, pour chaque résultat, si la page est une vraie offre (et non une liste d'offres) et si elle correspond au profil. |
+| `FilterDuplicates` | Écarte les pages dont l'URL est déjà en base, offres supprimées comprises, pour ne pas les faire évaluer à nouveau. |
+| `FilterJobs` | Lit le CV (PDF) et demande à un modèle OpenAI, pour chaque page restante, si la page est une vraie offre (et non une liste d'offres) et si elle correspond au profil. |
 | `InsertJobs` | Enregistre les offres retenues dans la base SQLite `jobs.db`. |
 
 ## Base de données
@@ -186,7 +187,7 @@ src/projet_recherche_emploi/
 ├── app.py               # interface Streamlit
 ├── __init__.py          # point d'entrée de la commande projet-recherche-emploi
 ├── main.py              # construction du graph LangGraph
-├── node.py              # les trois étapes : search_jobs, filter_jobs, insert_jobs
+├── node.py              # les quatre étapes : search_jobs, filter_duplicates, filter_jobs, insert_jobs
 ├── state.py             # état partagé entre les étapes
 ├── config.py            # réglages (chemins, modèle, recherches par défaut)
 ├── cv_reader.py         # lecture et enregistrement du CV en PDF

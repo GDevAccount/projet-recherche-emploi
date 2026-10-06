@@ -31,6 +31,16 @@ class JobRepository:
         finally:
             connection.close()
 
+    def list_known_urls(self) -> set[str]:
+        """Renvoie les URL de toutes les offres en base, y compris celles supprimées."""
+        connection = sqlite3.connect(self.db_path)
+        try:
+            with connection:
+                self._create_table(connection)
+                return {row[0] for row in connection.execute("SELECT url FROM jobs")}
+        finally:
+            connection.close()
+
     def set_applied(self, url: str, applied: bool) -> bool:
         """Marque l'offre comme postulée ou non, et renvoie faux si l'URL est inconnue."""
         connection = sqlite3.connect(self.db_path)

@@ -102,12 +102,22 @@ def search_jobs(state: JobSearchState) -> dict:
     return {"jobs": list(jobs_by_url.values())}
 
 
+def filter_duplicates(state: JobSearchState) -> dict:
+    # Écarter les offres déjà en base avant le filtre évite de payer un appel au modèle pour rien.
+    # Les offres supprimées comptent aussi : leur URL reste en base pour qu'elles ne reviennent pas.
+    known_urls = JobRepository(DB_PATH).list_known_urls()
+    jobs = state["jobs"]
+    new_jobs = [job for job in jobs if job["url"] not in known_urls]
+    logger.info("%d page(s) nouvelle(s) sur %d trouvée(s)", len(new_jobs), len(jobs))
+    return {"new_jobs": new_jobs}
+
+
 def filter_jobs(state: JobSearchState) -> dict:
     cv_content = CV_reader(CV_PATH).get_cv_content()
 
     evaluator = FILTER_PROMPT | ChatOpenAI(model=FILTER_MODEL).with_structured_output(JobEvaluation)
 
-    jobs = state["jobs"]
+    jobs = state["new_jobs"]
     evaluations = evaluator.batch(
         [
             {
