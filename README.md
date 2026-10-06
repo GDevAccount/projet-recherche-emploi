@@ -19,14 +19,15 @@ Un agent qui cherche des offres d'emploi sur le web, ne garde que celles qui cor
    uv sync
    ```
 
-2. Créer un fichier `.env` à la racine du projet :
+2. Copier `.env.example` vers `.env` à la racine du projet, puis y renseigner les valeurs :
 
    ```env
    TAVILY_API_KEY=tvly-...
    OPENAI_API_KEY=sk-...
+   APP_PASSWORD=un-mot-de-passe-long
    ```
 
-   Ajouter une ligne `APP_PASSWORD=...` pour que l'interface demande un mot de passe à l'ouverture (facultatif).
+   `APP_PASSWORD` est facultatif en local : si la ligne est supprimée ou laissée vide, l'interface s'ouvre sans rien demander. Il est indispensable dès que l'application est accessible depuis internet (voir [Sécurité](#sécurité)).
 
 ## Lancer l'application
 
@@ -74,7 +75,7 @@ Le `Dockerfile` fourni construit l'image. L'hébergeur doit proposer un volume p
 | Volume persistant | Monté sur `/data` |
 | Port exposé | `8501` |
 
-Sans `APP_PASSWORD`, la page est ouverte à quiconque connaît l'adresse, et chaque recherche est facturée sur vos clés. Il est conseillé d'utiliser des clés dédiées à cette instance, avec un plafond de dépense.
+Sans `APP_PASSWORD`, la page est ouverte à quiconque connaît l'adresse, et chaque recherche est facturée sur vos clés. Les précautions à prendre sont détaillées dans [Sécurité](#sécurité).
 
 Pour essayer l'image en local :
 
@@ -86,6 +87,8 @@ docker run -p 8501:8501 -v recherche-emploi-data:/data --env-file .env -e APP_PA
 ### Instance déployée sur Fly.io
 
 Le projet est déployé sur [Fly.io](https://fly.io/), à l'adresse <https://projet-recherche-emploi.fly.dev/>. La configuration est dans `fly.toml`.
+
+Cette instance demande un mot de passe à l'ouverture. Il n'est pas dans ce dépôt : pour la tester, le demander à l'auteur.
 
 À faire une seule fois, avant le premier déploiement :
 
@@ -100,6 +103,23 @@ Pour publier une nouvelle version :
 ```bash
 fly deploy
 ```
+
+Pour changer le mot de passe (la machine redémarre avec la nouvelle valeur) :
+
+```bash
+fly secrets set APP_PASSWORD=nouveau-mot-de-passe
+```
+
+## Sécurité
+
+L'application n'a pas de comptes utilisateurs : la seule protection est le mot de passe unique `APP_PASSWORD`. Quiconque le connaît peut lire et remplacer le CV, modifier les recherches et lancer des recherches facturées sur vos clés.
+
+- **Toujours définir `APP_PASSWORD` sur une instance en ligne.** Le mot de passe est demandé à chaque nouvelle session du navigateur.
+- **Choisir un mot de passe long et aléatoire.** Le nombre d'essais n'est pas limité : un mot de passe court peut être trouvé par essais successifs.
+- **Ne jamais écrire de secret dans le dépôt.** Les clés et le mot de passe vont dans `.env` en local (ignoré par Git et exclu de l'image Docker) et dans les secrets de l'hébergeur en ligne. `.env.example` ne contient que des valeurs fictives.
+- **Utiliser des clés API dédiées à l'instance, avec un plafond de dépense** chez Tavily et OpenAI. Si le mot de passe fuit, la facture reste bornée et les clés se révoquent sans toucher aux autres projets.
+- **Garder le HTTPS.** Sur Fly.io, `force_https = true` dans `fly.toml` évite que le mot de passe circule en clair. Chez un autre hébergeur, vérifier que la page n'est servie qu'en HTTPS.
+- **En cas de doute, tout renouveler.** Changer `APP_PASSWORD`, puis révoquer et recréer les deux clés API.
 
 ## Fonctionnement
 
