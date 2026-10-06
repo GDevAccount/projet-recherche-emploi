@@ -26,6 +26,8 @@ Un agent qui cherche des offres d'emploi sur le web, ne garde que celles qui cor
    OPENAI_API_KEY=sk-...
    ```
 
+   Ajouter une ligne `APP_PASSWORD=...` pour que l'interface demande un mot de passe à l'ouverture (facultatif).
+
 ## Lancer l'application
 
 Depuis la racine du projet :

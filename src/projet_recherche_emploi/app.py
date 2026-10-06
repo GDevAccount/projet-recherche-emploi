@@ -5,11 +5,14 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from dotenv import load_dotenv
 
 from projet_recherche_emploi.config import CV_PATH, DB_PATH
 from projet_recherche_emploi.cv_reader import CV_reader
 from projet_recherche_emploi.job_repository import JobRepository
 from projet_recherche_emploi.query_repository import QueryRepository
+
+load_dotenv()
 
 CONTRACT_TYPES = ["CDI", "freelance", "CDD", "alternance", "stage"]
 LOCAL_TIMEZONE = "Europe/Paris"
