@@ -1,0 +1,25 @@
+[project]
+name = "projet-recherche-emploi"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Guillaume", email = "legall.guilla@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "langchain>=1.4.3",
+    "langchain-openai>=1.6.7",
+    "langchain-tavily>=0.2.18",
+    "langgraph>=1.2.13",
+    "pypdf>=6.19.0",
+    "python-dotenv>=1.2.4",
+    "streamlit>=1.65.0",
+]
+
+[project.scripts]
+projet-recherche-emploi = "projet_recherche_emploi:main"
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13.0"]
+build-backend = "uv_build"

@@ -1,0 +1,8 @@
+# Tout est exclu, sauf ce dont l'image a besoin : ni clés API, ni CV, ni base locale
+*
+!pyproject.toml
+!uv.lock
+!.python-version
+!README.md
+!src
+**/__pycache__
