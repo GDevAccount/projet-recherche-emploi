@@ -98,7 +98,16 @@ fly volumes create data --region cdg --size 1    # volume monté sur /data (CV e
 fly secrets set TAVILY_API_KEY=... OPENAI_API_KEY=... APP_PASSWORD=...
 ```
 
-Pour publier une nouvelle version :
+Une nouvelle version est publiée automatiquement à chaque push sur la branche `main`, par le workflow GitHub Actions `.github/workflows/fly-deploy.yml`. Le déroulement se suit dans l'onglet **Actions** du dépôt. L'instance redémarre à chaque déploiement : le volume `/data` est conservé, mais une recherche en cours est interrompue.
+
+Ce workflow a besoin d'un jeton Fly.io, enregistré une seule fois comme secret `FLY_API_TOKEN` du dépôt GitHub :
+
+```bash
+fly tokens create deploy -x 999999h    # jeton limité à cette application
+gh secret set FLY_API_TOKEN            # coller le jeton, préfixe « FlyV1 » compris
+```
+
+Pour publier à la main, sans passer par GitHub :
 
 ```bash
 fly deploy
@@ -116,7 +125,7 @@ L'application n'a pas de comptes utilisateurs : la seule protection est le mot d
 
 - **Toujours définir `APP_PASSWORD` sur une instance en ligne.** Le mot de passe est demandé à chaque nouvelle session du navigateur.
 - **Choisir un mot de passe long et aléatoire.** Le nombre d'essais n'est pas limité : un mot de passe court peut être trouvé par essais successifs.
-- **Ne jamais écrire de secret dans le dépôt.** Les clés et le mot de passe vont dans `.env` en local (ignoré par Git et exclu de l'image Docker) et dans les secrets de l'hébergeur en ligne. `.env.example` ne contient que des valeurs fictives.
+- **Ne jamais écrire de secret dans le dépôt.** Les clés et le mot de passe vont dans `.env` en local (ignoré par Git et exclu de l'image Docker) et dans les secrets de l'hébergeur en ligne. Le jeton de déploiement Fly.io va dans les secrets du dépôt GitHub. `.env.example` ne contient que des valeurs fictives.
 - **Utiliser des clés API dédiées à l'instance, avec un plafond de dépense** chez Tavily et OpenAI. Si le mot de passe fuit, la facture reste bornée et les clés se révoquent sans toucher aux autres projets.
 - **Garder le HTTPS.** Sur Fly.io, `force_https = true` dans `fly.toml` évite que le mot de passe circule en clair. Chez un autre hébergeur, vérifier que la page n'est servie qu'en HTTPS.
 - **En cas de doute, tout renouveler.** Changer `APP_PASSWORD`, puis révoquer et recréer les deux clés API.

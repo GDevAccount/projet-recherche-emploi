@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_tavily import TavilySearch
+from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 
 from projet_recherche_emploi.config import CV_PATH, DB_PATH, FILTER_MODEL, MAX_PAGE_CHARS
@@ -73,8 +74,17 @@ def search_jobs(state: JobSearchState) -> dict:
     if not queries:
         logger.warning("Aucune recherche enregistrée en base : rien à chercher")
 
+    write_progress = get_stream_writer()
+
     jobs_by_url = {}
-    for contract_type, query in ((q["contract_type"], q["query"]) for q in queries):
+    for index, (contract_type, query) in enumerate((q["contract_type"], q["query"]) for q in queries):
+        write_progress(
+            {
+                "message": f"Recherche Tavily {index + 1}/{len(queries)} : {query}",
+                "done": index,
+                "total": len(queries),
+            }
+        )
         response = tavily.invoke({"query": query})
 
         # Sans résultat, l'outil Tavily renvoie un message texte au lieu du dict habituel
@@ -109,6 +119,7 @@ def filter_duplicates(state: JobSearchState) -> dict:
     jobs = state["jobs"]
     new_jobs = [job for job in jobs if job["url"] not in known_urls]
     logger.info("%d page(s) nouvelle(s) sur %d trouvée(s)", len(new_jobs), len(jobs))
+    get_stream_writer()({"message": f"{len(new_jobs)} page(s) nouvelle(s) sur {len(jobs)} trouvée(s)"})
     return {"new_jobs": new_jobs}
 
 
@@ -118,7 +129,13 @@ def filter_jobs(state: JobSearchState) -> dict:
     evaluator = FILTER_PROMPT | ChatOpenAI(model=FILTER_MODEL).with_structured_output(JobEvaluation)
 
     jobs = state["new_jobs"]
-    evaluations = evaluator.batch(
+    write_progress = get_stream_writer()
+    if jobs:
+        write_progress({"message": f"Évaluation par OpenAI 0/{len(jobs)}", "done": 0, "total": len(jobs)})
+
+    # Les réponses arrivent dans le désordre : l'indice les remet en face de leur offre
+    evaluations = [None] * len(jobs)
+    completed = evaluator.batch_as_completed(
         [
             {
                 "cv": cv_content,
@@ -130,6 +147,11 @@ def filter_jobs(state: JobSearchState) -> dict:
         ],
         config={"max_concurrency": 5},
     )
+    for done, (index, evaluation) in enumerate(completed, start=1):
+        evaluations[index] = evaluation
+        write_progress(
+            {"message": f"Évaluation par OpenAI {done}/{len(jobs)}", "done": done, "total": len(jobs)}
+        )
 
     filtered_jobs = [
         {**job, "match_reason": evaluation.reason}

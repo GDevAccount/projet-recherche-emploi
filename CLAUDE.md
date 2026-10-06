@@ -19,7 +19,7 @@ Les clés `TAVILY_API_KEY` et `OPENAI_API_KEY` sont lues dans `.env` (modèle : 
 
 Deux autres variables sont facultatives : `DATA_DIR` déplace `jobs.db` et `cv.pdf` vers un volume (voir `Dockerfile`), `APP_PASSWORD` active la demande de mot de passe dans `app.py`. Comme `.env.example` contient `APP_PASSWORD`, l'interface locale demande aussi le mot de passe, sauf si la ligne est vide ou absente.
 
-L'instance en ligne tourne sur Fly.io (`fly.toml`) et se publie avec `fly deploy`. Les clés API et `APP_PASSWORD` y sont des secrets Fly, pas un `.env`.
+L'instance en ligne tourne sur Fly.io (`fly.toml`). Elle est publiée automatiquement à chaque push sur `main` par `.github/workflows/fly-deploy.yml` ; `fly deploy` reste possible à la main. Les clés API et `APP_PASSWORD` y sont des secrets Fly, pas un `.env`. Le jeton utilisé par le workflow est le secret GitHub `FLY_API_TOKEN`.
 
 ## Architecture
 
@@ -42,6 +42,7 @@ Tout le code est dans `src/projet_recherche_emploi/`.
 - **Les recherches par défaut ne sont insérées qu'une fois.** `DEFAULT_QUERIES` est écrit en base à la création de la table `search_queries`, pas quand elle est vide. C'est voulu : une recherche supprimée par l'utilisateur ne doit pas revenir.
 - **SQLite enregistre les dates en UTC.** `created_at` et `applied_at` viennent de `CURRENT_TIMESTAMP`. La conversion en heure de Paris se fait à l'affichage, dans `to_local_time` de `app.py`.
 - **Le tableau des offres n'a pas de `key`.** Le `st.data_editor` de `app.py` repart ainsi d'un état vierge dès que les données changent. Avec une clé, une coche en attente pourrait s'appliquer à la mauvaise ligne après un filtrage.
+- **Pousser sur `main` met en ligne.** Il n'y a ni tests ni étape de validation dans le workflow : tout commit poussé sur `main` est déployé et redémarre l'instance, ce qui interrompt une recherche en cours. Ne pas pousser sans l'accord de l'utilisateur.
 - **Sur Fly.io, seul `/data` survit à un redémarrage.** Le reste du disque est remis à zéro, et le volume monté sur `/data` (section `[mounts]` de `fly.toml`) n'est pas partagé entre machines. Tout fichier à conserver doit passer par `DATA_DIR`, et l'application doit rester sur une seule machine.
 - **Rien ne s'affiche avant `check_password()`.** Dans `main()` de `app.py`, tout rendu et tout accès aux dépôts viennent après ce contrôle. Un nouvel élément d'interface placé avant serait visible sans mot de passe sur l'instance en ligne.
 - **`save_cv` valide avant d'écrire.** Le CV en place n'est écrasé que si le nouveau PDF est lisible et contient du texte. Garder cet ordre.

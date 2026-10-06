@@ -94,7 +94,17 @@ def run_search() -> None:
             # Import local : importer main.py construit le graph et régénère graph.png
             from projet_recherche_emploi.main import app as graph
 
-            result = graph.invoke({})
+            progress_bar = st.progress(0.0)
+            result = {}
+            # Le mode « custom » remonte l'avancement écrit par les nœuds, « values » l'état du graph
+            for mode, chunk in graph.stream({}, stream_mode=["custom", "values"]):
+                if mode == "values":
+                    result = chunk
+                elif chunk.get("total"):
+                    progress_bar.progress(chunk["done"] / chunk["total"], text=chunk["message"])
+                else:
+                    st.write(chunk["message"])
+            progress_bar.empty()
         except Exception as error:
             status.update(label="La recherche a échoué", state="error")
             st.error(str(error))
