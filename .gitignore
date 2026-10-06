@@ -12,9 +12,6 @@ wheels/
 # Secrets (clés API)
 .env
 
-# Données personnelles
-cv.pdf
-
 # Fichiers générés
 *.db
 graph.png
