@@ -24,7 +24,9 @@ class JobRepository:
         try:
             with connection:
                 self._create_table(connection)
-                rows = connection.execute("SELECT * FROM jobs ORDER BY created_at DESC").fetchall()
+                rows = connection.execute(
+                    "SELECT * FROM jobs WHERE deleted = 0 ORDER BY created_at DESC"
+                ).fetchall()
                 return [dict(row) for row in rows]
         finally:
             connection.close()
@@ -49,6 +51,21 @@ class JobRepository:
         finally:
             connection.close()
 
+    def delete_jobs(self, urls: list[str]) -> int:
+        """Supprime les offres de la liste, et renvoie le nombre réellement supprimé."""
+        connection = sqlite3.connect(self.db_path)
+        try:
+            with connection:
+                self._create_table(connection)
+                # La ligne est conservée : son URL empêche l'offre de revenir à la recherche suivante
+                cursor = connection.executemany(
+                    "UPDATE jobs SET deleted = 1 WHERE url = ? AND deleted = 0",
+                    [(url,) for url in urls],
+                )
+                return cursor.rowcount
+        finally:
+            connection.close()
+
     def _create_table(self, connection: sqlite3.Connection) -> None:
         connection.execute(
             """
@@ -62,10 +79,15 @@ class JobRepository:
                 match_reason TEXT,
                 applied INTEGER NOT NULL DEFAULT 0,
                 applied_at TEXT,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                deleted INTEGER NOT NULL DEFAULT 0
             )
             """
         )
+        # Migration : les bases créées avant la suppression d'offres n'ont pas la colonne deleted
+        existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(jobs)")}
+        if "deleted" not in existing_columns:
+            connection.execute("ALTER TABLE jobs ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
 
     def _insert_job(self, connection: sqlite3.Connection, job: dict) -> int:
         # url est la clé primaire : une offre déjà en base est ignorée

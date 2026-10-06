@@ -44,7 +44,7 @@ FILTER_PROMPT = ChatPromptTemplate.from_messages(
             "- is_real_offer : vrai seulement si la page décrit UNE offre d'emploi ou mission précise "
             "(un poste, une entreprise ou un client, des missions). Faux pour une liste ou une page de "
             "résultats de recherche regroupant plusieurs offres, un article, une fiche métier, une "
-            "formation, une page d'accueil ou une offre expirée.\n"
+            "formation, une page d'accueil, une offre expirée ou une offre qui ne se situe pas en région parisienne.\n"
             "- matches_cv : vrai seulement si le poste correspond au profil du candidat "
             "(compétences, niveau d'expérience, domaine).\n"
             "- reason : une phrase qui justifie la décision.",

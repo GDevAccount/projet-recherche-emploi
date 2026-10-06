@@ -44,6 +44,7 @@ La commande doit être lancée depuis la racine : `cv.pdf`, `jobs.db` et `graph.
 2. **Choisir les postes recherchés.** La barre latérale liste les recherches enregistrées. Chacune associe un type de contrat à une phrase de recherche, par exemple « offre d'emploi data engineer en CDI à Lyon ». Le formulaire en ajoute une, le bouton ✕ en supprime une. Elles sont conservées en base d'une session à l'autre.
 3. **Lancer une recherche.** Le bouton « Lancer une recherche » est actif dès qu'un CV et au moins une recherche sont enregistrés. La page reste en attente pendant la recherche, qui peut prendre quelques minutes, puis indique le nombre de pages trouvées, d'offres retenues et de nouvelles offres en base.
 4. **Suivre ses candidatures.** Le tableau liste les offres, de la plus récente à la plus ancienne, avec un lien vers l'annonce et la raison pour laquelle elle a été retenue. Cocher « Postulé » enregistre la candidature et sa date. Un filtre par type de contrat et un interrupteur masquant les offres déjà postulées sont disponibles au-dessus du tableau.
+5. **Supprimer une offre.** Cocher « Supprimer » sur une ou plusieurs lignes, puis cliquer sur le bouton « Supprimer N offre(s) » qui apparaît sous le tableau. Une offre supprimée ne revient pas aux recherches suivantes.
 
 Chaque recherche consomme des crédits Tavily (une recherche avancée par poste recherché) et OpenAI (un appel par résultat, jusqu'à 20 par poste recherché).
 
@@ -126,6 +127,7 @@ Table `jobs`, les offres retenues :
 | `applied` | `1` si vous avez postulé, `0` sinon |
 | `applied_at` | Date de candidature (UTC), vide tant que vous n'avez pas postulé |
 | `created_at` | Date d'insertion (UTC) |
+| `deleted` | `1` si vous avez supprimé l'offre : elle n'est plus affichée, mais sa ligne reste pour qu'elle ne soit pas réinsérée |
 
 Table `search_queries`, les postes recherchés :
 
@@ -166,6 +168,6 @@ src/projet_recherche_emploi/
 ├── state.py             # état partagé entre les étapes
 ├── config.py            # réglages (chemins, modèle, recherches par défaut)
 ├── cv_reader.py         # lecture et enregistrement du CV en PDF
-├── job_repository.py    # table des offres : insertion, lecture, suivi des candidatures
+├── job_repository.py    # table des offres : insertion, lecture, suivi des candidatures, suppression
 └── query_repository.py  # table des postes recherchés : lecture, ajout, suppression
 ```

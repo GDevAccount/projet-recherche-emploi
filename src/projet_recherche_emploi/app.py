@@ -122,6 +122,7 @@ def render_jobs() -> None:
     table["applied"] = table["applied"].astype(bool)
     table["created_at"] = to_local_time(table["created_at"])
     table["applied_at"] = to_local_time(table["applied_at"])
+    table["to_delete"] = False
 
     applied_count = int(table["applied"].sum())
     total_column, applied_column, remaining_column = st.columns(3)
@@ -138,7 +139,7 @@ def render_jobs() -> None:
     if hide_applied:
         visible = visible[~visible["applied"]]
 
-    columns = ["applied", "title", "contract_type", "url", "match_reason", "created_at", "applied_at"]
+    columns = ["applied", "title", "contract_type", "url", "match_reason", "created_at", "applied_at", "to_delete"]
     # Sans clé, le tableau repart d'un état vierge dès que les données changent
     edited = st.data_editor(
         visible[columns],
@@ -150,8 +151,9 @@ def render_jobs() -> None:
             "match_reason": st.column_config.TextColumn("Pourquoi ça correspond", width="large"),
             "created_at": st.column_config.DatetimeColumn("Trouvée le", format="DD/MM/YYYY HH:mm"),
             "applied_at": st.column_config.DatetimeColumn("Postulé le", format="DD/MM/YYYY HH:mm"),
+            "to_delete": st.column_config.CheckboxColumn("Supprimer"),
         },
-        disabled=[column for column in columns if column != "applied"],
+        disabled=[column for column in columns if column not in ("applied", "to_delete")],
         hide_index=True,
         width="stretch",
     )
@@ -160,6 +162,12 @@ def render_jobs() -> None:
     for job in changed.itertuples():
         repository.set_applied(job.url, bool(job.applied))
     if not changed.empty:
+        st.rerun()
+
+    # La suppression passe par un bouton : une coche seule ne doit pas suffire à faire disparaître une offre
+    to_delete = edited[edited["to_delete"]]
+    if not to_delete.empty and st.button(f"Supprimer {len(to_delete)} offre(s)"):
+        repository.delete_jobs(to_delete["url"].tolist())
         st.rerun()
 
 
