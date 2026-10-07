@@ -16,6 +16,9 @@ def cv_path(user_id: int) -> Path:
         return DATA_DIR / "cv.pdf"
     return DATA_DIR / "cv" / f"{user_id}.pdf"
 
+# Nombre de recherches par jour pour chaque utilisateur invité (le propriétaire n'est pas limité)
+MAX_SEARCHES_PER_DAY = 2
+
 FILTER_MODEL = "gpt-5-mini"
 MAX_PAGE_CHARS = 8000
 

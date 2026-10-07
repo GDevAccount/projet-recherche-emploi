@@ -121,9 +121,58 @@ Pour changer le mot de passe (la machine redémarre avec la nouvelle valeur) :
 fly secrets set APP_PASSWORD=nouveau-mot-de-passe
 ```
 
+## Plusieurs utilisateurs : connexion Google
+
+Par défaut, l'application sert une seule personne, protégée par `APP_PASSWORD`. En activant la connexion Google, chaque personne invitée se connecte avec son compte Google et dispose de son propre CV, de ses recherches, de ses offres et de ses pages rejetées.
+
+- **Le propriétaire** (`OWNER_EMAIL`) retrouve les données existantes et n'a pas de limite de recherches.
+- **Les invités** (`ALLOWED_EMAILS`) partent d'un compte vide et ont droit à 2 recherches par jour (le compteur repart à minuit, heure de Paris). Toutes les recherches sont facturées sur les clés API du propriétaire.
+- **Toute autre adresse** est refusée, même connectée à Google.
+
+Quand la connexion Google est active, `APP_PASSWORD` n'est plus demandé.
+
+### 1. Créer l'identifiant Google
+
+Dans la [console Google Cloud](https://console.cloud.google.com/apis/credentials), créer un « ID client OAuth » de type « Application Web », avec comme URI de redirection autorisés :
+
+- `https://projet-recherche-emploi.fly.dev/oauth2callback` pour l'instance en ligne ;
+- `http://localhost:8501/oauth2callback` pour un essai en local.
+
+Google fournit alors un identifiant client et un code secret. Tant que l'écran de consentement est en mode « Test », seules les adresses ajoutées comme utilisateurs de test peuvent se connecter.
+
+### 2. Renseigner les variables
+
+| Variable | Valeur |
+|---|---|
+| `GOOGLE_CLIENT_ID` | Identifiant client fourni par Google |
+| `GOOGLE_CLIENT_SECRET` | Code secret fourni par Google |
+| `AUTH_COOKIE_SECRET` | Chaîne aléatoire longue, qui signe le cookie de session (`python -c "import secrets; print(secrets.token_hex(32))"`) |
+| `AUTH_REDIRECT_URI` | L'URI de redirection déclaré à l'étape 1, pour cette instance |
+| `OWNER_EMAIL` | Adresse Google du propriétaire |
+| `ALLOWED_EMAILS` | Adresses des invités, séparées par des virgules (peut être vide) |
+
+Les cinq premières vont ensemble : s'il en manque une, l'application refuse de démarrer plutôt que de s'ouvrir sans la connexion attendue.
+
+En ligne, ce sont des secrets Fly.io (la machine redémarre avec les nouvelles valeurs) :
+
+```bash
+fly secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... AUTH_COOKIE_SECRET=... AUTH_REDIRECT_URI=https://projet-recherche-emploi.fly.dev/oauth2callback OWNER_EMAIL=... ALLOWED_EMAILS=...
+```
+
+Pour inviter ou retirer quelqu'un, relancer `fly secrets set ALLOWED_EMAILS=...` avec la liste complète. Une personne retirée ne peut plus se connecter ; ses données restent en base.
+
+En local, les mettre dans `.env`, puis générer la configuration de Streamlit avant de lancer l'interface :
+
+```bash
+uv run python -m projet_recherche_emploi.auth_secrets
+uv run streamlit run src/projet_recherche_emploi/app.py
+```
+
+La première commande écrit `.streamlit/secrets.toml` (ignoré par Git). Pour revenir au mot de passe unique en local, vider les variables dans `.env` et supprimer ce fichier. L'image Docker lance cette commande toute seule à chaque démarrage.
+
 ## Sécurité
 
-L'application n'a pas de comptes utilisateurs : la seule protection est le mot de passe unique `APP_PASSWORD`. Quiconque le connaît peut lire et remplacer le CV, modifier les recherches et lancer des recherches facturées sur vos clés.
+Sans connexion Google, la seule protection est le mot de passe unique `APP_PASSWORD`. Quiconque le connaît peut lire et remplacer le CV, modifier les recherches et lancer des recherches facturées sur vos clés. Avec la connexion Google, l'accès est limité aux adresses invitées, et chaque invité ne voit que ses propres données.
 
 - **Toujours définir `APP_PASSWORD` sur une instance en ligne.** Le mot de passe est demandé à chaque nouvelle session du navigateur.
 - **Choisir un mot de passe long et aléatoire.** Le nombre d'essais n'est pas limité : un mot de passe court peut être trouvé par essais successifs.
@@ -145,7 +194,7 @@ La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/)
 
 ## Base de données
 
-`jobs.db` contient trois tables, créées automatiquement. Une base créée par une version antérieure est mise à niveau au premier lancement, sans perte de lignes.
+`jobs.db` contient cinq tables, créées automatiquement. Une base créée par une version antérieure est mise à niveau au premier lancement, sans perte de lignes.
 
 Table `jobs`, les offres retenues :
 
@@ -188,6 +237,22 @@ Table `search_queries`, les postes recherchés :
 | `query` | Phrase envoyée à Tavily (unique par utilisateur) |
 | `created_at` | Date d'ajout (UTC) |
 
+Table `users`, les comptes (connexion Google) :
+
+| Colonne | Contenu |
+|---|---|
+| `id` | Identifiant du compte. Le `1` est réservé au propriétaire |
+| `email` | Adresse Google de l'invité (vide pour le propriétaire, dont l'adresse vient de `OWNER_EMAIL`) |
+| `created_at` | Date de la première connexion (UTC) |
+
+Table `search_runs`, les lancements de recherche, qui servent au quota journalier :
+
+| Colonne | Contenu |
+|---|---|
+| `id` | Identifiant du lancement |
+| `user_id` | Utilisateur qui a lancé la recherche |
+| `created_at` | Date du lancement (UTC) |
+
 ## Configuration
 
 Les postes recherchés et le CV se règlent dans l'interface. Le reste se règle dans le code :
@@ -198,6 +263,8 @@ Les postes recherchés et le CV se règlent dans l'interface. Le reste se règle
 | Nom de la base (`DB_PATH`) | `src/projet_recherche_emploi/config.py` | `jobs.db` |
 | Emplacement du CV (`cv_path`) | `src/projet_recherche_emploi/config.py` | `cv.pdf` pour l'utilisateur 1, `cv/<identifiant>.pdf` pour les autres |
 | Mot de passe de l'interface (`APP_PASSWORD`) | variable d'environnement | aucun |
+| Connexion Google (`GOOGLE_CLIENT_ID`, `OWNER_EMAIL`, `ALLOWED_EMAILS`…) | variables d'environnement | désactivée |
+| Recherches par jour pour un invité (`MAX_SEARCHES_PER_DAY`) | `src/projet_recherche_emploi/config.py` | `2` |
 | Modèle OpenAI du filtre (`FILTER_MODEL`) | `src/projet_recherche_emploi/config.py` | `gpt-5-mini` |
 | Taille maximale de page envoyée au modèle (`MAX_PAGE_CHARS`) | `src/projet_recherche_emploi/config.py` | `8000` |
 | Recherches créées avec la base (`DEFAULT_QUERIES`) | `src/projet_recherche_emploi/config.py` | 2 recherches CDI, 2 freelance (ingénieur IA) |
@@ -229,6 +296,10 @@ src/projet_recherche_emploi/
 ├── config.py            # réglages (chemins, modèle, recherches par défaut)
 ├── migration.py         # mise à niveau des bases créées avant la colonne user_id
 ├── cv_reader.py         # lecture et enregistrement du CV en PDF
+├── auth.py              # adresse Google -> utilisateur, selon OWNER_EMAIL et ALLOWED_EMAILS
+├── auth_secrets.py      # écrit la configuration de connexion Google de Streamlit
+├── user_repository.py   # table des comptes
+├── search_run_repository.py    # table des lancements de recherche (quota journalier)
 ├── job_repository.py           # table des offres : insertion, lecture, suivi des candidatures, suppression
 ├── rejected_job_repository.py  # table des pages rejetées : insertion, lecture, vidage
 └── query_repository.py         # table des postes recherchés : lecture, ajout, suppression

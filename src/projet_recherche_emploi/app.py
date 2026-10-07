@@ -1,16 +1,19 @@
 import hmac
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from projet_recherche_emploi.config import DB_PATH, DEFAULT_USER_ID, cv_path
+from projet_recherche_emploi.auth import resolve_user_id
+from projet_recherche_emploi.config import DB_PATH, DEFAULT_USER_ID, MAX_SEARCHES_PER_DAY, cv_path
 from projet_recherche_emploi.cv_reader import CV_reader
 from projet_recherche_emploi.job_repository import JobRepository
 from projet_recherche_emploi.query_repository import QueryRepository
 from projet_recherche_emploi.rejected_job_repository import RejectedJobRepository
+from projet_recherche_emploi.search_run_repository import SearchRunRepository
 
 load_dotenv()
 
@@ -35,9 +38,60 @@ def check_password() -> bool:
     return False
 
 
-def current_user_id() -> int:
-    # Il n'y a pas encore de comptes : toute session est celle de l'utilisateur par défaut
-    return DEFAULT_USER_ID
+def google_login_enabled() -> bool:
+    # La section [auth] est écrite par auth_secrets.py quand les variables de connexion Google sont définies
+    return st.secrets.load_if_toml_exists() and "auth" in st.secrets
+
+
+def authenticate() -> int | None:
+    """Renvoie l'utilisateur de la session, ou None tant que l'accès n'est pas autorisé."""
+    if not google_login_enabled():
+        # Sans comptes, toute session est celle de l'utilisateur par défaut
+        return DEFAULT_USER_ID if check_password() else None
+
+    if not st.user.is_logged_in:
+        st.button("Se connecter avec Google", type="primary", on_click=st.login)
+        return None
+
+    email = st.user.get("email")
+    # L'utilisateur est gardé en session : le chercher en base à chaque rechargement serait inutile
+    if st.session_state.get("user_email") == email:
+        return st.session_state["user_id"]
+
+    try:
+        user_id = resolve_user_id(DB_PATH, email, st.user.get("email_verified"))
+    except ValueError as error:
+        st.error(str(error))
+        return None
+    if user_id is None:
+        st.error(f"L'adresse {email} n'est pas invitée à utiliser cette application.")
+        st.button("Se déconnecter", on_click=st.logout)
+        return None
+
+    st.session_state["user_email"] = email
+    st.session_state["user_id"] = user_id
+    return user_id
+
+
+def render_account() -> None:
+    st.caption(f"Connecté : {st.user.get('email')}")
+    st.button("Se déconnecter", on_click=st.logout)
+    st.divider()
+
+
+def start_of_local_day() -> str:
+    """Renvoie minuit du jour en cours à Paris, en UTC et au format des dates SQLite."""
+    midnight = datetime.now(ZoneInfo(LOCAL_TIMEZONE)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return midnight.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def remaining_searches(user_id: int) -> int | None:
+    """Renvoie le nombre de recherches encore permises aujourd'hui, ou None si l'utilisateur n'est pas limité."""
+    # Le propriétaire paie les clés API : le quota ne protège que des recherches des invités
+    if user_id == DEFAULT_USER_ID:
+        return None
+    used = SearchRunRepository(DB_PATH, user_id).count_runs_since(start_of_local_day())
+    return max(0, MAX_SEARCHES_PER_DAY - used)
 
 
 def render_cv(user_id: int) -> bool:
@@ -98,6 +152,12 @@ def render_queries(user_id: int) -> bool:
 
 
 def run_search(user_id: int) -> None:
+    # Le lancement est compté avant la recherche : même en échec, elle a pu consommer des crédits
+    limit = None if user_id == DEFAULT_USER_ID else MAX_SEARCHES_PER_DAY
+    if not SearchRunRepository(DB_PATH, user_id).record_run(start_of_local_day(), limit):
+        st.error("Quota de recherches atteint pour aujourd'hui.")
+        return
+
     with st.status("Recherche en cours, cela peut prendre quelques minutes…", expanded=True) as status:
         try:
             # Import local : importer main.py construit le graph et régénère graph.png
@@ -257,19 +317,26 @@ def main() -> None:
     st.set_page_config(page_title="Recherche d'emploi", page_icon="💼", layout="wide")
     st.title("Recherche d'emploi")
 
-    if not check_password():
+    user_id = authenticate()
+    if user_id is None:
         return
-    user_id = current_user_id()
 
     with st.sidebar:
+        if google_login_enabled():
+            render_account()
         has_cv = render_cv(user_id)
         st.divider()
         has_queries = render_queries(user_id)
 
-    if st.button("Lancer une recherche", type="primary", disabled=not (has_cv and has_queries)):
+    remaining = remaining_searches(user_id)
+    can_search = has_cv and has_queries and remaining != 0
+    if st.button("Lancer une recherche", type="primary", disabled=not can_search):
         run_search(user_id)
+        remaining = remaining_searches(user_id)
     if not (has_cv and has_queries):
         st.caption("Il faut un CV et au moins une recherche enregistrée pour lancer une recherche.")
+    if remaining is not None:
+        st.caption(f"Recherches restantes aujourd'hui : {remaining} sur {MAX_SEARCHES_PER_DAY}.")
 
     jobs_tab, rejected_tab = st.tabs(["Offres retenues", "Pages rejetées"])
     with jobs_tab:
