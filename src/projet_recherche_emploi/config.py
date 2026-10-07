@@ -5,7 +5,16 @@ from pathlib import Path
 DATA_DIR = Path(os.environ.get("DATA_DIR", "."))
 
 DB_PATH = DATA_DIR / "jobs.db"
-CV_PATH = DATA_DIR / "cv.pdf"
+
+# Les données créées avant les comptes appartiennent à cet utilisateur
+DEFAULT_USER_ID = 1
+
+
+def cv_path(user_id: int) -> Path:
+    # Le CV de l'utilisateur par défaut garde son emplacement d'avant les comptes
+    if user_id == DEFAULT_USER_ID:
+        return DATA_DIR / "cv.pdf"
+    return DATA_DIR / "cv" / f"{user_id}.pdf"
 
 FILTER_MODEL = "gpt-5-mini"
 MAX_PAGE_CHARS = 8000

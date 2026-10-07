@@ -21,6 +21,7 @@ class CV_reader:
             self._parse_pdf(pdf)
         except PyPdfError as error:
             raise ValueError("Le fichier fourni n'est pas un PDF valide") from error
+        self.cv_path.parent.mkdir(parents=True, exist_ok=True)
         self.cv_path.write_bytes(data)
 
     def _load_pdf(self) -> PdfReader:

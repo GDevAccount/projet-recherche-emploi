@@ -196,7 +196,7 @@ Les postes recherchés et le CV se règlent dans l'interface. Le reste se règle
 |---|---|---|
 | Dossier de la base et du CV (`DATA_DIR`) | variable d'environnement | dossier courant |
 | Nom de la base (`DB_PATH`) | `src/projet_recherche_emploi/config.py` | `jobs.db` |
-| Nom du CV (`CV_PATH`) | `src/projet_recherche_emploi/config.py` | `cv.pdf` |
+| Emplacement du CV (`cv_path`) | `src/projet_recherche_emploi/config.py` | `cv.pdf` pour l'utilisateur 1, `cv/<identifiant>.pdf` pour les autres |
 | Mot de passe de l'interface (`APP_PASSWORD`) | variable d'environnement | aucun |
 | Modèle OpenAI du filtre (`FILTER_MODEL`) | `src/projet_recherche_emploi/config.py` | `gpt-5-mini` |
 | Taille maximale de page envoyée au modèle (`MAX_PAGE_CHARS`) | `src/projet_recherche_emploi/config.py` | `8000` |
@@ -215,7 +215,7 @@ Après une modification de `FILTER_PROMPT`, les pages déjà rejetées ne sont p
 uv run pytest
 ```
 
-Les tests vérifient la mise à niveau d'une base existante, et que les données d'un utilisateur ne sont ni visibles ni modifiables par un autre. Ils tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI.
+Les tests vérifient la mise à niveau d'une base existante, que les données d'un utilisateur ne sont ni visibles ni modifiables par un autre, et qu'une recherche utilise les recherches et le CV de son utilisateur. Ils tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI.
 
 ## Structure du projet
 

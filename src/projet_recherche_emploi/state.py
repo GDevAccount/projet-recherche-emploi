@@ -2,6 +2,7 @@ from typing import TypedDict
 
 
 class JobSearchState(TypedDict, total=False):
+    user_id: int
     query: str
     jobs: list[dict]
     new_jobs: list[dict]

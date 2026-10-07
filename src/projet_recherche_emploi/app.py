@@ -1,13 +1,12 @@
 import hmac
 import os
 from datetime import datetime
-from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from projet_recherche_emploi.config import CV_PATH, DB_PATH
+from projet_recherche_emploi.config import DB_PATH, DEFAULT_USER_ID, cv_path
 from projet_recherche_emploi.cv_reader import CV_reader
 from projet_recherche_emploi.job_repository import JobRepository
 from projet_recherche_emploi.query_repository import QueryRepository
@@ -36,7 +35,12 @@ def check_password() -> bool:
     return False
 
 
-def render_cv() -> bool:
+def current_user_id() -> int:
+    # Il n'y a pas encore de comptes : toute session est celle de l'utilisateur par défaut
+    return DEFAULT_USER_ID
+
+
+def render_cv(user_id: int) -> bool:
     """Affiche le dépôt du CV et renvoie vrai si un CV est en place."""
     st.subheader("CV")
 
@@ -44,27 +48,27 @@ def render_cv() -> bool:
     # Le bouton évite de réécrire le fichier à chaque rechargement de la page
     if uploaded_file and st.button("Enregistrer ce CV"):
         try:
-            CV_reader(CV_PATH).save_cv(uploaded_file.getvalue())
+            CV_reader(cv_path(user_id)).save_cv(uploaded_file.getvalue())
             # Les rejets valaient pour l'ancien CV : ces pages peuvent convenir au nouveau
-            RejectedJobRepository(DB_PATH).clear()
+            RejectedJobRepository(DB_PATH, user_id).clear()
             st.success("CV enregistré")
         except ValueError as error:
             st.error(str(error))
 
-    cv_path = Path(CV_PATH)
-    if not cv_path.is_file():
+    cv_file = cv_path(user_id)
+    if not cv_file.is_file():
         st.warning("Aucun CV enregistré")
         return False
 
-    updated_at = datetime.fromtimestamp(cv_path.stat().st_mtime)
+    updated_at = datetime.fromtimestamp(cv_file.stat().st_mtime)
     st.caption(f"CV en place, mis à jour le {updated_at:%d/%m/%Y à %H:%M}")
     return True
 
 
-def render_queries() -> bool:
+def render_queries(user_id: int) -> bool:
     """Affiche les recherches enregistrées et renvoie vrai s'il y en a au moins une."""
     st.subheader("Postes recherchés")
-    repository = QueryRepository(DB_PATH)
+    repository = QueryRepository(DB_PATH, user_id)
 
     queries = repository.list_queries()
     if not queries:
@@ -93,7 +97,7 @@ def render_queries() -> bool:
     return bool(queries)
 
 
-def run_search() -> None:
+def run_search(user_id: int) -> None:
     with st.status("Recherche en cours, cela peut prendre quelques minutes…", expanded=True) as status:
         try:
             # Import local : importer main.py construit le graph et régénère graph.png
@@ -102,7 +106,7 @@ def run_search() -> None:
             progress_bar = st.progress(0.0)
             result = {}
             # Le mode « custom » remonte l'avancement écrit par les nœuds, « values » l'état du graph
-            for mode, chunk in graph.stream({}, stream_mode=["custom", "values"]):
+            for mode, chunk in graph.stream({"user_id": user_id}, stream_mode=["custom", "values"]):
                 if mode == "values":
                     result = chunk
                 elif chunk.get("total"):
@@ -130,8 +134,8 @@ def to_local_time(column: pd.Series) -> pd.Series:
     return pd.to_datetime(column, utc=True).dt.tz_convert(LOCAL_TIMEZONE).dt.tz_localize(None)
 
 
-def render_jobs() -> None:
-    repository = JobRepository(DB_PATH)
+def render_jobs(user_id: int) -> None:
+    repository = JobRepository(DB_PATH, user_id)
 
     jobs = repository.list_jobs()
     if not jobs:
@@ -196,8 +200,8 @@ def render_jobs() -> None:
         st.rerun()
 
 
-def render_rejected_jobs() -> None:
-    rejected_jobs = RejectedJobRepository(DB_PATH).list_rejected_jobs()
+def render_rejected_jobs(user_id: int) -> None:
+    rejected_jobs = RejectedJobRepository(DB_PATH, user_id).list_rejected_jobs()
     if not rejected_jobs:
         st.info("Aucune page rejetée en base pour l'instant.")
         return
@@ -255,22 +259,23 @@ def main() -> None:
 
     if not check_password():
         return
+    user_id = current_user_id()
 
     with st.sidebar:
-        has_cv = render_cv()
+        has_cv = render_cv(user_id)
         st.divider()
-        has_queries = render_queries()
+        has_queries = render_queries(user_id)
 
     if st.button("Lancer une recherche", type="primary", disabled=not (has_cv and has_queries)):
-        run_search()
+        run_search(user_id)
     if not (has_cv and has_queries):
         st.caption("Il faut un CV et au moins une recherche enregistrée pour lancer une recherche.")
 
     jobs_tab, rejected_tab = st.tabs(["Offres retenues", "Pages rejetées"])
     with jobs_tab:
-        render_jobs()
+        render_jobs(user_id)
     with rejected_tab:
-        render_rejected_jobs()
+        render_rejected_jobs(user_id)
 
 
 main()
