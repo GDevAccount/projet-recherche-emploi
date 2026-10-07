@@ -3,7 +3,6 @@ import sqlite3
 # Les lignes créées avant les comptes appartiennent à cet utilisateur
 DEFAULT_USER_ID = 1
 
-
 def add_user_id(connection: sqlite3.Connection, table: str, create_statement: str) -> bool:
     """Rattache une table d'avant les comptes à l'utilisateur par défaut, et renvoie vrai si elle a été migrée.
 
