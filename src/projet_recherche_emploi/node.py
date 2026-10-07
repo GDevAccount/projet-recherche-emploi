@@ -33,7 +33,16 @@ JOB_SITES = [
     "regionsjob.com",
     "cadremploi.fr",
     "keljob.com",
-    "jobintree.com"
+    "jobintree.com",
+    "collective.work",
+    "lehibou.com",
+    "careerbuilder.com",
+    "tekkit.io/offres",
+    "fr.talent.com",
+    "glassdoor.fr",
+    "wellfound.com",
+    "foorilla.com",
+    "jobs.stationf.co"
 ]
 
 FILTER_PROMPT = ChatPromptTemplate.from_messages(
