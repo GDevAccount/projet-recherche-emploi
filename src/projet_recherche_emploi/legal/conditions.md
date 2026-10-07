@@ -26,7 +26,7 @@ Le service est fourni en l'état, sans garantie de disponibilité ni de conserva
 
 ## Vos données
 
-L'utilisation de vos données est décrite dans les [règles de confidentialité](?page=confidentialite).
+L'utilisation de vos données est décrite dans les [règles de confidentialité](/confidentialite).
 
 ## Contact
 

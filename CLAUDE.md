@@ -8,7 +8,7 @@ Toutes se lancent depuis la racine du projet, car `jobs.db`, `cv.pdf` et `graph.
 
 ```bash
 uv sync                                                   # installer les dépendances
-uv run streamlit run src/projet_recherche_emploi/app.py   # interface
+uv run streamlit run src/projet_recherche_emploi/server.py   # interface
 uv run projet-recherche-emploi                            # recherche seule, sans interface
 uv add <paquet>                                           # ajouter une dépendance
 ```
@@ -31,6 +31,7 @@ Tout le code est dans `src/projet_recherche_emploi/`.
 
 - `main.py` construit le graph : `searchJobs` → `FilterDuplicates` → `FilterJobs` → `InsertJobs`. Les quatre nœuds sont dans `node.py`, l'état partagé dans `state.py`.
 - `job_repository.py`, `rejected_job_repository.py`, `query_repository.py`, `user_repository.py` et `search_run_repository.py` sont les seuls accès à SQLite, respectivement pour les tables `jobs`, `rejected_jobs`, `search_queries`, `users` et `search_runs`.
+- `server.py` est le point d'entrée lancé par `streamlit run` : il enveloppe `app.py` dans un `st.App` et y ajoute les routes de `public_pages.py`. Ces pages sont en HTML simple parce que les robots de Google ne lisent pas une page Streamlit. Lancer `app.py` directement fonctionne encore, mais sans ces routes.
 - `auth.py` décide quel utilisateur correspond à une adresse Google. `auth_secrets.py` écrit `.streamlit/secrets.toml` à partir des variables d'environnement ; il est lancé avant Streamlit par le `Dockerfile`.
 - `cv_reader.py` lit et enregistre le CV.
 - `app.py` est l'interface Streamlit. Elle ne contient pas de logique métier : elle appelle les dépôts, `CV_reader` et le graph.
@@ -53,7 +54,7 @@ Tout le code est dans `src/projet_recherche_emploi/`.
 - **Le tableau des offres n'a pas de `key`.** Le `st.data_editor` de `app.py` repart ainsi d'un état vierge dès que les données changent. Avec une clé, une coche en attente pourrait s'appliquer à la mauvaise ligne après un filtrage.
 - **Pousser sur `main` met en ligne.** Le workflow ne lance pas les tests et n'a aucune étape de validation : tout commit poussé sur `main` est déployé et redémarre l'instance, ce qui interrompt une recherche en cours. Ne pas pousser sans l'accord de l'utilisateur.
 - **Sur Fly.io, seul `/data` survit à un redémarrage.** Le reste du disque est remis à zéro, et le volume monté sur `/data` (section `[mounts]` de `fly.toml`) n'est pas partagé entre machines. Tout fichier à conserver doit passer par `DATA_DIR`, et l'application doit rester sur une seule machine.
-- **Rien ne s'affiche avant `authenticate()`.** Dans `main()` de `app.py`, tout rendu et tout accès aux dépôts viennent après ce contrôle, qui renvoie l'utilisateur de la session (connexion Google, ou mot de passe unique et utilisateur 1). Un nouvel élément d'interface placé avant serait visible sans connexion sur l'instance en ligne. Seule exception, voulue : `render_legal_page()`, qui affiche les textes de `legal/` (`?page=confidentialite`, `?page=conditions`) sans toucher aux dépôts, parce que Google exige que ces pages soient publiques.
+- **Rien ne s'affiche avant `authenticate()`.** Dans `main()` de `app.py`, tout rendu et tout accès aux dépôts viennent après ce contrôle, qui renvoie l'utilisateur de la session (connexion Google, ou mot de passe unique et utilisateur 1). Un nouvel élément d'interface placé avant serait visible sans connexion sur l'instance en ligne. Les seules pages publiques sont les routes HTML de `public_pages.py` (`/confidentialite`, `/conditions`, fichier de validation Google), qui ne touchent pas aux dépôts.
 - **Les textes de `legal/` décrivent le comportement réel.** Données enregistrées, envoi du CV à OpenAI, quota, absence de suppression de compte en libre-service : les mettre à jour quand l'un de ces points change.
 - **Sans `.streamlit/secrets.toml`, tout le monde est l'utilisateur 1.** La connexion Google n'est active que si ce fichier contient une section `[auth]`. S'il n'est pas généré en ligne, l'application retombe sur `APP_PASSWORD` et donne les données du propriétaire à qui le connaît : garder `APP_PASSWORD` défini sur Fly.io, et ne pas retirer l'appel à `auth_secrets` du `Dockerfile`.
 - **L'identifiant 1 est réservé au propriétaire.** `UserRepository` insère la ligne 1 sans adresse à la création de la table, pour qu'aucun invité ne reçoive cet identifiant et les données d'avant les comptes. Le propriétaire est reconnu par `OWNER_EMAIL`, pas par la table.

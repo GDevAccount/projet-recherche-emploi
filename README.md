@@ -34,7 +34,7 @@ Un agent qui cherche des offres d'emploi sur le web, ne garde que celles qui cor
 Depuis la racine du projet :
 
 ```bash
-uv run streamlit run src/projet_recherche_emploi/app.py
+uv run streamlit run src/projet_recherche_emploi/server.py
 ```
 
 L'interface s'ouvre dans le navigateur, à l'adresse `http://localhost:8501`.
@@ -143,10 +143,12 @@ Google fournit alors un identifiant client et un code secret. Tant que l'écran 
 
 Pour passer en mode « En production », Google demande deux liens, que l'application sert sans connexion :
 
-- règles de confidentialité : `https://projet-recherche-emploi.fly.dev/?page=confidentialite`
-- conditions d'utilisation : `https://projet-recherche-emploi.fly.dev/?page=conditions`
+- règles de confidentialité : `https://projet-recherche-emploi.fly.dev/confidentialite`
+- conditions d'utilisation : `https://projet-recherche-emploi.fly.dev/conditions`
 
-Leurs textes sont dans `src/projet_recherche_emploi/legal/`. Ils décrivent ce que fait l'application telle qu'elle est : les relire, et les tenir à jour si elle change. Même en production, seules les adresses de `OWNER_EMAIL` et `ALLOWED_EMAILS` accèdent à l'application, sauf si `ALLOWED_EMAILS` vaut `*`.
+Ce sont des pages HTML simples, lisibles par les robots de Google, qui ne voient pas le contenu d'une page Streamlit. Leurs textes sont dans `src/projet_recherche_emploi/legal/`. Ils décrivent ce que fait l'application telle qu'elle est : les relire, et les tenir à jour si elle change. Même en production, seules les adresses de `OWNER_EMAIL` et `ALLOWED_EMAILS` accèdent à l'application, sauf si `ALLOWED_EMAILS` vaut `*`.
+
+Google peut aussi demander la preuve que le site vous appartient. Dans [Search Console](https://search.google.com/search-console), ajouter une propriété de type « Préfixe de l'URL » avec l'adresse de l'instance, choisir la méthode « Fichier HTML », et mettre le nom du fichier proposé dans `GOOGLE_SITE_VERIFICATION_FILE` : l'application le sert alors à la racine du site, sans qu'il faille le déposer.
 
 ### 2. Renseigner les variables
 
@@ -159,6 +161,7 @@ Leurs textes sont dans `src/projet_recherche_emploi/legal/`. Ils décrivent ce q
 | `OWNER_EMAIL` | Adresse Google du propriétaire |
 | `ALLOWED_EMAILS` | Adresses des invités, séparées par des virgules (peut être vide), ou `*` pour accepter tout compte Google |
 | `CONTACT_EMAIL` | Adresse de contact affichée sur les deux pages publiques (facultatif, mais attendu par le RGPD) |
+| `GOOGLE_SITE_VERIFICATION_FILE` | Nom du fichier de validation donné par Google Search Console, par exemple `google1a2b3c.html` (facultatif) |
 
 Les cinq premières vont ensemble : s'il en manque une, l'application refuse de démarrer plutôt que de s'ouvrir sans la connexion attendue.
 
@@ -174,7 +177,7 @@ En local, les mettre dans `.env`, puis générer la configuration de Streamlit a
 
 ```bash
 uv run python -m projet_recherche_emploi.auth_secrets
-uv run streamlit run src/projet_recherche_emploi/app.py
+uv run streamlit run src/projet_recherche_emploi/server.py
 ```
 
 La première commande écrit `.streamlit/secrets.toml` (ignoré par Git). Pour revenir au mot de passe unique en local, vider les variables dans `.env` et supprimer ce fichier. L'image Docker lance cette commande toute seule à chaque démarrage.
@@ -297,7 +300,9 @@ Les tests vérifient la mise à niveau d'une base existante, que les données d'
 
 ```
 src/projet_recherche_emploi/
+├── server.py            # point d'entrée : l'interface, plus les pages publiques
 ├── app.py               # interface Streamlit
+├── public_pages.py      # pages HTML servies sans connexion (textes légaux, validation Google)
 ├── __init__.py          # point d'entrée de la commande projet-recherche-emploi
 ├── main.py              # construction du graph LangGraph
 ├── node.py              # les quatre étapes : search_jobs, filter_duplicates, filter_jobs, insert_jobs

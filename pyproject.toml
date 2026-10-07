@@ -12,6 +12,7 @@ dependencies = [
     "langchain-openai>=1.6.7",
     "langchain-tavily>=0.2.18",
     "langgraph>=1.2.13",
+    "markdown>=3.11",
     "pypdf>=6.19.0",
     "python-dotenv>=1.2.4",
     "streamlit[auth]>=1.65.0",
