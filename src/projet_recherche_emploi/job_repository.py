@@ -24,8 +24,10 @@ CREATE_JOBS_TABLE = f"""
 
 
 class JobRepository:
-    def __init__(self, db_path: str | Path):
+    def __init__(self, db_path: str | Path, user_id: int = DEFAULT_USER_ID):
         self.db_path = Path(db_path)
+        # Chaque requête se limite aux lignes de cet utilisateur
+        self.user_id = user_id
 
     def insert_jobs(self, jobs: list[dict]) -> int:
         """Insère les offres et renvoie le nombre réellement ajouté (hors doublons d'URL)."""
@@ -46,7 +48,8 @@ class JobRepository:
             with connection:
                 self._create_table(connection)
                 rows = connection.execute(
-                    "SELECT * FROM jobs WHERE deleted = 0 ORDER BY created_at DESC"
+                    "SELECT * FROM jobs WHERE user_id = ? AND deleted = 0 ORDER BY created_at DESC",
+                    (self.user_id,),
                 ).fetchall()
                 return [dict(row) for row in rows]
         finally:
@@ -58,7 +61,8 @@ class JobRepository:
         try:
             with connection:
                 self._create_table(connection)
-                return {row[0] for row in connection.execute("SELECT url FROM jobs")}
+                rows = connection.execute("SELECT url FROM jobs WHERE user_id = ?", (self.user_id,))
+                return {row[0] for row in rows}
         finally:
             connection.close()
 
@@ -74,9 +78,9 @@ class JobRepository:
                     UPDATE jobs
                     SET applied = :applied,
                         applied_at = CASE WHEN :applied THEN CURRENT_TIMESTAMP END
-                    WHERE url = :url
+                    WHERE user_id = :user_id AND url = :url
                     """,
-                    {"url": url, "applied": int(applied)},
+                    {"user_id": self.user_id, "url": url, "applied": int(applied)},
                 )
                 return cursor.rowcount == 1
         finally:
@@ -90,8 +94,8 @@ class JobRepository:
                 self._create_table(connection)
                 # La ligne est conservée : son URL empêche l'offre de revenir à la recherche suivante
                 cursor = connection.executemany(
-                    "UPDATE jobs SET deleted = 1 WHERE url = ? AND deleted = 0",
-                    [(url,) for url in urls],
+                    "UPDATE jobs SET deleted = 1 WHERE user_id = ? AND url = ? AND deleted = 0",
+                    [(self.user_id, url) for url in urls],
                 )
                 return cursor.rowcount
         finally:
@@ -110,9 +114,9 @@ class JobRepository:
         # Utilisateur + URL est la clé primaire : une offre déjà en base est ignorée
         cursor = connection.execute(
             """
-            INSERT OR IGNORE INTO jobs (url, title, content, score, contract_type, query, match_reason)
-            VALUES (:url, :title, :content, :score, :contract_type, :query, :match_reason)
+            INSERT OR IGNORE INTO jobs (user_id, url, title, content, score, contract_type, query, match_reason)
+            VALUES (:user_id, :url, :title, :content, :score, :contract_type, :query, :match_reason)
             """,
-            job,
+            {**job, "user_id": self.user_id},
         )
         return cursor.rowcount
