@@ -2,7 +2,7 @@
 
 Un agent qui cherche des offres d'emploi sur le web, ne garde que celles qui correspondent à votre CV, et les enregistre dans une base SQLite. Une interface [Streamlit](https://streamlit.io/) permet de déposer son CV, de choisir les postes recherchés, de lancer la recherche et de suivre ses candidatures.
 
-À chaque recherche, seules les nouvelles offres sont ajoutées : une offre déjà en base (même URL) n'est pas réinsérée.
+À chaque recherche, seules les nouvelles pages sont évaluées : une offre déjà en base (même URL) n'est pas réinsérée, et une page déjà rejetée n'est pas soumise à nouveau au modèle.
 
 ## Prérequis
 
@@ -43,13 +43,13 @@ La commande doit être lancée depuis la racine : `cv.pdf`, `jobs.db` et `graph.
 
 ## Utiliser l'interface
 
-1. **Déposer son CV.** Dans la barre latérale, choisir un PDF puis cliquer sur « Enregistrer ce CV ». Il est enregistré à la racine sous le nom `cv.pdf` et remplace le précédent.
+1. **Déposer son CV.** Dans la barre latérale, choisir un PDF puis cliquer sur « Enregistrer ce CV ». Il est enregistré à la racine sous le nom `cv.pdf` et remplace le précédent. Les pages rejetées avec l'ancien CV sont alors oubliées : elles seront réévaluées à la prochaine recherche.
 2. **Choisir les postes recherchés.** La barre latérale liste les recherches enregistrées. Chacune associe un type de contrat à une phrase de recherche, par exemple « offre d'emploi data engineer en CDI à Lyon ». Le formulaire en ajoute une, le bouton ✕ en supprime une. Elles sont conservées en base d'une session à l'autre.
-3. **Lancer une recherche.** Le bouton « Lancer une recherche » est actif dès qu'un CV et au moins une recherche sont enregistrés. La page reste en attente pendant la recherche, qui peut prendre quelques minutes, puis indique le nombre de pages trouvées, de pages pas encore en base, d'offres retenues et de nouvelles offres en base.
-4. **Suivre ses candidatures.** Le tableau liste les offres, de la plus récente à la plus ancienne, avec un lien vers l'annonce et la raison pour laquelle elle a été retenue. Cocher « Postulé » enregistre la candidature et sa date. Un filtre par type de contrat et un interrupteur masquant les offres déjà postulées sont disponibles au-dessus du tableau.
+3. **Lancer une recherche.** Le bouton « Lancer une recherche » est actif dès qu'un CV et au moins une recherche sont enregistrés. Une barre de progression suit les recherches Tavily puis les évaluations par OpenAI, ce qui peut prendre quelques minutes. La page indique ensuite le nombre de pages trouvées, de pages pas encore évaluées, d'offres retenues, de pages rejetées et de nouvelles offres en base.
+4. **Suivre ses candidatures.** Le tableau liste les offres, de la plus récente à la plus ancienne, avec un lien vers l'annonce et la raison pour laquelle elle a été retenue. Cocher « Postulé » enregistre la candidature et sa date. Au-dessus du tableau, un filtre par type de contrat, un champ de recherche (sur le titre de l'offre et la raison donnée par le modèle, par exemple pour retrouver une entreprise) et un interrupteur masquant les offres déjà postulées sont disponibles.
 5. **Supprimer une offre.** Cocher « Supprimer » sur une ou plusieurs lignes, puis cliquer sur le bouton « Supprimer N offre(s) » qui apparaît sous le tableau. Une offre supprimée ne revient pas aux recherches suivantes.
 
-Chaque recherche consomme des crédits Tavily (une recherche avancée par poste recherché) et OpenAI (un appel par résultat qui n'est pas déjà en base, jusqu'à 20 par poste recherché).
+Chaque recherche consomme des crédits Tavily (une recherche avancée par poste recherché) et OpenAI (un appel par résultat qui n'a pas déjà été évalué, jusqu'à 20 par poste recherché).
 
 Au premier lancement d'une recherche, un schéma du graph est généré dans `graph.png`. Il est produit par le service en ligne mermaid.ink, donc une connexion internet est nécessaire.
 
@@ -137,13 +137,13 @@ La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/)
 | Étape | Rôle |
 |---|---|
 | `searchJobs` | Lance une recherche Tavily par poste recherché enregistré, limitée aux sites d'emploi et aux annonces de la dernière semaine, puis supprime les doublons. |
-| `FilterDuplicates` | Écarte les pages dont l'URL est déjà en base, offres supprimées comprises, pour ne pas les faire évaluer à nouveau. |
+| `FilterDuplicates` | Écarte les pages dont l'URL est déjà en base, offres supprimées et pages rejetées comprises, pour ne pas les faire évaluer à nouveau. |
 | `FilterJobs` | Lit le CV (PDF) et demande à un modèle OpenAI, pour chaque page restante, si la page est une vraie offre (et non une liste d'offres) et si elle correspond au profil. |
-| `InsertJobs` | Enregistre les offres retenues dans la base SQLite `jobs.db`. |
+| `InsertJobs` | Enregistre les offres retenues et les pages rejetées dans la base SQLite `jobs.db`. |
 
 ## Base de données
 
-`jobs.db` contient deux tables, créées automatiquement.
+`jobs.db` contient trois tables, créées automatiquement.
 
 Table `jobs`, les offres retenues :
 
@@ -160,6 +160,19 @@ Table `jobs`, les offres retenues :
 | `applied_at` | Date de candidature (UTC), vide tant que vous n'avez pas postulé |
 | `created_at` | Date d'insertion (UTC) |
 | `deleted` | `1` si vous avez supprimé l'offre : elle n'est plus affichée, mais sa ligne reste pour qu'elle ne soit pas réinsérée |
+
+Table `rejected_jobs`, les pages rejetées par le modèle. Elle n'est pas affichée : elle sert à ne pas payer une nouvelle évaluation pour une page déjà rejetée. Elle est vidée quand un nouveau CV est enregistré.
+
+| Colonne | Contenu |
+|---|---|
+| `url` | Lien de la page (identifiant unique) |
+| `title` | Titre de la page |
+| `contract_type` | Type de contrat de la recherche qui a trouvé la page |
+| `query` | Recherche qui a trouvé la page |
+| `is_real_offer` | `1` si le modèle y a vu une vraie offre, `0` sinon |
+| `matches_cv` | `1` si le modèle a jugé que le poste correspond au CV, `0` sinon |
+| `reject_reason` | Justification du modèle pour avoir rejeté la page |
+| `created_at` | Date du rejet (UTC) |
 
 Table `search_queries`, les postes recherchés :
 
@@ -187,6 +200,8 @@ Les postes recherchés et le CV se règlent dans l'interface. Le reste se règle
 | Sites interrogés (`JOB_SITES`) | `src/projet_recherche_emploi/node.py` | 15 sites d'emploi |
 | Critères du filtre (`FILTER_PROMPT`) | `src/projet_recherche_emploi/node.py` | — |
 
+Après une modification de `FILTER_PROMPT`, les pages déjà rejetées ne sont pas réévaluées. Pour les soumettre à nouveau, vider la table : `sqlite3 jobs.db "DELETE FROM rejected_jobs"`.
+
 `DEFAULT_QUERIES` n'est utilisé qu'à la création de la base : une fois les recherches modifiées dans l'interface, il n'a plus d'effet.
 
 ## Structure du projet
@@ -200,6 +215,7 @@ src/projet_recherche_emploi/
 ├── state.py             # état partagé entre les étapes
 ├── config.py            # réglages (chemins, modèle, recherches par défaut)
 ├── cv_reader.py         # lecture et enregistrement du CV en PDF
-├── job_repository.py    # table des offres : insertion, lecture, suivi des candidatures, suppression
-└── query_repository.py  # table des postes recherchés : lecture, ajout, suppression
+├── job_repository.py           # table des offres : insertion, lecture, suivi des candidatures, suppression
+├── rejected_job_repository.py  # table des pages rejetées : insertion, lecture des URL, vidage
+└── query_repository.py         # table des postes recherchés : lecture, ajout, suppression
 ```

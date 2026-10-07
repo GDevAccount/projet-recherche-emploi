@@ -26,7 +26,7 @@ L'instance en ligne tourne sur Fly.io (`fly.toml`). Elle est publiée automatiqu
 Tout le code est dans `src/projet_recherche_emploi/`.
 
 - `main.py` construit le graph : `searchJobs` → `FilterDuplicates` → `FilterJobs` → `InsertJobs`. Les quatre nœuds sont dans `node.py`, l'état partagé dans `state.py`.
-- `job_repository.py` et `query_repository.py` sont les seuls accès à SQLite, respectivement pour les tables `jobs` et `search_queries`.
+- `job_repository.py`, `rejected_job_repository.py` et `query_repository.py` sont les seuls accès à SQLite, respectivement pour les tables `jobs`, `rejected_jobs` et `search_queries`.
 - `cv_reader.py` lit et enregistre le CV.
 - `app.py` est l'interface Streamlit. Elle ne contient pas de logique métier : elle appelle les dépôts, `CV_reader` et le graph.
 - `config.py` regroupe les constantes (chemins, modèle, recherches par défaut).
@@ -37,6 +37,7 @@ Tout le code est dans `src/projet_recherche_emploi/`.
 - **Une vraie recherche coûte de l'argent.** Chaque exécution du graph consomme des crédits Tavily et OpenAI. Ne pas la lancer pour vérifier un changement sans l'accord de l'utilisateur ; tester les dépôts et l'interface sur une base temporaire.
 - **Changer le schéma demande une migration.** Les tables sont créées par `CREATE TABLE IF NOT EXISTS` (ou équivalent) : modifier la requête de création n'a aucun effet sur un `jobs.db` existant. Il faut un `ALTER TABLE`, ou supprimer la base avec l'accord de l'utilisateur. Modèle à suivre : la colonne `deleted`, ajoutée dans `JobRepository._create_table` après un `PRAGMA table_info`. La base en ligne (volume Fly.io) ne se migre que par ce biais.
 - **Supprimer une offre ne supprime pas sa ligne.** `delete_jobs` passe `deleted` à 1 et `list_jobs` masque ces lignes. C'est voulu : l'URL reste en base, donc `INSERT OR IGNORE` empêche l'offre de revenir à la recherche suivante. Toute lecture de `jobs` destinée à l'affichage doit filtrer sur `deleted = 0` ; `list_known_urls` ne filtre pas, exprès, pour que le nœud `FilterDuplicates` écarte aussi les offres supprimées avant l'appel au modèle.
+- **Un rejet du modèle est mémorisé.** `InsertJobs` écrit les pages rejetées dans `rejected_jobs`, et `FilterDuplicates` écarte leurs URL pour ne pas payer une seconde évaluation. La table n'est vidée que par `render_cv` de `app.py`, à l'enregistrement d'un nouveau CV. Après un changement de `FILTER_PROMPT`, les anciens rejets restent : il faut vider la table à la main pour les faire réévaluer.
 - **La région parisienne est écrite en dur dans `FILTER_PROMPT`.** Le filtre de `node.py` rejette toute offre hors Île-de-France, quelle que soit la recherche enregistrée. Une recherche « à Lyon » ajoutée dans l'interface ne donnera donc rien tant que le prompt n'est pas modifié.
 - **`cv.pdf` à la racine est versionné.** C'est le CV de l'auteur. Déposer un autre CV dans l'interface en local l'écrase : ne pas committer ce changement par mégarde. Il est exclu de l'image par `.dockerignore` ; en ligne, le CV vient du volume.
 - **Les recherches par défaut ne sont insérées qu'une fois.** `DEFAULT_QUERIES` est écrit en base à la création de la table `search_queries`, pas quand elle est vide. C'est voulu : une recherche supprimée par l'utilisateur ne doit pas revenir.

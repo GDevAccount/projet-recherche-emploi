@@ -11,6 +11,7 @@ from projet_recherche_emploi.config import CV_PATH, DB_PATH
 from projet_recherche_emploi.cv_reader import CV_reader
 from projet_recherche_emploi.job_repository import JobRepository
 from projet_recherche_emploi.query_repository import QueryRepository
+from projet_recherche_emploi.rejected_job_repository import RejectedJobRepository
 
 load_dotenv()
 
@@ -42,6 +43,8 @@ def render_cv() -> bool:
     if uploaded_file and st.button("Enregistrer ce CV"):
         try:
             CV_reader(CV_PATH).save_cv(uploaded_file.getvalue())
+            # Les rejets valaient pour l'ancien CV : ces pages peuvent convenir au nouveau
+            RejectedJobRepository(DB_PATH).clear()
             st.success("CV enregistré")
         except ValueError as error:
             st.error(str(error))
@@ -113,8 +116,9 @@ def run_search() -> None:
         status.update(label="Recherche terminée", state="complete")
         st.write(
             f"{len(result.get('jobs', []))} page(s) trouvée(s), "
-            f"{len(result.get('new_jobs', []))} pas encore en base, "
+            f"{len(result.get('new_jobs', []))} pas encore évaluée(s), "
             f"{len(result.get('filtered_jobs', []))} offre(s) retenue(s), "
+            f"{len(result.get('rejected_jobs', []))} rejetée(s), "
             f"{result.get('inserted_count', 0)} nouvelle(s) en base."
         )
 
@@ -147,11 +151,16 @@ def render_jobs() -> None:
     contract_column, toggle_column = st.columns([3, 2])
     contract_types = sorted(table["contract_type"].dropna().unique())
     selected_types = contract_column.multiselect("Type de contrat", contract_types, default=contract_types)
+    search_text = contract_column.text_input("Rechercher", placeholder="Nom d'entreprise, mot-clé…").strip()
     hide_applied = toggle_column.toggle("Masquer les offres déjà postulées")
 
     visible = table[table["contract_type"].isin(selected_types)]
     if hide_applied:
         visible = visible[~visible["applied"]]
+    if search_text:
+        searched = visible["title"].fillna("") + " " + visible["match_reason"].fillna("")
+        visible = visible[searched.str.contains(search_text, case=False, regex=False)]
+        st.caption(f"{len(visible)} offre(s) pour « {search_text} »")
 
     columns = ["applied", "title", "contract_type", "url", "match_reason", "created_at", "applied_at", "to_delete"]
     # Sans clé, le tableau repart d'un état vierge dès que les données changent

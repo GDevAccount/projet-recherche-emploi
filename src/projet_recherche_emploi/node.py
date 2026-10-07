@@ -11,6 +11,7 @@ from projet_recherche_emploi.config import CV_PATH, DB_PATH, FILTER_MODEL, MAX_P
 from projet_recherche_emploi.cv_reader import CV_reader
 from projet_recherche_emploi.job_repository import JobRepository
 from projet_recherche_emploi.query_repository import QueryRepository
+from projet_recherche_emploi.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.state import JobSearchState
 
 load_dotenv()
@@ -113,9 +114,10 @@ def search_jobs(state: JobSearchState) -> dict:
 
 
 def filter_duplicates(state: JobSearchState) -> dict:
-    # Écarter les offres déjà en base avant le filtre évite de payer un appel au modèle pour rien.
+    # Écarter les pages déjà évaluées avant le filtre évite de payer un appel au modèle pour rien.
     # Les offres supprimées comptent aussi : leur URL reste en base pour qu'elles ne reviennent pas.
-    known_urls = JobRepository(DB_PATH).list_known_urls()
+    # Les pages rejetées de même : le modèle les rejetterait à nouveau.
+    known_urls = JobRepository(DB_PATH).list_known_urls() | RejectedJobRepository(DB_PATH).list_known_urls()
     jobs = state["jobs"]
     new_jobs = [job for job in jobs if job["url"] not in known_urls]
     logger.info("%d page(s) nouvelle(s) sur %d trouvée(s)", len(new_jobs), len(jobs))
@@ -153,12 +155,21 @@ def filter_jobs(state: JobSearchState) -> dict:
             {"message": f"Évaluation par OpenAI {done}/{len(jobs)}", "done": done, "total": len(jobs)}
         )
 
-    filtered_jobs = [
-        {**job, "match_reason": evaluation.reason}
-        for job, evaluation in zip(jobs, evaluations)
-        if evaluation.is_real_offer and evaluation.matches_cv
-    ]
-    return {"filtered_jobs": filtered_jobs}
+    filtered_jobs = []
+    rejected_jobs = []
+    for job, evaluation in zip(jobs, evaluations):
+        if evaluation.is_real_offer and evaluation.matches_cv:
+            filtered_jobs.append({**job, "match_reason": evaluation.reason})
+        else:
+            rejected_jobs.append(
+                {
+                    **job,
+                    "is_real_offer": evaluation.is_real_offer,
+                    "matches_cv": evaluation.matches_cv,
+                    "reject_reason": evaluation.reason,
+                }
+            )
+    return {"filtered_jobs": filtered_jobs, "rejected_jobs": rejected_jobs}
 
 
 def insert_jobs(state: JobSearchState) -> dict:
@@ -170,4 +181,8 @@ def insert_jobs(state: JobSearchState) -> dict:
         len(filtered_jobs),
         len(filtered_jobs) - inserted_count,
     )
+
+    rejected_jobs = state["rejected_jobs"]
+    RejectedJobRepository(DB_PATH).insert_rejected_jobs(rejected_jobs)
+    logger.info("%d page(s) rejetée(s) mémorisée(s)", len(rejected_jobs))
     return {"inserted_count": inserted_count}
