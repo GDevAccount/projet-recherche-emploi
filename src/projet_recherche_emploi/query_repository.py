@@ -2,6 +2,19 @@ import sqlite3
 from pathlib import Path
 
 from projet_recherche_emploi.config import DEFAULT_QUERIES
+from projet_recherche_emploi.migration import DEFAULT_USER_ID, add_user_id
+
+# Une recherche est unique par utilisateur : deux utilisateurs peuvent enregistrer la même
+CREATE_SEARCH_QUERIES_TABLE = f"""
+    CREATE TABLE search_queries (
+        id INTEGER PRIMARY KEY,
+        user_id INTEGER NOT NULL DEFAULT {DEFAULT_USER_ID},
+        contract_type TEXT NOT NULL,
+        query TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (user_id, query)
+    )
+"""
 
 
 class QueryRepository:
@@ -46,24 +59,17 @@ class QueryRepository:
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'search_queries'"
         ).fetchone()
         if table_exists:
+            # Migration : les bases créées avant les comptes n'ont pas la colonne user_id
+            add_user_id(connection, "search_queries", CREATE_SEARCH_QUERIES_TABLE)
             return
 
-        connection.execute(
-            """
-            CREATE TABLE search_queries (
-                id INTEGER PRIMARY KEY,
-                contract_type TEXT NOT NULL,
-                query TEXT NOT NULL UNIQUE,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
+        connection.execute(CREATE_SEARCH_QUERIES_TABLE)
         # Recherches par défaut, ajoutées une seule fois : si l'utilisateur les supprime, elles ne reviennent pas
         for contract_type, query in DEFAULT_QUERIES:
             self._insert_query(connection, contract_type, query)
 
     def _insert_query(self, connection: sqlite3.Connection, contract_type: str, query: str) -> int:
-        # query est unique : une recherche déjà enregistrée est ignorée
+        # Utilisateur + query est unique : une recherche déjà enregistrée est ignorée
         cursor = connection.execute(
             "INSERT OR IGNORE INTO search_queries (contract_type, query) VALUES (?, ?)",
             (contract_type, query),

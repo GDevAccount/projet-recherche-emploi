@@ -1,6 +1,27 @@
 import sqlite3
 from pathlib import Path
 
+from projet_recherche_emploi.migration import DEFAULT_USER_ID, add_user_id
+
+# La clé est le couple utilisateur + URL : la même offre peut être retenue pour plusieurs utilisateurs
+CREATE_JOBS_TABLE = f"""
+    CREATE TABLE IF NOT EXISTS jobs (
+        user_id INTEGER NOT NULL DEFAULT {DEFAULT_USER_ID},
+        url TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT,
+        score REAL,
+        contract_type TEXT,
+        query TEXT,
+        match_reason TEXT,
+        applied INTEGER NOT NULL DEFAULT 0,
+        applied_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, url)
+    )
+"""
+
 
 class JobRepository:
     def __init__(self, db_path: str | Path):
@@ -77,30 +98,16 @@ class JobRepository:
             connection.close()
 
     def _create_table(self, connection: sqlite3.Connection) -> None:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS jobs (
-                url TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                content TEXT,
-                score REAL,
-                contract_type TEXT,
-                query TEXT,
-                match_reason TEXT,
-                applied INTEGER NOT NULL DEFAULT 0,
-                applied_at TEXT,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                deleted INTEGER NOT NULL DEFAULT 0
-            )
-            """
-        )
+        connection.execute(CREATE_JOBS_TABLE)
         # Migration : les bases créées avant la suppression d'offres n'ont pas la colonne deleted
         existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(jobs)")}
         if "deleted" not in existing_columns:
             connection.execute("ALTER TABLE jobs ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
+        # Migration : les bases créées avant les comptes n'ont pas la colonne user_id
+        add_user_id(connection, "jobs", CREATE_JOBS_TABLE)
 
     def _insert_job(self, connection: sqlite3.Connection, job: dict) -> int:
-        # url est la clé primaire : une offre déjà en base est ignorée
+        # Utilisateur + URL est la clé primaire : une offre déjà en base est ignorée
         cursor = connection.execute(
             """
             INSERT OR IGNORE INTO jobs (url, title, content, score, contract_type, query, match_reason)

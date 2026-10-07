@@ -145,13 +145,14 @@ La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/)
 
 ## Base de données
 
-`jobs.db` contient trois tables, créées automatiquement.
+`jobs.db` contient trois tables, créées automatiquement. Une base créée par une version antérieure est mise à niveau au premier lancement, sans perte de lignes.
 
 Table `jobs`, les offres retenues :
 
 | Colonne | Contenu |
 |---|---|
-| `url` | Lien de l'offre (identifiant unique) |
+| `user_id` | Utilisateur propriétaire de la ligne. Vaut `1` tant que l'application n'a qu'un utilisateur |
+| `url` | Lien de l'offre (unique par utilisateur) |
 | `title` | Titre de la page |
 | `content` | Extrait de l'annonce |
 | `score` | Pertinence estimée par Tavily, entre 0 et 1 |
@@ -167,7 +168,8 @@ Table `rejected_jobs`, les pages rejetées par le modèle. Elle sert à ne pas p
 
 | Colonne | Contenu |
 |---|---|
-| `url` | Lien de la page (identifiant unique) |
+| `user_id` | Utilisateur propriétaire de la ligne. Vaut `1` tant que l'application n'a qu'un utilisateur |
+| `url` | Lien de la page (unique par utilisateur) |
 | `title` | Titre de la page |
 | `contract_type` | Type de contrat de la recherche qui a trouvé la page |
 | `query` | Recherche qui a trouvé la page |
@@ -181,8 +183,9 @@ Table `search_queries`, les postes recherchés :
 | Colonne | Contenu |
 |---|---|
 | `id` | Identifiant de la recherche |
+| `user_id` | Utilisateur propriétaire de la ligne. Vaut `1` tant que l'application n'a qu'un utilisateur |
 | `contract_type` | Type de contrat (`CDI`, `freelance`, `CDD`, `alternance` ou `stage`) |
-| `query` | Phrase envoyée à Tavily (unique) |
+| `query` | Phrase envoyée à Tavily (unique par utilisateur) |
 | `created_at` | Date d'ajout (UTC) |
 
 ## Configuration
@@ -206,6 +209,14 @@ Après une modification de `FILTER_PROMPT`, les pages déjà rejetées ne sont p
 
 `DEFAULT_QUERIES` n'est utilisé qu'à la création de la base : une fois les recherches modifiées dans l'interface, il n'a plus d'effet.
 
+## Tests
+
+```bash
+uv run pytest
+```
+
+Les tests vérifient la mise à niveau d'une base existante. Ils tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI.
+
 ## Structure du projet
 
 ```
@@ -216,6 +227,7 @@ src/projet_recherche_emploi/
 ├── node.py              # les quatre étapes : search_jobs, filter_duplicates, filter_jobs, insert_jobs
 ├── state.py             # état partagé entre les étapes
 ├── config.py            # réglages (chemins, modèle, recherches par défaut)
+├── migration.py         # mise à niveau des bases créées avant la colonne user_id
 ├── cv_reader.py         # lecture et enregistrement du CV en PDF
 ├── job_repository.py           # table des offres : insertion, lecture, suivi des candidatures, suppression
 ├── rejected_job_repository.py  # table des pages rejetées : insertion, lecture, vidage

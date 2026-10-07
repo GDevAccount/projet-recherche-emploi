@@ -13,7 +13,11 @@ uv run projet-recherche-emploi                            # recherche seule, san
 uv add <paquet>                                           # ajouter une dépendance
 ```
 
-Il n'y a ni tests ni linter configurés.
+```bash
+uv run pytest                                             # tests des dépôts, sur une base temporaire
+```
+
+Les tests (`tests/`) ne couvrent que la migration de la base. Il n'y a pas de linter configuré.
 
 Les clés `TAVILY_API_KEY` et `OPENAI_API_KEY` sont lues dans `.env` (modèle : `.env.example`), chargé par `load_dotenv()` dans `node.py` et `app.py`. Ne jamais afficher ni committer le contenu de `.env`.
 
@@ -35,7 +39,8 @@ Tout le code est dans `src/projet_recherche_emploi/`.
 
 - **Importer `main.py` a des effets de bord.** Le module construit le graph et régénère `graph.png` via le service en ligne mermaid.ink. C'est pourquoi `__init__.py` et `app.py` l'importent localement, dans la fonction qui lance la recherche. Ne pas remonter cet import en tête de fichier.
 - **Une vraie recherche coûte de l'argent.** Chaque exécution du graph consomme des crédits Tavily et OpenAI. Ne pas la lancer pour vérifier un changement sans l'accord de l'utilisateur ; tester les dépôts et l'interface sur une base temporaire.
-- **Changer le schéma demande une migration.** Les tables sont créées par `CREATE TABLE IF NOT EXISTS` (ou équivalent) : modifier la requête de création n'a aucun effet sur un `jobs.db` existant. Il faut un `ALTER TABLE`, ou supprimer la base avec l'accord de l'utilisateur. Modèle à suivre : la colonne `deleted`, ajoutée dans `JobRepository._create_table` après un `PRAGMA table_info`. La base en ligne (volume Fly.io) ne se migre que par ce biais.
+- **Changer le schéma demande une migration.** Les tables sont créées par `CREATE TABLE IF NOT EXISTS` (ou équivalent) : modifier la requête de création n'a aucun effet sur un `jobs.db` existant. Il faut un `ALTER TABLE`, ou supprimer la base avec l'accord de l'utilisateur. Modèle à suivre : la colonne `deleted`, ajoutée dans `JobRepository._create_table` après un `PRAGMA table_info`. Changer une clé primaire ou une contrainte d'unicité demande de recréer la table : voir `add_user_id` dans `migration.py`, qui ouvre lui-même sa transaction parce que Python n'en ouvre pas pour un `ALTER` ou un `CREATE`. La base en ligne (volume Fly.io) ne se migre que par ce biais.
+- **Les trois tables ont une colonne `user_id`, pas encore utilisée.** Elle vaut 1 partout (`DEFAULT_USER_ID`) et aucune requête ne filtre dessus : l'application reste mono-utilisateur. Les clés sont déjà par utilisateur (`user_id` + `url`, `user_id` + `query`). Une requête écrite sans `user_id` reste correcte tant qu'il n'existe qu'un utilisateur.
 - **Supprimer une offre ne supprime pas sa ligne.** `delete_jobs` passe `deleted` à 1 et `list_jobs` masque ces lignes. C'est voulu : l'URL reste en base, donc `INSERT OR IGNORE` empêche l'offre de revenir à la recherche suivante. Toute lecture de `jobs` destinée à l'affichage doit filtrer sur `deleted = 0` ; `list_known_urls` ne filtre pas, exprès, pour que le nœud `FilterDuplicates` écarte aussi les offres supprimées avant l'appel au modèle.
 - **Un rejet du modèle est mémorisé.** `InsertJobs` écrit les pages rejetées dans `rejected_jobs`, et `FilterDuplicates` écarte leurs URL pour ne pas payer une seconde évaluation. La table n'est vidée que par `render_cv` de `app.py`, à l'enregistrement d'un nouveau CV. Après un changement de `FILTER_PROMPT`, les anciens rejets restent : il faut vider la table à la main pour les faire réévaluer.
 - **La région parisienne est écrite en dur dans `FILTER_PROMPT`.** Le filtre de `node.py` rejette toute offre hors Île-de-France, quelle que soit la recherche enregistrée. Une recherche « à Lyon » ajoutée dans l'interface ne donnera donc rien tant que le prompt n'est pas modifié.
@@ -43,7 +48,7 @@ Tout le code est dans `src/projet_recherche_emploi/`.
 - **Les recherches par défaut ne sont insérées qu'une fois.** `DEFAULT_QUERIES` est écrit en base à la création de la table `search_queries`, pas quand elle est vide. C'est voulu : une recherche supprimée par l'utilisateur ne doit pas revenir.
 - **SQLite enregistre les dates en UTC.** `created_at` et `applied_at` viennent de `CURRENT_TIMESTAMP`. La conversion en heure de Paris se fait à l'affichage, dans `to_local_time` de `app.py`.
 - **Le tableau des offres n'a pas de `key`.** Le `st.data_editor` de `app.py` repart ainsi d'un état vierge dès que les données changent. Avec une clé, une coche en attente pourrait s'appliquer à la mauvaise ligne après un filtrage.
-- **Pousser sur `main` met en ligne.** Il n'y a ni tests ni étape de validation dans le workflow : tout commit poussé sur `main` est déployé et redémarre l'instance, ce qui interrompt une recherche en cours. Ne pas pousser sans l'accord de l'utilisateur.
+- **Pousser sur `main` met en ligne.** Le workflow ne lance pas les tests et n'a aucune étape de validation : tout commit poussé sur `main` est déployé et redémarre l'instance, ce qui interrompt une recherche en cours. Ne pas pousser sans l'accord de l'utilisateur.
 - **Sur Fly.io, seul `/data` survit à un redémarrage.** Le reste du disque est remis à zéro, et le volume monté sur `/data` (section `[mounts]` de `fly.toml`) n'est pas partagé entre machines. Tout fichier à conserver doit passer par `DATA_DIR`, et l'application doit rester sur une seule machine.
 - **Rien ne s'affiche avant `check_password()`.** Dans `main()` de `app.py`, tout rendu et tout accès aux dépôts viennent après ce contrôle. Un nouvel élément d'interface placé avant serait visible sans mot de passe sur l'instance en ligne.
 - **`save_cv` valide avant d'écrire.** Le CV en place n'est écrasé que si le nouveau PDF est lisible et contient du texte. Garder cet ordre.

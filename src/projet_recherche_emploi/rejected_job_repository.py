@@ -1,6 +1,24 @@
 import sqlite3
 from pathlib import Path
 
+from projet_recherche_emploi.migration import DEFAULT_USER_ID, add_user_id
+
+# La clé est le couple utilisateur + URL : un rejet dépend du CV, donc de l'utilisateur
+CREATE_REJECTED_JOBS_TABLE = f"""
+    CREATE TABLE IF NOT EXISTS rejected_jobs (
+        user_id INTEGER NOT NULL DEFAULT {DEFAULT_USER_ID},
+        url TEXT NOT NULL,
+        title TEXT NOT NULL,
+        contract_type TEXT,
+        query TEXT,
+        is_real_offer INTEGER NOT NULL,
+        matches_cv INTEGER NOT NULL,
+        reject_reason TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, url)
+    )
+"""
+
 
 class RejectedJobRepository:
     def __init__(self, db_path: str | Path):
@@ -49,23 +67,12 @@ class RejectedJobRepository:
             connection.close()
 
     def _create_table(self, connection: sqlite3.Connection) -> None:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS rejected_jobs (
-                url TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                contract_type TEXT,
-                query TEXT,
-                is_real_offer INTEGER NOT NULL,
-                matches_cv INTEGER NOT NULL,
-                reject_reason TEXT,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
+        connection.execute(CREATE_REJECTED_JOBS_TABLE)
+        # Migration : les bases créées avant les comptes n'ont pas la colonne user_id
+        add_user_id(connection, "rejected_jobs", CREATE_REJECTED_JOBS_TABLE)
 
     def _insert_rejected_job(self, connection: sqlite3.Connection, job: dict) -> int:
-        # url est la clé primaire : une page déjà rejetée est ignorée
+        # Utilisateur + URL est la clé primaire : une page déjà rejetée est ignorée
         cursor = connection.execute(
             """
             INSERT OR IGNORE INTO rejected_jobs (url, title, contract_type, query, is_real_offer, matches_cv, reject_reason)
