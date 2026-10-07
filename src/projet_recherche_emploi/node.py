@@ -7,7 +7,7 @@ from langchain_tavily import TavilySearch
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 
-from projet_recherche_emploi.config import CV_PATH, DB_PATH, FILTER_MODEL, MAX_PAGE_CHARS
+from projet_recherche_emploi.config import DB_PATH, DEFAULT_USER_ID, FILTER_MODEL, MAX_PAGE_CHARS, cv_path
 from projet_recherche_emploi.cv_reader import CV_reader
 from projet_recherche_emploi.job_repository import JobRepository
 from projet_recherche_emploi.query_repository import QueryRepository
@@ -65,6 +65,11 @@ FILTER_PROMPT = ChatPromptTemplate.from_messages(
 )
 
 
+def get_user_id(state: JobSearchState) -> int:
+    # Sans utilisateur dans l'état (commande sans interface), la recherche est celle de l'utilisateur par défaut
+    return state.get("user_id", DEFAULT_USER_ID)
+
+
 class JobEvaluation(BaseModel):
     is_real_offer: bool
     matches_cv: bool
@@ -80,7 +85,7 @@ def search_jobs(state: JobSearchState) -> dict:
         include_raw_content=True,
     )
 
-    queries = QueryRepository(DB_PATH).list_queries()
+    queries = QueryRepository(DB_PATH, get_user_id(state)).list_queries()
     if not queries:
         logger.warning("Aucune recherche enregistrée en base : rien à chercher")
 
@@ -126,7 +131,11 @@ def filter_duplicates(state: JobSearchState) -> dict:
     # Écarter les pages déjà évaluées avant le filtre évite de payer un appel au modèle pour rien.
     # Les offres supprimées comptent aussi : leur URL reste en base pour qu'elles ne reviennent pas.
     # Les pages rejetées de même : le modèle les rejetterait à nouveau.
-    known_urls = JobRepository(DB_PATH).list_known_urls() | RejectedJobRepository(DB_PATH).list_known_urls()
+    user_id = get_user_id(state)
+    known_urls = (
+        JobRepository(DB_PATH, user_id).list_known_urls()
+        | RejectedJobRepository(DB_PATH, user_id).list_known_urls()
+    )
     jobs = state["jobs"]
     new_jobs = [job for job in jobs if job["url"] not in known_urls]
     logger.info("%d page(s) nouvelle(s) sur %d trouvée(s)", len(new_jobs), len(jobs))
@@ -135,7 +144,7 @@ def filter_duplicates(state: JobSearchState) -> dict:
 
 
 def filter_jobs(state: JobSearchState) -> dict:
-    cv_content = CV_reader(CV_PATH).get_cv_content()
+    cv_content = CV_reader(cv_path(get_user_id(state))).get_cv_content()
 
     evaluator = FILTER_PROMPT | ChatOpenAI(model=FILTER_MODEL).with_structured_output(JobEvaluation)
 
@@ -182,8 +191,9 @@ def filter_jobs(state: JobSearchState) -> dict:
 
 
 def insert_jobs(state: JobSearchState) -> dict:
+    user_id = get_user_id(state)
     filtered_jobs = state["filtered_jobs"]
-    inserted_count = JobRepository(DB_PATH).insert_jobs(filtered_jobs)
+    inserted_count = JobRepository(DB_PATH, user_id).insert_jobs(filtered_jobs)
     logger.info(
         "%d offre(s) insérée(s) sur %d retenue(s) (%d déjà en base)",
         inserted_count,
@@ -192,6 +202,6 @@ def insert_jobs(state: JobSearchState) -> dict:
     )
 
     rejected_jobs = state["rejected_jobs"]
-    RejectedJobRepository(DB_PATH).insert_rejected_jobs(rejected_jobs)
+    RejectedJobRepository(DB_PATH, user_id).insert_rejected_jobs(rejected_jobs)
     logger.info("%d page(s) rejetée(s) mémorisée(s)", len(rejected_jobs))
     return {"inserted_count": inserted_count}

@@ -14,4 +14,7 @@ wheels/
 
 # Fichiers générés
 *.db
+
+# CV des utilisateurs autres que celui par défaut
+/cv/
 graph.png
