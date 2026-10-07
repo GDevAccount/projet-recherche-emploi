@@ -14,7 +14,7 @@ dependencies = [
     "langgraph>=1.2.13",
     "pypdf>=6.19.0",
     "python-dotenv>=1.2.4",
-    "streamlit>=1.65.0",
+    "streamlit[auth]>=1.65.0",
 ]
 
 [project.scripts]

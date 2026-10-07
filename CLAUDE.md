@@ -21,7 +21,7 @@ Les tests (`tests/`) couvrent la migration de la base, le cloisonnement des dép
 
 Les clés `TAVILY_API_KEY` et `OPENAI_API_KEY` sont lues dans `.env` (modèle : `.env.example`), chargé par `load_dotenv()` dans `node.py` et `app.py`. Ne jamais afficher ni committer le contenu de `.env`.
 
-Deux autres variables sont facultatives : `DATA_DIR` déplace `jobs.db` et `cv.pdf` vers un volume (voir `Dockerfile`), `APP_PASSWORD` active la demande de mot de passe dans `app.py`. Comme `.env.example` contient `APP_PASSWORD`, l'interface locale demande aussi le mot de passe, sauf si la ligne est vide ou absente.
+D'autres variables sont facultatives : `DATA_DIR` déplace `jobs.db` et `cv.pdf` vers un volume (voir `Dockerfile`), `APP_PASSWORD` active la demande de mot de passe dans `app.py`. Comme `.env.example` contient `APP_PASSWORD`, l'interface locale demande aussi le mot de passe, sauf si la ligne est vide ou absente. `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_COOKIE_SECRET`, `AUTH_REDIRECT_URI` et `OWNER_EMAIL` activent ensemble la connexion Google, `ALLOWED_EMAILS` liste les invités (voir le README).
 
 L'instance en ligne tourne sur Fly.io (`fly.toml`). Elle est publiée automatiquement à chaque push sur `main` par `.github/workflows/fly-deploy.yml` ; `fly deploy` reste possible à la main. Les clés API et `APP_PASSWORD` y sont des secrets Fly, pas un `.env`. Le jeton utilisé par le workflow est le secret GitHub `FLY_API_TOKEN`.
 
@@ -30,7 +30,8 @@ L'instance en ligne tourne sur Fly.io (`fly.toml`). Elle est publiée automatiqu
 Tout le code est dans `src/projet_recherche_emploi/`.
 
 - `main.py` construit le graph : `searchJobs` → `FilterDuplicates` → `FilterJobs` → `InsertJobs`. Les quatre nœuds sont dans `node.py`, l'état partagé dans `state.py`.
-- `job_repository.py`, `rejected_job_repository.py` et `query_repository.py` sont les seuls accès à SQLite, respectivement pour les tables `jobs`, `rejected_jobs` et `search_queries`.
+- `job_repository.py`, `rejected_job_repository.py`, `query_repository.py`, `user_repository.py` et `search_run_repository.py` sont les seuls accès à SQLite, respectivement pour les tables `jobs`, `rejected_jobs`, `search_queries`, `users` et `search_runs`.
+- `auth.py` décide quel utilisateur correspond à une adresse Google. `auth_secrets.py` écrit `.streamlit/secrets.toml` à partir des variables d'environnement ; il est lancé avant Streamlit par le `Dockerfile`.
 - `cv_reader.py` lit et enregistre le CV.
 - `app.py` est l'interface Streamlit. Elle ne contient pas de logique métier : elle appelle les dépôts, `CV_reader` et le graph.
 - `config.py` regroupe les constantes (chemins, modèle, recherches par défaut).
@@ -52,7 +53,10 @@ Tout le code est dans `src/projet_recherche_emploi/`.
 - **Le tableau des offres n'a pas de `key`.** Le `st.data_editor` de `app.py` repart ainsi d'un état vierge dès que les données changent. Avec une clé, une coche en attente pourrait s'appliquer à la mauvaise ligne après un filtrage.
 - **Pousser sur `main` met en ligne.** Le workflow ne lance pas les tests et n'a aucune étape de validation : tout commit poussé sur `main` est déployé et redémarre l'instance, ce qui interrompt une recherche en cours. Ne pas pousser sans l'accord de l'utilisateur.
 - **Sur Fly.io, seul `/data` survit à un redémarrage.** Le reste du disque est remis à zéro, et le volume monté sur `/data` (section `[mounts]` de `fly.toml`) n'est pas partagé entre machines. Tout fichier à conserver doit passer par `DATA_DIR`, et l'application doit rester sur une seule machine.
-- **Rien ne s'affiche avant `check_password()`.** Dans `main()` de `app.py`, tout rendu et tout accès aux dépôts viennent après ce contrôle. Un nouvel élément d'interface placé avant serait visible sans mot de passe sur l'instance en ligne.
+- **Rien ne s'affiche avant `authenticate()`.** Dans `main()` de `app.py`, tout rendu et tout accès aux dépôts viennent après ce contrôle, qui renvoie l'utilisateur de la session (connexion Google, ou mot de passe unique et utilisateur 1). Un nouvel élément d'interface placé avant serait visible sans connexion sur l'instance en ligne.
+- **Sans `.streamlit/secrets.toml`, tout le monde est l'utilisateur 1.** La connexion Google n'est active que si ce fichier contient une section `[auth]`. S'il n'est pas généré en ligne, l'application retombe sur `APP_PASSWORD` et donne les données du propriétaire à qui le connaît : garder `APP_PASSWORD` défini sur Fly.io, et ne pas retirer l'appel à `auth_secrets` du `Dockerfile`.
+- **L'identifiant 1 est réservé au propriétaire.** `UserRepository` insère la ligne 1 sans adresse à la création de la table, pour qu'aucun invité ne reçoive cet identifiant et les données d'avant les comptes. Le propriétaire est reconnu par `OWNER_EMAIL`, pas par la table.
+- **Le quota ne s'applique pas à l'utilisateur 1.** `MAX_SEARCHES_PER_DAY` limite les invités ; le lancement est compté avant la recherche, dans `run_search`, et la commande sans interface n'est pas comptée.
 - **`save_cv` valide avant d'écrire.** Le CV en place n'est écrasé que si le nouveau PDF est lisible et contient du texte. Garder cet ordre.
 
 ## Conventions

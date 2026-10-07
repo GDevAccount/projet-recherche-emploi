@@ -9,8 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
-# Secrets (clés API)
+# Secrets (clés API, connexion Google)
 .env
+.streamlit/secrets.toml
 
 # Fichiers générés
 *.db

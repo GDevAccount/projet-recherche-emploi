@@ -12,4 +12,5 @@ RUN mkdir -p /data
 
 EXPOSE 8501
 
-CMD ["uv", "run", "--no-sync", "streamlit", "run", "src/projet_recherche_emploi/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+# La configuration de connexion Google doit exister avant le démarrage de Streamlit (voir auth_secrets.py)
+CMD ["sh", "-c", "uv run --no-sync python -m projet_recherche_emploi.auth_secrets && exec uv run --no-sync streamlit run src/projet_recherche_emploi/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true"]
