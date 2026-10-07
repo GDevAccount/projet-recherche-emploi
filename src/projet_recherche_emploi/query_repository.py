@@ -1,8 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-from projet_recherche_emploi.config import DEFAULT_QUERIES
-from projet_recherche_emploi.migration import DEFAULT_USER_ID, add_user_id
+from projet_recherche_emploi.config import DEFAULT_QUERIES, DEFAULT_USER_ID
 
 # Une recherche est unique par utilisateur : deux utilisateurs peuvent enregistrer la même
 CREATE_SEARCH_QUERIES_TABLE = f"""
@@ -65,8 +64,6 @@ class QueryRepository:
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'search_queries'"
         ).fetchone()
         if table_exists:
-            # Migration : les bases créées avant les comptes n'ont pas la colonne user_id
-            add_user_id(connection, "search_queries", CREATE_SEARCH_QUERIES_TABLE)
             return
 
         connection.execute(CREATE_SEARCH_QUERIES_TABLE)
