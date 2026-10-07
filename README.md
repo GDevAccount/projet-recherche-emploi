@@ -215,7 +215,7 @@ Après une modification de `FILTER_PROMPT`, les pages déjà rejetées ne sont p
 uv run pytest
 ```
 
-Les tests vérifient la mise à niveau d'une base existante. Ils tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI.
+Les tests vérifient la mise à niveau d'une base existante, et que les données d'un utilisateur ne sont ni visibles ni modifiables par un autre. Ils tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI.
 
 ## Structure du projet
 
