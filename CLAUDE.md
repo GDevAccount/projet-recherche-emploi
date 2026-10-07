@@ -8,7 +8,7 @@ Toutes se lancent depuis la racine du projet, car `jobs.db`, `cv.pdf` et `graph.
 
 ```bash
 uv sync                                                   # installer les dépendances
-uv run streamlit run src/projet_recherche_emploi/app.py   # interface
+uv run streamlit run src/projet_recherche_emploi/server.py   # interface
 uv run projet-recherche-emploi                            # recherche seule, sans interface
 uv add <paquet>                                           # ajouter une dépendance
 ```
@@ -17,7 +17,7 @@ uv add <paquet>                                           # ajouter une dépenda
 uv run pytest                                             # tests des dépôts, sur une base temporaire
 ```
 
-Les tests (`tests/`) couvrent la migration de la base, le cloisonnement des dépôts entre utilisateurs et le graph avec de faux Tavily et OpenAI, pas l'interface. Il n'y a pas de linter configuré.
+Les tests (`tests/`) couvrent le schéma d'une base neuve, le cloisonnement des dépôts entre utilisateurs et le graph avec de faux Tavily et OpenAI, pas l'interface. Il n'y a pas de linter configuré.
 
 Les clés `TAVILY_API_KEY` et `OPENAI_API_KEY` sont lues dans `.env` (modèle : `.env.example`), chargé par `load_dotenv()` dans `node.py` et `app.py`. Ne jamais afficher ni committer le contenu de `.env`.
 
@@ -31,6 +31,7 @@ Tout le code est dans `src/projet_recherche_emploi/`.
 
 - `main.py` construit le graph : `searchJobs` → `FilterDuplicates` → `FilterJobs` → `InsertJobs`. Les quatre nœuds sont dans `node.py`, l'état partagé dans `state.py`.
 - `job_repository.py`, `rejected_job_repository.py`, `query_repository.py`, `user_repository.py` et `search_run_repository.py` sont les seuls accès à SQLite, respectivement pour les tables `jobs`, `rejected_jobs`, `search_queries`, `users` et `search_runs`.
+- `server.py` est le point d'entrée lancé par `streamlit run` : il enveloppe `app.py` dans un `st.App` et y ajoute les routes de `public_pages.py`. Ces pages sont en HTML simple parce que les robots de Google ne lisent pas une page Streamlit. Lancer `app.py` directement fonctionne encore, mais sans ces routes.
 - `auth.py` décide quel utilisateur correspond à une adresse Google. `auth_secrets.py` écrit `.streamlit/secrets.toml` à partir des variables d'environnement ; il est lancé avant Streamlit par le `Dockerfile`.
 - `cv_reader.py` lit et enregistre le CV.
 - `app.py` est l'interface Streamlit. Elle ne contient pas de logique métier : elle appelle les dépôts, `CV_reader` et le graph.
@@ -40,7 +41,7 @@ Tout le code est dans `src/projet_recherche_emploi/`.
 
 - **Importer `main.py` a des effets de bord.** Le module construit le graph et régénère `graph.png` via le service en ligne mermaid.ink. C'est pourquoi `__init__.py` et `app.py` l'importent localement, dans la fonction qui lance la recherche. Ne pas remonter cet import en tête de fichier.
 - **Une vraie recherche coûte de l'argent.** Chaque exécution du graph consomme des crédits Tavily et OpenAI. Ne pas la lancer pour vérifier un changement sans l'accord de l'utilisateur ; tester les dépôts et l'interface sur une base temporaire.
-- **Changer le schéma demande une migration.** Les tables sont créées par `CREATE TABLE IF NOT EXISTS` (ou équivalent) : modifier la requête de création n'a aucun effet sur un `jobs.db` existant. Il faut un `ALTER TABLE`, ou supprimer la base avec l'accord de l'utilisateur. Modèle à suivre : la colonne `deleted`, ajoutée dans `JobRepository._create_table` après un `PRAGMA table_info`. Changer une clé primaire ou une contrainte d'unicité demande de recréer la table : voir `add_user_id` dans `migration.py`, qui ouvre lui-même sa transaction parce que Python n'en ouvre pas pour un `ALTER` ou un `CREATE`. La base en ligne (volume Fly.io) ne se migre que par ce biais.
+- **Changer le schéma demande une migration.** Les tables sont créées par `CREATE TABLE IF NOT EXISTS` (ou équivalent) : modifier la requête de création n'a aucun effet sur un `jobs.db` existant. Il faut un `ALTER TABLE` dans le `_create_table` du dépôt, après un `PRAGMA table_info` qui vérifie si la colonne existe déjà, ou supprimer la base avec l'accord de l'utilisateur. Changer une clé primaire ou une contrainte d'unicité demande de recréer la table et de recopier ses lignes, dans une transaction ouverte par un `BEGIN` explicite : Python n'en ouvre pas pour un `ALTER` ou un `CREATE`. La base en ligne (volume Fly.io) ne se migre que par ce biais. Il n'y a plus de migration dans le code : les deux précédentes (colonnes `deleted` et `user_id`) ont été retirées une fois toutes les bases à jour, et se retrouvent dans l'historique Git (`migration.py`). Une base antérieure à ces colonnes n'est plus lisible.
 - **Toute requête SQL doit filtrer sur `user_id`.** Chaque dépôt reçoit l'utilisateur à sa création (`JobRepository(DB_PATH, user_id)`) et ne lit ni ne modifie que ses lignes. Une requête écrite sans `user_id` montrerait les données d'un utilisateur à un autre : `tests/test_user_isolation.py` couvre chaque méthode publique, ajouter un cas pour toute nouvelle méthode. L'utilisateur vient de `current_user_id()` dans `app.py`, qui le passe aux fonctions d'affichage et au graph (`user_id` dans l'état, lu par `get_user_id` dans `node.py`). Tant qu'il n'y a pas de connexion, `current_user_id()` renvoie `DEFAULT_USER_ID` (1) : l'application reste mono-utilisateur.
 - **Le CV de l'utilisateur 1 n'est pas rangé comme les autres.** `cv_path(user_id)` de `config.py` renvoie `cv.pdf` pour l'utilisateur 1, son emplacement d'avant les comptes, et `cv/<identifiant>.pdf` pour les autres. Toujours passer par cette fonction.
 - **Les recherches par défaut ne vont qu'à l'utilisateur 1.** `DEFAULT_QUERIES` est calé sur le profil de l'auteur : un autre utilisateur part d'une liste vide.
@@ -53,7 +54,7 @@ Tout le code est dans `src/projet_recherche_emploi/`.
 - **Le tableau des offres n'a pas de `key`.** Le `st.data_editor` de `app.py` repart ainsi d'un état vierge dès que les données changent. Avec une clé, une coche en attente pourrait s'appliquer à la mauvaise ligne après un filtrage.
 - **Pousser sur `main` met en ligne.** Le workflow ne lance pas les tests et n'a aucune étape de validation : tout commit poussé sur `main` est déployé et redémarre l'instance, ce qui interrompt une recherche en cours. Ne pas pousser sans l'accord de l'utilisateur.
 - **Sur Fly.io, seul `/data` survit à un redémarrage.** Le reste du disque est remis à zéro, et le volume monté sur `/data` (section `[mounts]` de `fly.toml`) n'est pas partagé entre machines. Tout fichier à conserver doit passer par `DATA_DIR`, et l'application doit rester sur une seule machine.
-- **Rien ne s'affiche avant `authenticate()`.** Dans `main()` de `app.py`, tout rendu et tout accès aux dépôts viennent après ce contrôle, qui renvoie l'utilisateur de la session (connexion Google, ou mot de passe unique et utilisateur 1). Un nouvel élément d'interface placé avant serait visible sans connexion sur l'instance en ligne. Seule exception, voulue : `render_legal_page()`, qui affiche les textes de `legal/` (`?page=confidentialite`, `?page=conditions`) sans toucher aux dépôts, parce que Google exige que ces pages soient publiques.
+- **Rien ne s'affiche avant `authenticate()`.** Dans `main()` de `app.py`, tout rendu et tout accès aux dépôts viennent après ce contrôle, qui renvoie l'utilisateur de la session (connexion Google, ou mot de passe unique et utilisateur 1). Un nouvel élément d'interface placé avant serait visible sans connexion sur l'instance en ligne. Les seules pages publiques sont les routes HTML de `public_pages.py` (`/confidentialite`, `/conditions`, fichier de validation Google), qui ne touchent pas aux dépôts.
 - **Les textes de `legal/` décrivent le comportement réel.** Données enregistrées, envoi du CV à OpenAI, quota, absence de suppression de compte en libre-service : les mettre à jour quand l'un de ces points change.
 - **Sans `.streamlit/secrets.toml`, tout le monde est l'utilisateur 1.** La connexion Google n'est active que si ce fichier contient une section `[auth]`. S'il n'est pas généré en ligne, l'application retombe sur `APP_PASSWORD` et donne les données du propriétaire à qui le connaît : garder `APP_PASSWORD` défini sur Fly.io, et ne pas retirer l'appel à `auth_secrets` du `Dockerfile`.
 - **L'identifiant 1 est réservé au propriétaire.** `UserRepository` insère la ligne 1 sans adresse à la création de la table, pour qu'aucun invité ne reçoive cet identifiant et les données d'avant les comptes. Le propriétaire est reconnu par `OWNER_EMAIL`, pas par la table.

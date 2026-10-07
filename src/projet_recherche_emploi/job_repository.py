@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-from projet_recherche_emploi.migration import DEFAULT_USER_ID, add_user_id
+from projet_recherche_emploi.config import DEFAULT_USER_ID
 
 # La clé est le couple utilisateur + URL : la même offre peut être retenue pour plusieurs utilisateurs
 CREATE_JOBS_TABLE = f"""
@@ -103,12 +103,6 @@ class JobRepository:
 
     def _create_table(self, connection: sqlite3.Connection) -> None:
         connection.execute(CREATE_JOBS_TABLE)
-        # Migration : les bases créées avant la suppression d'offres n'ont pas la colonne deleted
-        existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(jobs)")}
-        if "deleted" not in existing_columns:
-            connection.execute("ALTER TABLE jobs ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
-        # Migration : les bases créées avant les comptes n'ont pas la colonne user_id
-        add_user_id(connection, "jobs", CREATE_JOBS_TABLE)
 
     def _insert_job(self, connection: sqlite3.Connection, job: dict) -> int:
         # Utilisateur + URL est la clé primaire : une offre déjà en base est ignorée

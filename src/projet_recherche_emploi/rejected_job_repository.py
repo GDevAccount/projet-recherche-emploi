@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-from projet_recherche_emploi.migration import DEFAULT_USER_ID, add_user_id
+from projet_recherche_emploi.config import DEFAULT_USER_ID
 
 # La clé est le couple utilisateur + URL : un rejet dépend du CV, donc de l'utilisateur
 CREATE_REJECTED_JOBS_TABLE = f"""
@@ -75,8 +75,6 @@ class RejectedJobRepository:
 
     def _create_table(self, connection: sqlite3.Connection) -> None:
         connection.execute(CREATE_REJECTED_JOBS_TABLE)
-        # Migration : les bases créées avant les comptes n'ont pas la colonne user_id
-        add_user_id(connection, "rejected_jobs", CREATE_REJECTED_JOBS_TABLE)
 
     def _insert_rejected_job(self, connection: sqlite3.Connection, job: dict) -> int:
         # Utilisateur + URL est la clé primaire : une page déjà rejetée est ignorée

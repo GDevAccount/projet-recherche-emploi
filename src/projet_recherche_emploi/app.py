@@ -1,7 +1,6 @@
 import hmac
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -20,10 +19,8 @@ load_dotenv()
 
 CONTRACT_TYPES = ["CDI", "freelance", "CDD", "alternance", "stage"]
 LOCAL_TIMEZONE = "Europe/Paris"
-# Pages publiques, demandées par Google pour l'écran de connexion : ?page=confidentialite, ?page=conditions
-LEGAL_PAGES = {"confidentialite": "Règles de confidentialité", "conditions": "Conditions d'utilisation"}
-LEGAL_DIR = Path(__file__).parent / "legal"
-LEGAL_LINKS = " · ".join(f"[{title}](?page={page})" for page, title in LEGAL_PAGES.items())
+# Pages publiques en HTML simple, servies par server.py
+LEGAL_LINKS = "[Règles de confidentialité](/confidentialite) · [Conditions d'utilisation](/conditions)"
 REJECT_NOT_AN_OFFER = "Pas une offre valable"
 REJECT_PROFILE_MISMATCH = "Hors profil"
 
@@ -41,19 +38,6 @@ def check_password() -> bool:
             st.rerun()
         st.error("Mot de passe incorrect")
     return False
-
-
-def render_legal_page() -> bool:
-    """Affiche la page légale demandée dans l'adresse, et renvoie faux s'il n'y en a pas."""
-    page = st.query_params.get("page")
-    if page not in LEGAL_PAGES:
-        return False
-
-    contact = os.environ.get("CONTACT_EMAIL", "").strip() or "adressez-vous à l'exploitant de l'application"
-    text = (LEGAL_DIR / f"{page}.md").read_text(encoding="utf-8")
-    st.markdown(text.replace("{contact}", contact).replace("{max_searches}", str(MAX_SEARCHES_PER_DAY)))
-    st.markdown("[Retour à l'application](?)")
-    return True
 
 
 def google_login_enabled() -> bool:
@@ -335,9 +319,6 @@ def render_rejected_jobs(user_id: int) -> None:
 
 def main() -> None:
     st.set_page_config(page_title="Recherche d'emploi", page_icon="💼", layout="wide")
-    # Seul contenu visible sans connexion : des textes publics, sans aucun accès aux données
-    if render_legal_page():
-        return
     st.title("Recherche d'emploi")
 
     user_id = authenticate()

@@ -1,40 +1,56 @@
-from pathlib import Path
-
 import pytest
-from streamlit.testing.v1 import AppTest
+from starlette.applications import Starlette
+from starlette.testclient import TestClient
 
-APP = str(Path(__file__).parents[1] / "src" / "projet_recherche_emploi" / "app.py")
+from projet_recherche_emploi.config import MAX_SEARCHES_PER_DAY
+from projet_recherche_emploi.public_pages import build_routes
+
+
+def client(environment: dict[str, str]) -> TestClient:
+    return TestClient(Starlette(routes=build_routes(environment)))
 
 
 @pytest.mark.parametrize(
-    ("page", "title"),
-    [("confidentialite", "Règles de confidentialité"), ("conditions", "Conditions d'utilisation")],
+    ("path", "title"),
+    [("/confidentialite", "Règles de confidentialité"), ("/conditions", "Conditions d'utilisation")],
 )
-def test_legal_page_is_public_and_shows_nothing_else(page, title, monkeypatch):
-    monkeypatch.setenv("CONTACT_EMAIL", "contact@exemple.fr")
-    # Un mot de passe est exigé : la page légale doit s'afficher sans le demander
-    monkeypatch.setenv("APP_PASSWORD", "secret")
-    at = AppTest.from_file(APP, default_timeout=30)
-    at.query_params["page"] = page
+def test_legal_page_is_plain_html_readable_without_javascript(path, title):
+    response = client({"CONTACT_EMAIL": "contact@exemple.fr"}).get(path)
 
-    at.run()
-
-    assert not at.exception
-    text = at.markdown[0].value
-    assert text.startswith(f"# {title}")
-    assert "contact@exemple.fr" in text
-    assert "{" not in text
-    # Aucun champ, bouton ni tableau : rien de l'application n'est accessible depuis cette page
-    assert len(at.text_input) == len(at.button) == len(at.dataframe) == len(at.metric) == 0
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert f"<h1>{title}</h1>" in response.text
+    assert "contact@exemple.fr" in response.text
+    assert "<script" not in response.text
+    # Aucun champ de remplacement oublié dans le texte
+    assert "{contact}" not in response.text and "{max_searches}" not in response.text
 
 
-def test_unknown_page_still_requires_the_password(monkeypatch):
-    monkeypatch.setenv("APP_PASSWORD", "secret")
-    at = AppTest.from_file(APP, default_timeout=30)
-    at.query_params["page"] = "autre"
+def test_conditions_state_the_real_quota_and_link_to_the_privacy_rules():
+    text = client({}).get("/conditions").text
 
-    at.run()
+    assert f"limité à {MAX_SEARCHES_PER_DAY} par jour" in text
+    assert 'href="/confidentialite"' in text
 
-    assert not at.exception
-    assert [field.label for field in at.text_input] == ["Mot de passe"]
-    assert len(at.button) == len(at.dataframe) == len(at.metric) == 0
+
+def test_privacy_rules_name_who_receives_the_data():
+    text = client({}).get("/confidentialite").text
+
+    for recipient in ("Google", "OpenAI", "Tavily", "Fly.io"):
+        assert recipient in text
+
+
+def test_verification_file_is_served_only_when_configured():
+    assert client({}).get("/google1a2b3c.html").status_code == 404
+
+    response = client({"GOOGLE_SITE_VERIFICATION_FILE": "google1a2b3c.html"}).get("/google1a2b3c.html")
+
+    assert response.status_code == 200
+    assert response.text == "google-site-verification: google1a2b3c.html"
+
+
+@pytest.mark.parametrize("name", ["../secret.html", "google.html", "googleXYZ.html", "google1a.html/x", "autre.html"])
+def test_unexpected_verification_file_names_are_ignored(name):
+    paths = [route.path for route in build_routes({"GOOGLE_SITE_VERIFICATION_FILE": name})]
+
+    assert paths == ["/confidentialite", "/conditions"]
