@@ -71,6 +71,18 @@ def test_other_addresses_are_refused_and_create_no_account(db_path, email, email
     assert [user["email"] for user in UserRepository(db_path).list_users()] == [None]
 
 
+def test_star_opens_the_application_to_any_verified_google_account(db_path, monkeypatch):
+    monkeypatch.setenv("ALLOWED_EMAILS", "*")
+
+    stranger = resolve_user_id(db_path, "inconnu@exemple.fr", True)
+
+    assert stranger not in (None, DEFAULT_USER_ID)
+    assert resolve_user_id(db_path, "inconnu@exemple.fr", True) == stranger
+    assert resolve_user_id(db_path, "proprietaire@exemple.fr", True) == DEFAULT_USER_ID
+    # Une adresse que Google n'a pas vérifiée reste refusée
+    assert resolve_user_id(db_path, "autre@exemple.fr", False) is None
+
+
 def test_removed_guest_is_refused(db_path, monkeypatch):
     assert resolve_user_id(db_path, "alice@exemple.fr", True) is not None
 

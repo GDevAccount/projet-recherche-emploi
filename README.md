@@ -128,6 +128,7 @@ Par défaut, l'application sert une seule personne, protégée par `APP_PASSWORD
 - **Le propriétaire** (`OWNER_EMAIL`) retrouve les données existantes et n'a pas de limite de recherches.
 - **Les invités** (`ALLOWED_EMAILS`) partent d'un compte vide et ont droit à 2 recherches par jour (le compteur repart à minuit, heure de Paris). Toutes les recherches sont facturées sur les clés API du propriétaire.
 - **Toute autre adresse** est refusée, même connectée à Google.
+- **Ouverture à tous** : avec `ALLOWED_EMAILS=*`, tout compte Google peut se connecter et reçoit un compte d'invité. Chaque nouvel inscrit peut alors lancer 2 recherches par jour sur vos clés API : fixer d'abord un plafond de dépense chez Tavily et OpenAI.
 
 Quand la connexion Google est active, `APP_PASSWORD` n'est plus demandé.
 
@@ -140,6 +141,13 @@ Dans la [console Google Cloud](https://console.cloud.google.com/apis/credentials
 
 Google fournit alors un identifiant client et un code secret. Tant que l'écran de consentement est en mode « Test », seules les adresses ajoutées comme utilisateurs de test peuvent se connecter.
 
+Pour passer en mode « En production », Google demande deux liens, que l'application sert sans connexion :
+
+- règles de confidentialité : `https://projet-recherche-emploi.fly.dev/?page=confidentialite`
+- conditions d'utilisation : `https://projet-recherche-emploi.fly.dev/?page=conditions`
+
+Leurs textes sont dans `src/projet_recherche_emploi/legal/`. Ils décrivent ce que fait l'application telle qu'elle est : les relire, et les tenir à jour si elle change. Même en production, seules les adresses de `OWNER_EMAIL` et `ALLOWED_EMAILS` accèdent à l'application, sauf si `ALLOWED_EMAILS` vaut `*`.
+
 ### 2. Renseigner les variables
 
 | Variable | Valeur |
@@ -149,7 +157,8 @@ Google fournit alors un identifiant client et un code secret. Tant que l'écran 
 | `AUTH_COOKIE_SECRET` | Chaîne aléatoire longue, qui signe le cookie de session (`python -c "import secrets; print(secrets.token_hex(32))"`) |
 | `AUTH_REDIRECT_URI` | L'URI de redirection déclaré à l'étape 1, pour cette instance |
 | `OWNER_EMAIL` | Adresse Google du propriétaire |
-| `ALLOWED_EMAILS` | Adresses des invités, séparées par des virgules (peut être vide) |
+| `ALLOWED_EMAILS` | Adresses des invités, séparées par des virgules (peut être vide), ou `*` pour accepter tout compte Google |
+| `CONTACT_EMAIL` | Adresse de contact affichée sur les deux pages publiques (facultatif, mais attendu par le RGPD) |
 
 Les cinq premières vont ensemble : s'il en manque une, l'application refuse de démarrer plutôt que de s'ouvrir sans la connexion attendue.
 
@@ -296,6 +305,7 @@ src/projet_recherche_emploi/
 ├── config.py            # réglages (chemins, modèle, recherches par défaut)
 ├── migration.py         # mise à niveau des bases créées avant la colonne user_id
 ├── cv_reader.py         # lecture et enregistrement du CV en PDF
+├── legal/               # textes des règles de confidentialité et des conditions d'utilisation
 ├── auth.py              # adresse Google -> utilisateur, selon OWNER_EMAIL et ALLOWED_EMAILS
 ├── auth_secrets.py      # écrit la configuration de connexion Google de Streamlit
 ├── user_repository.py   # table des comptes

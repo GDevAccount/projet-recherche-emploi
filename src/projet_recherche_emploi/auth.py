@@ -4,9 +4,12 @@ from pathlib import Path
 from projet_recherche_emploi.config import DEFAULT_USER_ID
 from projet_recherche_emploi.user_repository import UserRepository
 
+# Valeur de ALLOWED_EMAILS qui ouvre l'application à tout compte Google
+EVERYONE = "*"
+
 
 def resolve_user_id(db_path: str | Path, email: str | None, email_verified: bool | None) -> int | None:
-    """Renvoie l'utilisateur lié à cette adresse Google, ou None si elle n'est pas invitée."""
+    """Renvoie l'utilisateur lié à cette adresse Google, ou None si elle n'est pas autorisée."""
     owner_email = _normalize(os.environ.get("OWNER_EMAIL"))
     if not owner_email:
         # Sans propriétaire, personne ne pourrait retrouver les données de l'utilisateur par défaut
@@ -19,7 +22,8 @@ def resolve_user_id(db_path: str | Path, email: str | None, email_verified: bool
 
     if email == owner_email:
         return DEFAULT_USER_ID
-    if email not in _allowed_emails():
+    allowed_emails = _allowed_emails()
+    if EVERYONE not in allowed_emails and email not in allowed_emails:
         return None
     return UserRepository(db_path).get_or_create_user_id(email)
 
