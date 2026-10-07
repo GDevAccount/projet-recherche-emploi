@@ -16,6 +16,18 @@ class RejectedJobRepository:
         finally:
             connection.close()
 
+    def list_rejected_jobs(self) -> list[dict]:
+        """Renvoie toutes les pages rejetées, les plus récentes en premier."""
+        connection = sqlite3.connect(self.db_path)
+        connection.row_factory = sqlite3.Row
+        try:
+            with connection:
+                self._create_table(connection)
+                rows = connection.execute("SELECT * FROM rejected_jobs ORDER BY created_at DESC").fetchall()
+                return [dict(row) for row in rows]
+        finally:
+            connection.close()
+
     def list_known_urls(self) -> set[str]:
         """Renvoie les URL de toutes les pages déjà rejetées."""
         connection = sqlite3.connect(self.db_path)

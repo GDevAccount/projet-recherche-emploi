@@ -17,6 +17,8 @@ load_dotenv()
 
 CONTRACT_TYPES = ["CDI", "freelance", "CDD", "alternance", "stage"]
 LOCAL_TIMEZONE = "Europe/Paris"
+REJECT_NOT_AN_OFFER = "Pas une offre valable"
+REJECT_PROFILE_MISMATCH = "Hors profil"
 
 
 def check_password() -> bool:
@@ -194,6 +196,59 @@ def render_jobs() -> None:
         st.rerun()
 
 
+def render_rejected_jobs() -> None:
+    rejected_jobs = RejectedJobRepository(DB_PATH).list_rejected_jobs()
+    if not rejected_jobs:
+        st.info("Aucune page rejetée en base pour l'instant.")
+        return
+
+    table = pd.DataFrame(rejected_jobs)
+    table["created_at"] = to_local_time(table["created_at"])
+    # Une page qui n'est pas une offre n'a pas de profil à comparer : ce motif passe en premier
+    table["motive"] = REJECT_NOT_AN_OFFER
+    table.loc[table["is_real_offer"] == 1, "motive"] = REJECT_PROFILE_MISMATCH
+
+    not_an_offer_count = int((table["motive"] == REJECT_NOT_AN_OFFER).sum())
+    total_column, offer_column, profile_column = st.columns(3)
+    total_column.metric("Pages rejetées", len(table))
+    offer_column.metric(REJECT_NOT_AN_OFFER, not_an_offer_count)
+    profile_column.metric(REJECT_PROFILE_MISMATCH, len(table) - not_an_offer_count)
+    st.caption(
+        f"« {REJECT_NOT_AN_OFFER} » regroupe les listes d'offres, les articles, les offres expirées "
+        "et les offres hors région parisienne : la colonne « Raison du rejet » précise le cas."
+    )
+
+    motive_column, query_column = st.columns(2)
+    motives = sorted(table["motive"].unique())
+    selected_motives = motive_column.multiselect("Motif", motives, default=motives)
+    queries = sorted(table["query"].dropna().unique())
+    selected_queries = query_column.multiselect("Recherche d'origine", queries, default=queries)
+    search_text = st.text_input(
+        "Rechercher", placeholder="Site, mot-clé de la raison…", key="rejected_search"
+    ).strip()
+
+    visible = table[table["motive"].isin(selected_motives) & table["query"].isin(selected_queries)]
+    if search_text:
+        searched = visible["title"] + " " + visible["url"] + " " + visible["reject_reason"].fillna("")
+        visible = visible[searched.str.contains(search_text, case=False, regex=False)]
+        st.caption(f"{len(visible)} page(s) pour « {search_text} »")
+
+    st.dataframe(
+        visible[["motive", "title", "url", "reject_reason", "contract_type", "query", "created_at"]],
+        column_config={
+            "motive": st.column_config.TextColumn("Motif"),
+            "title": st.column_config.TextColumn("Page", width="large"),
+            "url": st.column_config.LinkColumn("Lien", display_text="Ouvrir"),
+            "reject_reason": st.column_config.TextColumn("Raison du rejet", width="large"),
+            "contract_type": st.column_config.TextColumn("Contrat"),
+            "query": st.column_config.TextColumn("Recherche d'origine"),
+            "created_at": st.column_config.DatetimeColumn("Rejetée le", format="DD/MM/YYYY HH:mm"),
+        },
+        hide_index=True,
+        width="stretch",
+    )
+
+
 def main() -> None:
     st.set_page_config(page_title="Recherche d'emploi", page_icon="💼", layout="wide")
     st.title("Recherche d'emploi")
@@ -211,7 +266,11 @@ def main() -> None:
     if not (has_cv and has_queries):
         st.caption("Il faut un CV et au moins une recherche enregistrée pour lancer une recherche.")
 
-    render_jobs()
+    jobs_tab, rejected_tab = st.tabs(["Offres retenues", "Pages rejetées"])
+    with jobs_tab:
+        render_jobs()
+    with rejected_tab:
+        render_rejected_jobs()
 
 
 main()

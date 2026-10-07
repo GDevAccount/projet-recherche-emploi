@@ -46,8 +46,10 @@ La commande doit être lancée depuis la racine : `cv.pdf`, `jobs.db` et `graph.
 1. **Déposer son CV.** Dans la barre latérale, choisir un PDF puis cliquer sur « Enregistrer ce CV ». Il est enregistré à la racine sous le nom `cv.pdf` et remplace le précédent. Les pages rejetées avec l'ancien CV sont alors oubliées : elles seront réévaluées à la prochaine recherche.
 2. **Choisir les postes recherchés.** La barre latérale liste les recherches enregistrées. Chacune associe un type de contrat à une phrase de recherche, par exemple « offre d'emploi data engineer en CDI à Lyon ». Le formulaire en ajoute une, le bouton ✕ en supprime une. Elles sont conservées en base d'une session à l'autre.
 3. **Lancer une recherche.** Le bouton « Lancer une recherche » est actif dès qu'un CV et au moins une recherche sont enregistrés. Une barre de progression suit les recherches Tavily puis les évaluations par OpenAI, ce qui peut prendre quelques minutes. La page indique ensuite le nombre de pages trouvées, de pages pas encore évaluées, d'offres retenues, de pages rejetées et de nouvelles offres en base.
-4. **Suivre ses candidatures.** Le tableau liste les offres, de la plus récente à la plus ancienne, avec un lien vers l'annonce et la raison pour laquelle elle a été retenue. Cocher « Postulé » enregistre la candidature et sa date. Au-dessus du tableau, un filtre par type de contrat, un champ de recherche (sur le titre de l'offre et la raison donnée par le modèle, par exemple pour retrouver une entreprise) et un interrupteur masquant les offres déjà postulées sont disponibles.
+4. **Suivre ses candidatures.** L'onglet « Offres retenues » liste les offres, de la plus récente à la plus ancienne, avec un lien vers l'annonce et la raison pour laquelle elle a été retenue. Cocher « Postulé » enregistre la candidature et sa date. Au-dessus du tableau, un filtre par type de contrat, un champ de recherche (sur le titre de l'offre et la raison donnée par le modèle, par exemple pour retrouver une entreprise) et un interrupteur masquant les offres déjà postulées sont disponibles.
 5. **Supprimer une offre.** Cocher « Supprimer » sur une ou plusieurs lignes, puis cliquer sur le bouton « Supprimer N offre(s) » qui apparaît sous le tableau. Une offre supprimée ne revient pas aux recherches suivantes.
+
+6. **Comprendre les rejets.** L'onglet « Pages rejetées » liste les pages écartées par le modèle, avec la raison donnée. Chaque page est classée « Pas une offre valable » (liste d'offres, article, offre expirée ou hors région parisienne) ou « Hors profil » (vraie offre, mais qui ne correspond pas au CV). Des filtres par motif et par recherche d'origine, et un champ de recherche, aident à repérer ce qui fait perdre des offres.
 
 Chaque recherche consomme des crédits Tavily (une recherche avancée par poste recherché) et OpenAI (un appel par résultat qui n'a pas déjà été évalué, jusqu'à 20 par poste recherché).
 
@@ -161,7 +163,7 @@ Table `jobs`, les offres retenues :
 | `created_at` | Date d'insertion (UTC) |
 | `deleted` | `1` si vous avez supprimé l'offre : elle n'est plus affichée, mais sa ligne reste pour qu'elle ne soit pas réinsérée |
 
-Table `rejected_jobs`, les pages rejetées par le modèle. Elle n'est pas affichée : elle sert à ne pas payer une nouvelle évaluation pour une page déjà rejetée. Elle est vidée quand un nouveau CV est enregistré.
+Table `rejected_jobs`, les pages rejetées par le modèle. Elle sert à ne pas payer une nouvelle évaluation pour une page déjà rejetée. Elle est vidée quand un nouveau CV est enregistré.
 
 | Colonne | Contenu |
 |---|---|
@@ -216,6 +218,6 @@ src/projet_recherche_emploi/
 ├── config.py            # réglages (chemins, modèle, recherches par défaut)
 ├── cv_reader.py         # lecture et enregistrement du CV en PDF
 ├── job_repository.py           # table des offres : insertion, lecture, suivi des candidatures, suppression
-├── rejected_job_repository.py  # table des pages rejetées : insertion, lecture des URL, vidage
+├── rejected_job_repository.py  # table des pages rejetées : insertion, lecture, vidage
 └── query_repository.py         # table des postes recherchés : lecture, ajout, suppression
 ```
