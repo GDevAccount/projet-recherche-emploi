@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Agent de recherche d'emploi : un graph LangGraph cherche des offres avec Tavily, les filtre avec un modèle OpenAI selon le CV, et les stocke en SQLite. Une interface Streamlit pilote le tout, et une API FastAPI expose les mêmes services pour le futur front Angular. Le README décrit l'usage ; ce fichier ne couvre que ce qu'il faut savoir pour modifier le code.
+Agent de recherche d'emploi : un graph LangGraph cherche des offres avec Tavily, les filtre avec un modèle OpenAI selon le CV, et les stocke en SQLite. Une interface Streamlit pilote le tout, et une API FastAPI expose les mêmes services pour le front Angular (`frontend/`), en cours d'écriture, qui la remplacera. Le README décrit l'usage ; ce fichier ne couvre que ce qu'il faut savoir pour modifier le code.
 
 ## Commandes
 
@@ -22,13 +22,23 @@ uv run ruff check .                                       # linter
 uv run alembic revision --autogenerate -m "..." --rev-id 0004   # écrire une migration (voir Pièges)
 ```
 
+Le front se pilote depuis `frontend/` (Node 22.22.3 ou plus récent) :
+
+```bash
+npm ci                                                    # installer les dépendances
+npm start                                                 # http://localhost:4200/frontend/, /api relayé vers l'API seule (port 8000)
+npm test -- --watch=false                                 # tests (Vitest)
+npm run lint                                              # linter
+npm run build                                             # build, servi ensuite par le serveur Python sous /frontend
+```
+
 Les tests (`tests/`) couvrent le schéma et les migrations, le cloisonnement entre utilisateurs, les services, le graph avec de faux Tavily et OpenAI, l'API, le sens des imports entre couches (`test_architecture.py`), et le chargement de l'interface (`test_ui.py`, sans le détail des écrans). Ils construisent leur application avec `build_container()` (fixtures de `tests/conftest.py`).
 
 Les clés `TAVILY_API_KEY` et `OPENAI_API_KEY` sont lues dans `.env` (modèle : `.env.example`), chargé par `load_dotenv()` dans les points d'entrée (`cli.py`, `ui/app.py`, `ui/server.py`, `ui/auth_secrets.py`, `create_app()` de `api/main.py`). Ne jamais afficher ni committer le contenu de `.env`.
 
 Les autres variables sont les champs de `Settings` (`config.py`), tous facultatifs : `DATA_DIR` déplace `jobs.db` et `cv.pdf` vers un volume (voir `Dockerfile`), `APP_PASSWORD` active la demande de mot de passe. Comme `.env.example` contient `APP_PASSWORD`, l'interface locale demande aussi le mot de passe, sauf si la ligne est vide ou absente. `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_COOKIE_SECRET`, `AUTH_REDIRECT_URI` et `OWNER_EMAIL` activent ensemble la connexion Google, `ALLOWED_EMAILS` liste les invités, ou vaut `*` pour accepter tout compte Google (voir le README). `CORS_ORIGINS` liste les sites autorisés à appeler l'API depuis un navigateur. `AUTH_COOKIE_SECRET` signe aussi le cookie de session de l'API, même sans connexion Google.
 
-L'instance en ligne tourne sur Fly.io (`fly.toml`) et sert, dans un seul processus et à une seule adresse, l'interface Streamlit et l'API sous `/api`. Elle est publiée automatiquement à chaque push sur `main` par `.github/workflows/fly-deploy.yml`, après le linter et les tests ; `fly deploy` reste possible à la main, sans ce contrôle. Les clés API et `APP_PASSWORD` y sont des secrets Fly, pas un `.env`. Le jeton utilisé par le workflow est le secret GitHub `FLY_API_TOKEN`.
+L'instance en ligne tourne sur Fly.io (`fly.toml`) et sert, dans un seul processus et à une seule adresse, l'interface Streamlit, l'API sous `/api` et le front Angular sous `/frontend`. Elle est publiée automatiquement à chaque push sur `main` par `.github/workflows/fly-deploy.yml`, après le linter et les tests des deux côtés et le build du front ; `fly deploy` reste possible à la main, sans ce contrôle. Les clés API et `APP_PASSWORD` y sont des secrets Fly, pas un `.env`. Le jeton utilisé par le workflow est le secret GitHub `FLY_API_TOKEN`.
 
 ## Architecture
 
@@ -51,7 +61,7 @@ ui/   api/   cli.py        interfaces : aucune règle métier
   - `server.py` est le point d'entrée lancé par `streamlit run` : il enveloppe `app.py` dans un `st.App` et y ajoute l'API (`ApiRoute` de `api/main.py`) et les routes de `api/public_pages.py`. Lancer `app.py` directement fonctionne encore, mais sans ces routes.
   - `auth.py` identifie l'utilisateur de la session, `views.py` contient les écrans.
   - `auth_secrets.py` écrit `.streamlit/secrets.toml` à partir des réglages ; il est lancé avant Streamlit par le `Dockerfile`.
-- `api/` est l'API FastAPI, seule couche autorisée à importer `fastapi`. `main.py` construit l'application (`create_app`) et traduit les erreurs en codes HTTP, `security.py` identifie l'appelant, `routers/` contient les routes, toutes sous `/api`. `public_pages.py` sert les pages légales en HTML simple, parce que les robots de Google ne lisent pas une page qui demande du JavaScript.
+- `api/` est l'API FastAPI, seule couche autorisée à importer `fastapi`. `main.py` construit l'application (`create_app`) et traduit les erreurs en codes HTTP, `security.py` identifie l'appelant, `routers/` contient les routes, toutes sous `/api`. `public_pages.py` sert les pages légales en HTML simple, parce que les robots de Google ne lisent pas une page qui demande du JavaScript. `frontend.py` sert les fichiers du front construit.
 - `services/` porte les règles métier, dans une classe par domaine : `AuthService` (quel utilisateur pour une adresse Google, mot de passe de l'instance), `SearchService` (conditions préalables, quota, lancement du graph), `CvService` (enregistre un CV et oublie les rejets de l'ancien), `JobService` et `QueryService` (offres, pages rejetées, postes recherchés). Les interfaces ne passent que par eux.
 - `agent/` est la recherche LangGraph. `graph.py` construit le graph : `searchJobs` → `FilterDuplicates` → `FilterJobs` → `InsertJobs`. Les quatre nœuds sont les méthodes de `SearchNodes` (`nodes.py`), l'état partagé est dans `state.py`, le prompt du filtre dans `prompts.py`. `ports.py` décrit ce que le graph attend de l'extérieur (un moteur de recherche, un évaluateur) et `adapters.py` en donne les versions réelles, Tavily et OpenAI.
 - `data/` regroupe les seuls accès à SQLite et aux fichiers, avec SQLAlchemy. `models.py` décrit les tables, `database.py` ouvre les sessions et applique les migrations de `migrations/` (Alembic). `job_repository.py`, `rejected_job_repository.py`, `query_repository.py`, `user_repository.py` et `search_run_repository.py` servent respectivement les tables `jobs`, `rejected_jobs`, `search_queries`, `users` et `search_runs`. `cv_storage.py` lit et enregistre les CV.
@@ -59,6 +69,8 @@ ui/   api/   cli.py        interfaces : aucune règle métier
 - `errors.py` définit les erreurs destinées à l'utilisateur.
 - `config.py` regroupe les réglages : `Settings` pour les variables d'environnement, des constantes pour le reste (modèle, sites, quota, recherches par défaut).
 - `cli.py` est la commande `projet-recherche-emploi`.
+
+Le front Angular est hors de ce paquet, dans `frontend/` : composants autonomes en `OnPush`, état en signaux, dépendances par `inject()`, composants PrimeNG. Il ne connaît que l'API.
 
 ## Pièges
 
@@ -71,10 +83,13 @@ ui/   api/   cli.py        interfaces : aucune règle métier
 - **Les colonnes gardent les types d'avant SQLAlchemy.** Les dates sont du texte UTC au format de `CURRENT_TIMESTAMP`, les booléens des entiers : `UtcDateTime` et `IntBool` de `models.py` font la conversion. Utiliser ces deux types pour toute nouvelle colonne de date ou de booléen, sinon les comparaisons de dates en texte ne tiennent plus.
 - **Toute requête SQL doit filtrer sur `user_id`.** Chaque dépôt reçoit la session et l'utilisateur à sa création (`JobRepository(session, user_id)`) et ne lit ni ne modifie que ses lignes. Une requête écrite sans `user_id` montrerait les données d'un utilisateur à un autre : `tests/test_user_isolation.py` couvre chaque méthode publique, ajouter un cas pour toute nouvelle méthode. Seul `UserRepository` n'a pas d'utilisateur. Sans connexion Google, l'utilisateur est `DEFAULT_USER_ID` (1) : l'application reste mono-utilisateur.
 - **L'API en ligne est servie par Streamlit.** `ui/server.py` construit l'API avec `create_app()` et la confie au serveur de Streamlit par `ApiRoute`, qui ne laisse passer que les chemins sous `/api` : la documentation (`/docs`) n'est donc pas exposée en ligne. L'interface et l'API partagent le même conteneur, donc les mêmes réglages et la même base. Ne pas les séparer en deux processus ou deux machines tant que la base est un fichier SQLite. Les middlewares de Streamlit s'appliquent aussi aux requêtes de l'API.
+- **Le chemin du front est écrit à deux endroits.** `baseHref` dans `frontend/angular.json` et `FRONTEND_PATH` dans `api/frontend.py` valent tous deux `/frontend` tant que Streamlit occupe la racine : les changer ensemble. Sans build (`frontend/dist/`, ou `FRONTEND_DIR`), la route n'existe pas, ce qui est le cas des tests.
+- **Les fichiers du front sont publics.** Ils sont servis sans connexion : ne rien y mettre de secret, ni dans `environment.ts`. Ce sont les routes de l'API qui protègent les données.
+- **Le front ne décide rien.** Un calcul dont un écran a besoin s'écrit dans un service Python, et l'API le renvoie. L'adresse de l'API vient de `environment.apiUrl`, jamais d'une chaîne en dur : en local comme en ligne, elle vaut `/api`, et c'est `proxy.conf.json` qui relaie vers le port 8000 avec `npm start`.
 - **Toute route de l'API passe par `UserId`.** C'est la dépendance de `api/security.py` qui identifie l'appelant ; une route sans elle serait ouverte à tous. `test_api.py` liste les routes protégées et échoue si une route n'y figure pas. Sans connexion Google ni `APP_PASSWORD`, l'API refuse tout (503) : ne pas lui donner d'accès par défaut à l'utilisateur 1.
 - **Le cookie de session de l'API porte une adresse, pas un utilisateur.** `POST /api/session` échange un jeton Google (ou `APP_PASSWORD`) contre un jeton signé par `AuthService` avec `AUTH_COOKIE_SECRET`, posé dans un cookie `HttpOnly`. Chaque requête repasse par `resolve_user_id` : ne pas y mettre l'identifiant de l'utilisateur, sinon un invité retiré de `ALLOWED_EMAILS` garderait son accès 30 jours. Une session ne s'ouvre qu'avec l'en-tête `Authorization`, jamais avec un cookie, pour qu'un cookie volé ne puisse pas se prolonger.
 - **Une route qui modifie des données n'utilise pas `GET`.** Avec le cookie, `_check_origin` de `api/security.py` refuse les requêtes venues d'un autre site, sauf pour `GET`, `HEAD` et `OPTIONS`, supposées sans effet.
-- **Rien ne s'affiche avant `authenticate()`.** Dans `main()` de `ui/app.py`, tout rendu vient après ce contrôle, qui renvoie l'utilisateur de la session (connexion Google, ou mot de passe unique et utilisateur 1). Un nouvel élément d'interface placé avant serait visible sans connexion sur l'instance en ligne. Les seules pages publiques sont les routes HTML de `api/public_pages.py` (`/confidentialite`, `/conditions`, fichier de validation Google), qui ne touchent pas aux dépôts.
+- **Rien ne s'affiche avant `authenticate()`.** Dans `main()` de `ui/app.py`, tout rendu vient après ce contrôle, qui renvoie l'utilisateur de la session (connexion Google, ou mot de passe unique et utilisateur 1). Un nouvel élément d'interface placé avant serait visible sans connexion sur l'instance en ligne. Les seules pages publiques sont les routes HTML de `api/public_pages.py` (`/confidentialite`, `/conditions`, fichier de validation Google) et les fichiers du front (`api/frontend.py`), qui ne touchent pas aux dépôts.
 - **Un objet lu en base ne sort pas de sa session.** Un service convertit les lignes en schémas Pydantic (`JobRead.model_validate(...)`) avant de fermer la session. Les interfaces ne voient jamais un modèle SQLAlchemy.
 - **Le CV de l'utilisateur 1 n'est pas rangé comme les autres.** `CvStorage.path_for(user_id)` renvoie `cv.pdf` pour l'utilisateur 1, son emplacement d'avant les comptes, et `cv/<identifiant>.pdf` pour les autres. Toujours passer par `CvStorage`.
 - **Les recherches par défaut ne vont qu'à l'utilisateur 1, une seule fois.** `DEFAULT_QUERIES`, calé sur le profil de l'auteur, est écrit en base par la première migration, à la création de la table `search_queries`. C'est voulu : une recherche supprimée par l'utilisateur ne doit pas revenir, et un autre utilisateur part d'une liste vide.

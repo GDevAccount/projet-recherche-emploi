@@ -5,4 +5,9 @@
 !.python-version
 !README.md
 !src
+!frontend
 **/__pycache__
+# Le front est reconstruit dans l'image
+frontend/node_modules
+frontend/dist
+frontend/.angular

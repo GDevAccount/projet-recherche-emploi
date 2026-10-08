@@ -1,3 +1,13 @@
+# Le front Angular est construit à part : l'image finale ne contient ni Node ni node_modules
+FROM node:22-slim AS frontend
+
+WORKDIR /frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend ./
+RUN npm run build
+
 FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
 
 WORKDIR /app
@@ -5,6 +15,9 @@ WORKDIR /app
 COPY pyproject.toml uv.lock .python-version README.md ./
 COPY src ./src
 RUN uv sync --frozen --no-dev
+
+# Emplacement par défaut de FRONTEND_DIR (config.py)
+COPY --from=frontend /frontend/dist ./frontend/dist
 
 # Base SQLite et CV : monter un volume persistant sur ce dossier
 ENV DATA_DIR=/data

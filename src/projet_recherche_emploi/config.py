@@ -94,6 +94,9 @@ class Settings(BaseSettings):
     # Dossier de la base et des CV : le dossier courant en local, un volume persistant une fois hébergé
     data_dir: Path = Path(".")
 
+    # Build du front Angular (npm run build dans frontend/). Absent : le front n'est pas servi
+    frontend_dir: Path = Path("frontend/dist/frontend/browser")
+
     app_password: str = Field(default="", repr=False)
 
     google_client_id: str = ""

@@ -16,9 +16,27 @@ jobs:
       # Les tests n'appellent ni Tavily ni OpenAI : aucune clé n'est nécessaire
       - run: uv run pytest
 
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test -- --watch=false
+      # L'image Docker refait ce build : s'il échoue ici, rien n'est mis en ligne
+      - run: npm run build
+
   deploy:
     # Rien n'est mis en ligne si un test échoue, et une pull request n'est jamais déployée
-    needs: test
+    needs: [test, frontend]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     # Un seul déploiement à la fois : l'application tourne sur une seule machine.

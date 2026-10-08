@@ -74,7 +74,7 @@ La même commande a d'autres usages :
 
 ## API
 
-Une API [FastAPI](https://fastapi.tiangolo.com/) expose les mêmes fonctions que l'interface. Elle est destinée au futur front Angular, qui remplacera Streamlit.
+Une API [FastAPI](https://fastapi.tiangolo.com/) expose les mêmes fonctions que l'interface. Elle est destinée au [front Angular](#front-angular), qui remplacera Streamlit.
 
 Elle est servie de deux façons :
 
@@ -117,6 +117,27 @@ Un navigateur ne peut appeler l'API depuis un autre site que si son origine figu
 
 Les erreurs ont la forme `{"detail": "message en français"}`, avec le code 422 (demande refusée), 404 (élément inconnu), 409 (doublon), 429 (quota atteint) ou 503 (instance mal réglée).
 
+## Front Angular
+
+Un front [Angular](https://angular.dev/) 22, avec les composants [PrimeNG](https://primeng.org/), remplacera l'interface Streamlit. Il est dans `frontend/` et n'appelle que l'API. Tant qu'il ne couvre pas tous les écrans, Streamlit reste à la racine du site et le front est servi sous `/frontend` : <https://projet-recherche-emploi.fly.dev/frontend/>. Pour l'instant, il n'affiche qu'une page qui vérifie que l'API répond.
+
+Il demande [Node.js](https://nodejs.org/) 22.22.3 ou plus récent.
+
+```bash
+cd frontend
+npm ci                 # installer les dépendances
+npm start              # serveur de développement : http://localhost:4200/frontend/
+npm test               # tests (Vitest)
+npm run lint           # linter (ESLint)
+npm run build          # build de production, dans frontend/dist/
+```
+
+`npm start` relaie les appels à `/api` vers `http://127.0.0.1:8000` (`proxy.conf.json`) : lancer l'API à côté avec `uv run projet-recherche-emploi api`. Le navigateur ne voit ainsi qu'une seule adresse, comme en ligne, et `CORS_ORIGINS` reste inutile.
+
+Une fois le front construit par `npm run build`, le serveur Python le sert lui-même sous `/frontend`, avec l'interface Streamlit comme avec l'API seule. L'image Docker fait ce build dans une première étape : elle ne contient ni Node ni `node_modules`.
+
+L'adresse de l'API est dans `frontend/src/environments/` (`apiUrl`, par défaut `/api`), jamais dans le code. Pour héberger le front ailleurs, y mettre l'adresse complète de l'API et déclarer l'adresse du front dans `CORS_ORIGINS`.
+
 ## Héberger l'application pour quelqu'un d'autre
 
 Pour qu'une personne l'utilise sans rien installer, l'application peut tourner sur un serveur : elle l'ouvre dans son navigateur, et les clés API restent sur le serveur. Une instance sert une seule personne (un CV, une base).
@@ -154,7 +175,7 @@ fly volumes create data --region cdg --size 1    # volume monté sur /data (CV e
 fly secrets set TAVILY_API_KEY=... OPENAI_API_KEY=... APP_PASSWORD=...
 ```
 
-Une nouvelle version est publiée automatiquement à chaque push sur la branche `main`, par le workflow GitHub Actions `.github/workflows/fly-deploy.yml`. Il lance d'abord le linter et les tests : s'ils échouent, rien n'est publié. Il les lance aussi sur chaque pull request, sans rien publier. Le déroulement se suit dans l'onglet **Actions** du dépôt. L'instance redémarre à chaque déploiement : le volume `/data` est conservé, mais une recherche en cours est interrompue.
+Une nouvelle version est publiée automatiquement à chaque push sur la branche `main`, par le workflow GitHub Actions `.github/workflows/fly-deploy.yml`. Il lance d'abord le linter et les tests, côté Python et côté front, puis le build du front : si l'un échoue, rien n'est publié. Il les lance aussi sur chaque pull request, sans rien publier. Le déroulement se suit dans l'onglet **Actions** du dépôt. L'instance redémarre à chaque déploiement : le volume `/data` est conservé, mais une recherche en cours est interrompue.
 
 Ce workflow a besoin d'un jeton Fly.io, enregistré une seule fois comme secret `FLY_API_TOKEN` du dépôt GitHub :
 
@@ -352,6 +373,7 @@ Les postes recherchés et le CV se règlent dans l'interface. Le reste se règle
 | Dossier de la base et du CV (`DATA_DIR`) | variable d'environnement | dossier courant |
 | Nom de la base (`DB_FILE_NAME`) | `src/projet_recherche_emploi/config.py` | `jobs.db` |
 | Emplacement du CV (`CvStorage.path_for`) | `src/projet_recherche_emploi/data/cv_storage.py` | `cv.pdf` pour l'utilisateur 1, `cv/<identifiant>.pdf` pour les autres |
+| Dossier du front Angular construit (`FRONTEND_DIR`) | variable d'environnement | `frontend/dist/frontend/browser` |
 | Mot de passe de l'interface (`APP_PASSWORD`) | variable d'environnement | aucun |
 | Connexion Google (`GOOGLE_CLIENT_ID`, `OWNER_EMAIL`, `ALLOWED_EMAILS`…) | variables d'environnement | désactivée |
 | Recherches par jour pour un invité (`MAX_SEARCHES_PER_DAY`) | `src/projet_recherche_emploi/config.py` | `2` |
@@ -376,6 +398,8 @@ Après une modification de `FILTER_PROMPT`, les pages déjà rejetées ne sont p
 uv run pytest          # tests
 uv run ruff check .    # linter
 ```
+
+Ceux du front se lancent à part, depuis `frontend/` (voir [Front Angular](#front-angular)).
 
 Les tests tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI. Ils vérifient notamment que :
 
@@ -409,6 +433,7 @@ src/projet_recherche_emploi/
 │   ├── security.py      # identification de l'appelant (jeton Google ou mot de passe)
 │   ├── routers/         # routes : compte, offres, postes recherchés, CV, recherche
 │   ├── public_pages.py  # pages HTML servies sans connexion (textes légaux, validation Google)
+│   ├── frontend.py      # fichiers du front Angular, servis sous /frontend
 │   └── legal/           # textes des règles de confidentialité et des conditions d'utilisation
 ├── services/            # règles métier, sans dépendance à une interface
 │   ├── auth_service.py    # adresse Google -> utilisateur, mot de passe de l'instance
@@ -434,3 +459,5 @@ src/projet_recherche_emploi/
     ├── user_repository.py          # table des comptes
     └── cv_storage.py               # lecture et enregistrement des CV en PDF
 ```
+
+Le front Angular est à part, dans `frontend/` : `src/app/` pour le code, `src/environments/` pour l'adresse de l'API.
