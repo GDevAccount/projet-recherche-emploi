@@ -149,15 +149,28 @@ describe('JobsComponent', () => {
     await click(card('Offre 1'), "J'ai postulé");
     const request = http.expectOne({ method: 'PATCH', url: '/api/jobs/1' });
     expect(request.request.body).toEqual({ applied: true });
-    request.flush(null, NO_CONTENT);
+    request.flush(job(1, { applied: true, applied_at: '2026-10-08T12:00:00Z' }));
     await fixture.whenStable();
 
-    // La carte change de colonne sans attendre ; la date, elle, n'est pas inventée
+    // L'offre renvoyée par l'API remplace la carte : la date n'est pas inventée, et la liste n'est pas rechargée
     expect(titles('applied')).toEqual(['Offre 1']);
-    expect(text(card('Offre 1'))).not.toContain('Postulé le');
-
-    await serve([job(1, { applied: true, applied_at: '2026-10-08T12:00:00Z' }), job(2)]);
     expect(text(card('Offre 1'))).toContain('Postulé le 8 oct.');
+    http.expectNone('/api/jobs');
+  });
+
+  it('should keep each card in its column when two offers are marked one after the other', async () => {
+    await serve([job(1), job(2)]);
+
+    await click(card('Offre 1'), "J'ai postulé");
+    await click(card('Offre 2'), "J'ai postulé");
+    const [first, second] = [1, 2].map((id) => http.expectOne({ method: 'PATCH', url: `/api/jobs/${id}` }));
+    // Les réponses arrivent dans le désordre : aucune ne défait l'autre
+    second.flush(job(2, { applied: true, applied_at: '2026-10-08T12:00:01Z' }));
+    first.flush(job(1, { applied: true, applied_at: '2026-10-08T12:00:00Z' }));
+    await fixture.whenStable();
+
+    expect(titles('applied')).toEqual(['Offre 1', 'Offre 2']);
+    expect(titles('todo')).toEqual([]);
   });
 
   it('should put an applied offer back to do', async () => {
@@ -166,8 +179,8 @@ describe('JobsComponent', () => {
     await click(card('Offre 1'), 'Remettre à traiter');
     const request = http.expectOne({ method: 'PATCH', url: '/api/jobs/1' });
     expect(request.request.body).toEqual({ applied: false });
-    request.flush(null, NO_CONTENT);
-    await serve([job(1)]);
+    request.flush(job(1));
+    await fixture.whenStable();
 
     expect(titles('todo')).toEqual(['Offre 1']);
   });
@@ -186,8 +199,8 @@ describe('JobsComponent', () => {
     expect(back.defaultPrevented).toBe(false);
 
     column.dispatchEvent(new Event('drop', { cancelable: true }));
-    http.expectOne({ method: 'PATCH', url: '/api/jobs/1' }).flush(null, NO_CONTENT);
-    await serve([job(1, { applied: true }), job(2, { applied: true })]);
+    http.expectOne({ method: 'PATCH', url: '/api/jobs/1' }).flush(job(1, { applied: true }));
+    await fixture.whenStable();
 
     expect(titles('applied')).toEqual(['Offre 1', 'Offre 2']);
   });

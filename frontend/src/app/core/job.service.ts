@@ -15,8 +15,9 @@ export class JobService {
     return this.http.get<Job[]>(this.url);
   }
 
-  setApplied(id: number, applied: boolean): Observable<void> {
-    return this.http.patch<void>(`${this.url}/${id}`, { applied });
+  /** Marque l'offre comme postulée ou non. L'API la renvoie mise à jour, avec sa date de candidature. */
+  setApplied(id: number, applied: boolean): Observable<Job> {
+    return this.http.patch<Job>(`${this.url}/${id}`, { applied });
   }
 
   /** Pages écartées, avec le motif que l'API en a tiré. */

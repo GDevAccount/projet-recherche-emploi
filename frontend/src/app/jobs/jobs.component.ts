@@ -97,11 +97,11 @@ export class JobsComponent {
     }
     this.start(job.id);
     this.jobService.setApplied(job.id, applied).subscribe({
-      next: () => {
-        // La carte change de colonne tout de suite ; la date de candidature, elle, vient de l'API
-        this.replace({ ...job, applied, applied_at: null });
+      next: (updated) => {
+        // L'API renvoie l'offre à jour : pas de rechargement de la liste, dont la réponse pourrait arriver
+        // après un autre clic et remettre une carte dans la mauvaise colonne
+        this.replace(updated);
         this.finish(job.id);
-        this.load();
       },
       error: (error: unknown) => this.fail(job.id, error),
     });

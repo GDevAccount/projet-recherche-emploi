@@ -16,11 +16,13 @@ class JobService:
         with self.database.session() as session:
             return [JobRead.model_validate(job) for job in JobRepository(session, user_id).list_jobs()]
 
-    def set_applied(self, user_id: int, job_id: int, applied: bool) -> None:
-        """Marque l'offre comme postulée ou non."""
+    def set_applied(self, user_id: int, job_id: int, applied: bool) -> JobRead:
+        """Marque l'offre comme postulée ou non, et la renvoie à jour, date de candidature comprise."""
         with self.database.session() as session:
-            if not JobRepository(session, user_id).set_applied(job_id, applied):
+            jobs = JobRepository(session, user_id)
+            if not jobs.set_applied(job_id, applied):
                 raise NotFoundError("Cette offre n'existe pas.")
+            return JobRead.model_validate(jobs.get_job(job_id))
 
     def delete_job(self, user_id: int, job_id: int) -> None:
         """Supprime l'offre."""

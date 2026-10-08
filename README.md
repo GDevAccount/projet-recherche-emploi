@@ -97,7 +97,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements et adresse sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
 | `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer |
 | `GET /api/jobs` | Offres retenues |
-| `PATCH /api/jobs/{id}` | Marquer une offre comme postulée ou non (`{"applied": true}`) |
+| `PATCH /api/jobs/{id}` | Marquer une offre comme postulée ou non (`{"applied": true}`). Renvoie l'offre mise à jour, avec sa date de candidature |
 | `DELETE /api/jobs/{id}` | Supprimer une offre |
 | `GET /api/rejected-jobs` | Pages rejetées, avec leur motif (`motive`) et tous les critères en défaut (`failed_criteria`) |
 | `GET /api/queries`, `POST /api/queries`, `DELETE /api/queries/{id}` | Postes recherchés |

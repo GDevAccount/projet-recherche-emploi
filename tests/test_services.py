@@ -237,6 +237,9 @@ def test_jobs_are_tracked_and_private(container):
 
     ids = {saved.url: saved.id for saved in container.jobs.list_jobs(BOB)}
 
+    updated = container.jobs.set_applied(BOB, ids["https://a/1"], True)
+    assert (updated.id, updated.applied) == (ids["https://a/1"], True) and updated.applied_at is not None
+    assert container.jobs.set_applied(BOB, ids["https://a/1"], False).applied_at is None
     container.jobs.set_applied(BOB, ids["https://a/1"], True)
     with pytest.raises(NotFoundError):
         container.jobs.set_applied(CAROL, ids["https://a/1"], True)

@@ -40,8 +40,11 @@ def test_applying_does_not_touch_another_user(session):
     [alice_job], [bob_job] = alice.list_jobs(), bob.list_jobs()
 
     assert bob.set_applied(bob_job.id, True) is True
-    # L'offre d'Alice existe, mais pas pour Bob
+    # L'offre d'Alice existe, mais pas pour Bob : il ne peut ni la cocher ni la lire
     assert bob.set_applied(alice_job.id, True) is False
+    assert bob.get_job(alice_job.id) is None
+    # Relue dans la même session, l'offre de Bob porte déjà sa candidature
+    assert bob.get_job(bob_job.id).applied is True
     session.expire_all()
 
     assert (alice_job.applied, alice_job.applied_at) == (False, None)
@@ -72,6 +75,7 @@ def test_deleting_does_not_touch_another_user(session):
     # Une offre déjà supprimée n'est pas comptée une seconde fois, et ne se coche plus
     assert bob.delete_jobs([bob_job.id]) == 0
     assert bob.set_applied(bob_job.id, True) is False
+    assert bob.get_job(bob_job.id) is None
 
     assert len(alice.list_jobs()) == 1
     assert bob.list_jobs() == []
