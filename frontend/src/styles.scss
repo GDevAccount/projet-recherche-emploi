@@ -1,4 +1,93 @@
+// Identité visuelle : encre et citron vert. Les composants PrimeNG suivent le même thème (core/theme.ts).
+:root {
+  --app-font: 'Inter Variable', system-ui, sans-serif;
+  --app-display: 'Bricolage Grotesque Variable', var(--app-font);
+
+  --app-accent: #a3e635;
+  --app-accent-strong: #84cc16;
+  --app-accent-ink: #1a2e05;
+
+  --app-bg: #f5f4ef;
+  --app-surface: #ffffff;
+  --app-surface-2: #eeede6;
+  --app-text: #15171a;
+  --app-muted: #666a72;
+  --app-border: rgba(21, 23, 26, 0.1);
+  --app-shadow: 0 1px 2px rgba(21, 23, 26, 0.04), 0 16px 40px -18px rgba(21, 23, 26, 0.18);
+  --app-glow:
+    radial-gradient(56rem 28rem at 88% -8%, rgba(163, 230, 53, 0.3), transparent 62%),
+    radial-gradient(40rem 24rem at -8% 6%, rgba(56, 189, 248, 0.14), transparent 60%);
+
+  --app-radius: 20px;
+  --app-radius-sm: 12px;
+  --app-width: 76rem;
+}
+
+.app-dark {
+  color-scheme: dark;
+
+  --app-bg: #0a0b0d;
+  --app-surface: #131518;
+  --app-surface-2: #1b1e22;
+  --app-text: #f2f3f5;
+  --app-muted: #9aa0a8;
+  --app-border: rgba(255, 255, 255, 0.09);
+  --app-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 24px 48px -24px rgba(0, 0, 0, 0.7);
+  --app-glow:
+    radial-gradient(56rem 28rem at 88% -8%, rgba(163, 230, 53, 0.17), transparent 62%),
+    radial-gradient(40rem 24rem at -8% 6%, rgba(56, 189, 248, 0.08), transparent 60%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--app-bg);
+}
+
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  min-height: 100vh;
+  font-family: var(--app-font);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--app-text);
+  background: var(--app-glow) no-repeat;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--app-display);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--app-accent-strong);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--app-accent);
+  color: var(--app-accent-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

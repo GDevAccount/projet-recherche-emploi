@@ -1,15 +1,14 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
-import { Button } from 'primeng/button';
-import { Tab, TabList, TabPanel, TabPanels, Tabs } from 'primeng/tabs';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
-import { LOGIN_PATH } from '../core/paths';
+import { LOGIN_PATH, PROFILE_PATH, SECTIONS } from '../core/paths';
 import { SessionService } from '../core/session.service';
+import { ThemeService } from '../core/theme.service';
 
-/** Cadre de l'application une fois connecté : en-tête, barre latérale et onglets. Les écrans y prendront place. */
+/** Cadre de l'application une fois connecté : en-tête, navigation, bandeau d'état. Les écrans s'y affichent. */
 @Component({
   selector: 'app-shell',
-  imports: [Button, Tabs, TabList, Tab, TabPanels, TabPanel],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet],
   templateUrl: './shell.component.html',
   styleUrl: './shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -17,7 +16,10 @@ import { SessionService } from '../core/session.service';
 export class ShellComponent {
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
+  protected readonly theme = inject(ThemeService);
 
+  protected readonly sections = SECTIONS;
+  protected readonly profilePath = PROFILE_PATH;
   protected readonly account = this.session.account;
   protected readonly closing = signal(false);
 

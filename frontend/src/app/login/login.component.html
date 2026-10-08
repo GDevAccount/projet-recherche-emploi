@@ -1,44 +1,75 @@
-<p-card header="Recherche d'emploi">
-  @let loaded = config();
-  @if (loaded === undefined) {
-    <p>Chargement…</p>
-  } @else if (loaded === null) {
-    <p-message severity="error">Le serveur ne répond pas. Rechargez la page dans un instant.</p-message>
-  } @else {
-    @switch (loaded.login_mode) {
-      @case ('google') {
-        <p>Connectez-vous avec votre compte Google pour accéder à vos offres.</p>
-        <div #googleButton class="google-button"></div>
-        @if (pending()) {
-          <p>Connexion…</p>
+<section class="pitch" aria-hidden="true">
+  <div class="brand">
+    <span class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+        <circle cx="11" cy="11" r="6.5" />
+        <path d="m16 16 4.5 4.5" />
+      </svg>
+    </span>
+    Recherche d'emploi
+  </div>
+
+  <div class="headline">
+    <h1>Les offres qui vous ressemblent. <em>Rien d'autre.</em></h1>
+    <p>Un agent lit les annonces à votre place et ne garde que celles qui correspondent à votre CV.</p>
+  </div>
+
+  <ul>
+    <li><span class="dot"></span>Une recherche sur les principaux sites d'emploi</li>
+    <li><span class="dot"></span>Chaque annonce comparée à votre profil, avec la raison du verdict</li>
+    <li><span class="dot"></span>Le suivi de vos candidatures au même endroit</li>
+  </ul>
+</section>
+
+<section class="access">
+  <div class="panel">
+    <h2>Connexion</h2>
+
+    @let loaded = config();
+    @if (loaded === undefined) {
+      <p class="hint">Chargement…</p>
+    } @else if (loaded === null) {
+      <p-message severity="error">Le serveur ne répond pas. Rechargez la page dans un instant.</p-message>
+    } @else {
+      @switch (loaded.login_mode) {
+        @case ('google') {
+          <p class="hint">Utilisez votre compte Google pour retrouver vos offres.</p>
+          <div #googleButton class="google-button"></div>
+          @if (pending()) {
+            <p class="hint">Connexion…</p>
+          }
+        }
+        @case ('password') {
+          <p class="hint">Cette instance est protégée par un mot de passe.</p>
+          <form (ngSubmit)="submitPassword()">
+            <label for="password">Mot de passe</label>
+            <input
+              pInputText
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              [ngModel]="password()"
+              (ngModelChange)="password.set($event)"
+            />
+            <p-button type="submit" label="Se connecter" [loading]="pending()" [disabled]="!password()" />
+          </form>
+        }
+        @default {
+          <p-message severity="error">
+            Cette instance n'est pas protégée : la connexion Google ou un mot de passe doit être configuré sur le
+            serveur.
+          </p-message>
         }
       }
-      @case ('password') {
-        <form (ngSubmit)="submitPassword()">
-          <label for="password">Mot de passe</label>
-          <input
-            pInputText
-            id="password"
-            name="password"
-            type="password"
-            autocomplete="current-password"
-            [ngModel]="password()"
-            (ngModelChange)="password.set($event)"
-          />
-          <p-button type="submit" label="Se connecter" [loading]="pending()" [disabled]="!password()" />
-        </form>
-      }
-      @default {
-        <p-message severity="error">
-          Cette instance n'est pas protégée : la connexion Google ou un mot de passe doit être configuré sur le serveur.
-        </p-message>
-      }
     }
-  }
-  @if (error()) {
-    <p-message severity="error" class="error">{{ error() }}</p-message>
-  }
-</p-card>
-<nav>
-  <a href="/confidentialite">Règles de confidentialité</a> · <a href="/conditions">Conditions d'utilisation</a>
-</nav>
+    @if (error()) {
+      <p-message severity="error" class="error">{{ error() }}</p-message>
+    }
+  </div>
+
+  <nav>
+    <a href="/confidentialite">Règles de confidentialité</a>
+    <a href="/conditions">Conditions d'utilisation</a>
+  </nav>
+</section>

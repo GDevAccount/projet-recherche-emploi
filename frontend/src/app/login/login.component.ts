@@ -4,7 +4,6 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Button } from 'primeng/button';
-import { Card } from 'primeng/card';
 import { InputText } from 'primeng/inputtext';
 import { Message } from 'primeng/message';
 import { catchError, of } from 'rxjs';
@@ -13,10 +12,11 @@ import { apiErrorMessage } from '../core/api-error';
 import { ConfigService } from '../core/config.service';
 import { GoogleIdentityService } from '../core/google-identity.service';
 import { SessionService } from '../core/session.service';
+import { ThemeService } from '../core/theme.service';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, Button, Card, InputText, Message],
+  imports: [FormsModule, Button, InputText, Message],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -25,6 +25,7 @@ export class LoginComponent {
   private readonly session = inject(SessionService);
   private readonly googleIdentity = inject(GoogleIdentityService);
   private readonly router = inject(Router);
+  private readonly theme = inject(ThemeService);
 
   // undefined : en cours de lecture ; null : le serveur n'a pas répondu
   protected readonly config = toSignal(inject(ConfigService).getConfig().pipe(catchError(() => of(null))));
@@ -40,7 +41,7 @@ export class LoginComponent {
       const clientId = this.config()?.google_client_id;
       if (parent && clientId) {
         this.googleIdentity
-          .renderButton(parent, clientId, (idToken) => this.open(idToken))
+          .renderButton(parent, clientId, this.theme.dark(), (idToken) => this.open(idToken))
           .catch(() => this.error.set("Le bouton de connexion Google n'a pas pu être chargé. Rechargez la page."));
       }
     });
