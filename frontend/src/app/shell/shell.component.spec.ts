@@ -16,6 +16,7 @@ const GUEST: Account = {
   name: null,
   picture: null,
   can_search: false,
+  search_running: false,
   remaining_searches: 1,
   max_searches_per_day: 2,
 };
@@ -107,6 +108,16 @@ describe('ShellComponent', () => {
     // Pas de second lancement pendant que la première recherche tourne
     expect(launchButton().disabled).toBe(true);
     expect(text(launchButton())).toBe('Recherche en cours…');
+  });
+
+  it('should not offer a second search while one runs on the server', async () => {
+    // Page rechargée pendant une recherche, ou recherche lancée d'un autre onglet
+    await openSession({ ...GUEST, can_search: true, search_running: true });
+
+    expect(launchButton().disabled).toBe(true);
+    expect(text(launchButton())).toBe('Recherche en cours…');
+    expect(text()).toContain('Une recherche est en cours sur le serveur.');
+    expect(element().querySelector('app-run-panel')).toBeNull();
   });
 
   it('should link to every section', async () => {

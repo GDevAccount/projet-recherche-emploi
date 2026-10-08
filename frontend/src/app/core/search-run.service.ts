@@ -1,4 +1,4 @@
-import { Injectable, InjectionToken, computed, inject, signal } from '@angular/core';
+import { Injectable, InjectionToken, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 
 import { environment } from '../../environments/environment';
@@ -29,6 +29,9 @@ export interface LogLine {
   /** Verdict d'une page évaluée ; null pour les autres lignes */
   kept: boolean | null;
 }
+
+/** Délai entre deux questions à l'API tant qu'une recherche tourne sans être suivie ici. */
+export const BACKGROUND_POLL_MS = 5000;
 
 const GENERIC_FAILURE = 'La recherche a échoué.';
 const UNREACHABLE = 'Le serveur ne répond pas. Réessayez dans un instant.';
@@ -62,6 +65,33 @@ export class SearchRunService {
   /** Nombre de recherches terminées depuis l'ouverture de la page : les écrans s'y abonnent pour se recharger */
   readonly completed = this._completed.asReadonly();
 
+  /**
+   * Une recherche tourne sur le serveur sans être suivie ici : la page a été rechargée, la connexion a été
+   * coupée, ou elle a été lancée d'un autre onglet. C'est l'API qui le dit ; on ne peut qu'attendre sa fin.
+   */
+  readonly background = computed(
+    () => this._state() !== 'running' && (this.session.account()?.search_running ?? false),
+  );
+  /** Une recherche est en cours, suivie ici ou non : pas de second lancement. */
+  readonly busy = computed(() => this._state() === 'running' || this.background());
+
+  constructor() {
+    let waiting = false;
+    effect((onCleanup) => {
+      if (!this.background()) {
+        if (waiting && this._state() !== 'running') {
+          // La recherche attendue vient de finir : les écrans rechargent leurs listes
+          this._completed.update((count) => count + 1);
+        }
+        waiting = false;
+        return;
+      }
+      waiting = true;
+      const poll = setInterval(() => this.session.refresh().subscribe(), BACKGROUND_POLL_MS);
+      onCleanup(() => clearInterval(poll));
+    });
+  }
+
   /** Étape en cours : la dernière annoncée par l'API. */
   readonly step = computed(() => this.last((event) => event.step !== null)?.step ?? null);
   /** Dernier avancement annoncé par chaque étape. */
@@ -82,7 +112,7 @@ export class SearchRunService {
 
   /** Lance une recherche et la suit jusqu'à son bilan. Sans effet si une recherche est déjà suivie. */
   async launch(): Promise<void> {
-    if (this._state() === 'running') {
+    if (this.busy()) {
       return;
     }
     this.start();

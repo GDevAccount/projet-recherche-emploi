@@ -10,6 +10,7 @@ const ALICE: Account = {
   name: 'Alice Martin',
   picture: 'https://lh3.googleusercontent.com/alice',
   can_search: false,
+  search_running: false,
   remaining_searches: 2,
   max_searches_per_day: 2,
 };

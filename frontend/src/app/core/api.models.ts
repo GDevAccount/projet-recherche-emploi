@@ -17,6 +17,8 @@ export interface Account {
   name: string | null;
   picture: string | null;
   can_search: boolean;
+  /** Une recherche de cet utilisateur tourne sur le serveur, lancée d'ici ou d'ailleurs */
+  search_running: boolean;
   /** null pour le propriétaire, qui n'a pas de quota */
   remaining_searches: number | null;
   max_searches_per_day: number;

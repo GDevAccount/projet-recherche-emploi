@@ -14,6 +14,7 @@ const ACCOUNT: Account = {
   name: null,
   picture: null,
   can_search: true,
+  search_running: false,
   remaining_searches: null,
   max_searches_per_day: 2,
 };

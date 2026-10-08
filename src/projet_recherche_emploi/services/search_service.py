@@ -9,7 +9,7 @@ from projet_recherche_emploi.data.cv_storage import CvStorage
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.query_repository import QueryRepository
 from projet_recherche_emploi.data.search_run_repository import SearchRunRepository
-from projet_recherche_emploi.errors import InvalidInputError, QuotaExceededError
+from projet_recherche_emploi.errors import ConflictError, InvalidInputError, QuotaExceededError
 from projet_recherche_emploi.schemas import SearchProgress, SearchSummary
 
 
@@ -22,13 +22,36 @@ def start_of_local_day() -> datetime:
     return datetime.now(ZoneInfo(LOCAL_TIMEZONE)).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
+class RunningSearch:
+    """Déroulement d'une recherche, qui libère sa place dès qu'il s'arrête : fin, échec ou abandon avant lecture."""
+
+    def __init__(self, events: Iterator[SearchProgress | SearchSummary], release: Callable[[], None]):
+        self._events = events
+        self._release = release
+
+    def __iter__(self) -> "RunningSearch":
+        return self
+
+    def __next__(self) -> SearchProgress | SearchSummary:
+        try:
+            return next(self._events)
+        except BaseException:
+            # Fin normale (StopIteration) comprise
+            self._release()
+            raise
+
+    def __del__(self) -> None:
+        # Un déroulement jamais lu ne doit pas bloquer les recherches suivantes de l'utilisateur
+        self._release()
+
+
 class SearchService:
     def __init__(self, database: Database, cv_storage: CvStorage, get_graph: Callable[[], SearchGraph]):
         self.database = database
         self.cv_storage = cv_storage
         # Le graph n'est construit qu'à la première recherche
         self._get_graph = get_graph
-        # Utilisateurs dont une recherche tourne dans ce processus
+        # Utilisateurs dont une recherche tourne. En mémoire : un redémarrage interrompt les recherches, et vide ceci
         self._running: set[int] = set()
         self._running_lock = threading.Lock()
 
@@ -55,18 +78,32 @@ class SearchService:
     def stream_search(self, user_id: int) -> Iterator[SearchProgress | SearchSummary]:
         """Lance la recherche de l'utilisateur et renvoie son déroulement : l'avancement, puis le bilan.
 
-        Le refus (rien à chercher, quota atteint) est levé ici, avant le premier élément.
+        Le refus (rien à chercher, recherche déjà en cours, quota atteint) est levé ici, avant le premier élément.
         """
         if not self.can_search(user_id):
             raise InvalidInputError("Il faut un CV et au moins une recherche enregistrée pour lancer une recherche.")
 
-        # Le lancement est compté avant la recherche : même en échec, elle a pu consommer des crédits
-        limit = None if user_id == DEFAULT_USER_ID else MAX_SEARCHES_PER_DAY
-        with self.database.session() as session:
-            if not SearchRunRepository(session, user_id).record_run(start_of_local_day(), limit):
-                raise QuotaExceededError("Quota de recherches atteint pour aujourd'hui.")
+        # Une seule recherche à la fois par utilisateur : la seconde paierait les mêmes pages, et compterait au quota
+        with self._running_lock:
+            if user_id in self._running:
+                raise ConflictError("Une recherche est déjà en cours : attendez qu'elle se termine.")
+            self._running.add(user_id)
 
-        return self._stream(user_id)
+        try:
+            # Le lancement est compté avant la recherche : même en échec, elle a pu consommer des crédits
+            limit = None if user_id == DEFAULT_USER_ID else MAX_SEARCHES_PER_DAY
+            with self.database.session() as session:
+                if not SearchRunRepository(session, user_id).record_run(start_of_local_day(), limit):
+                    raise QuotaExceededError("Quota de recherches atteint pour aujourd'hui.")
+        except BaseException:
+            self._release(user_id)
+            raise
+
+        return RunningSearch(self._stream(user_id), lambda: self._release(user_id))
+
+    def _release(self, user_id: int) -> None:
+        with self._running_lock:
+            self._running.discard(user_id)
 
     def run_search(
         self, user_id: int, on_progress: Callable[[SearchProgress], None] | None = None
@@ -82,18 +119,12 @@ class SearchService:
 
     def _stream(self, user_id: int) -> Iterator[SearchProgress | SearchSummary]:
         state = {}
-        with self._running_lock:
-            self._running.add(user_id)
-        try:
-            # Le mode « custom » remonte l'avancement écrit par les nœuds, « values » l'état du graph
-            for mode, chunk in self._get_graph().stream({"user_id": user_id}, stream_mode=["custom", "values"]):
-                if mode == "values":
-                    state = chunk
-                else:
-                    yield SearchProgress(**chunk)
-        finally:
-            with self._running_lock:
-                self._running.discard(user_id)
+        # Le mode « custom » remonte l'avancement écrit par les nœuds, « values » l'état du graph
+        for mode, chunk in self._get_graph().stream({"user_id": user_id}, stream_mode=["custom", "values"]):
+            if mode == "values":
+                state = chunk
+            else:
+                yield SearchProgress(**chunk)
         yield SearchSummary(
             found=len(state.get("jobs", [])),
             new=len(state.get("new_jobs", [])),
