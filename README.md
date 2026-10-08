@@ -88,8 +88,8 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/me` | Utilisateur de la requête et recherches restantes aujourd'hui |
 | `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer |
 | `GET /api/jobs` | Offres retenues |
-| `PATCH /api/jobs` | Marquer une offre comme postulée ou non (`{"url": …, "applied": true}`) |
-| `POST /api/jobs/delete` | Supprimer des offres (`{"urls": […]}`) |
+| `PATCH /api/jobs/{id}` | Marquer une offre comme postulée ou non (`{"applied": true}`) |
+| `DELETE /api/jobs/{id}` | Supprimer une offre |
 | `GET /api/rejected-jobs` | Pages rejetées |
 | `GET /api/queries`, `POST /api/queries`, `DELETE /api/queries/{id}` | Postes recherchés |
 | `GET /api/cv`, `PUT /api/cv` | Date du CV en place, dépôt d'un CV (fichier PDF, champ `file`) |
@@ -261,6 +261,7 @@ Table `jobs`, les offres retenues :
 
 | Colonne | Contenu |
 |---|---|
+| `id` | Identifiant de l'offre, par lequel l'API la désigne |
 | `user_id` | Utilisateur propriétaire de la ligne. Vaut `1` tant que l'application n'a qu'un utilisateur |
 | `url` | Lien de l'offre (unique par utilisateur) |
 | `title` | Titre de la page |
@@ -320,7 +321,7 @@ Les tables sont décrites dans `src/projet_recherche_emploi/data/models.py`. Mod
 
 ```bash
 uv run projet-recherche-emploi migrate                    # la base locale doit d'abord être à jour
-uv run alembic revision --autogenerate -m "ajout de la colonne note" --rev-id 0002
+uv run alembic revision --autogenerate -m "ajout de la colonne note" --rev-id 0003
 uv run pytest                                             # vérifie que modèles et migrations décrivent le même schéma
 ```
 

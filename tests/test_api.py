@@ -76,8 +76,8 @@ def test_health_and_legal_pages_are_public(client):
         ("GET", "/api/me"),
         ("POST", "/api/session"),
         ("GET", "/api/jobs"),
-        ("PATCH", "/api/jobs"),
-        ("POST", "/api/jobs/delete"),
+        ("PATCH", "/api/jobs/1"),
+        ("DELETE", "/api/jobs/1"),
         ("GET", "/api/rejected-jobs"),
         ("GET", "/api/queries"),
         ("POST", "/api/queries"),
@@ -96,7 +96,7 @@ def test_every_route_is_covered_by_the_identity_test(client):
     # Une route ajoutée sans figurer dans le test ci-dessus ferait échouer celui-ci
     tested = test_every_data_route_requires_an_identity.pytestmark[0].args[1]
     routes = {
-        (method.upper(), path.replace("{query_id}", "1"))
+        (method.upper(), path.replace("{query_id}", "1").replace("{job_id}", "1"))
         for path, operations in client.app.openapi()["paths"].items()
         if path != "/api/health"
         for method in operations
@@ -151,12 +151,13 @@ def test_jobs_are_private(client):
         JobRepository(session, alice_id).insert_jobs([job("https://a/1"), job("https://a/2")])
 
     assert client.get("/api/jobs", headers=BOB).json() == []
-    applied = {"url": "https://a/1", "applied": True}
-    assert client.patch("/api/jobs", headers=BOB, json=applied).status_code == 404
-    assert client.patch("/api/jobs", headers=ALICE, json=applied).status_code == 204
-    deletion = {"urls": ["https://a/2"]}
-    assert client.post("/api/jobs/delete", headers=BOB, json=deletion).json() == {"deleted": 0}
-    assert client.post("/api/jobs/delete", headers=ALICE, json=deletion).json() == {"deleted": 1}
+    paths = {saved["url"]: f"/api/jobs/{saved['id']}" for saved in client.get("/api/jobs", headers=ALICE).json()}
+    applied = {"applied": True}
+    assert client.patch(paths["https://a/1"], headers=BOB, json=applied).status_code == 404
+    assert client.patch(paths["https://a/1"], headers=ALICE, json=applied).status_code == 204
+    assert client.delete(paths["https://a/2"], headers=BOB).status_code == 404
+    assert client.delete(paths["https://a/2"], headers=ALICE).status_code == 204
+    assert client.delete(paths["https://a/2"], headers=ALICE).status_code == 404
 
     [saved] = client.get("/api/jobs", headers=ALICE).json()
     assert (saved["url"], saved["applied"]) == ("https://a/1", True)

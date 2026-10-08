@@ -41,7 +41,11 @@ LEGACY_SCHEMA = """
         UNIQUE (user_id, query)
     );
     INSERT INTO jobs (url, title, applied, applied_at, created_at, deleted)
+        VALUES ('https://a/2', 'Supprimée', 0, NULL, '2026-10-06 16:00:00', 1);
+    INSERT INTO jobs (url, title, applied, applied_at, created_at, deleted)
         VALUES ('https://a/1', 'Offre', 1, '2026-10-07 08:16:21', '2026-10-06 15:01:03', 0);
+    INSERT INTO jobs (user_id, url, title, created_at)
+        VALUES (2, 'https://a/1', 'La même, pour un invité', '2026-10-08 09:00:00');
     INSERT INTO search_queries (contract_type, query) VALUES ('CDD', 'la seule recherche gardée');
 """
 
@@ -99,6 +103,13 @@ def test_database_from_before_alembic_keeps_its_rows(tmp_path):
         [job] = JobRepository(session, DEFAULT_USER_ID).list_jobs()
         assert (job.url, job.applied, job.deleted) == ("https://a/1", True, False)
         assert job.applied_at.isoformat() == "2026-10-07T08:16:21+00:00"
+        # Les offres sont numérotées dans leur ordre d'arrivée, et l'offre supprimée reste connue
+        assert job.id == 1
+        assert JobRepository(session, DEFAULT_USER_ID).list_known_urls() == {"https://a/1", "https://a/2"}
+        [guest_job] = JobRepository(session, 2).list_jobs()
+        assert (guest_job.id, guest_job.url) == (3, "https://a/1")
+        # La même URL ne s'insère toujours pas deux fois pour le même utilisateur
+        assert JobRepository(session, 2).insert_jobs([{"url": "https://a/1", "title": "Doublon"}]) == 0
         # La table existait : les recherches par défaut ne sont pas ajoutées à celles de l'utilisateur
         queries = QueryRepository(session, DEFAULT_USER_ID).list_queries()
         assert [query.query for query in queries] == ["la seule recherche gardée"]

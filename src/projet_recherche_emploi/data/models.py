@@ -52,12 +52,14 @@ class Base(DeclarativeBase):
 
 
 class Job(Base):
-    """Offre retenue. La clé est le couple utilisateur + URL : la même offre peut être retenue par plusieurs."""
+    """Offre retenue. Une URL est unique par utilisateur : la même offre peut être retenue par plusieurs."""
 
     __tablename__ = "jobs"
+    __table_args__ = (UniqueConstraint("user_id", "url"),)
 
-    user_id: Mapped[int] = mapped_column(Integer, primary_key=True, server_default=text(str(DEFAULT_USER_ID)))
-    url: Mapped[str] = mapped_column(Text, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, server_default=text(str(DEFAULT_USER_ID)))
+    url: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(Text)
     content: Mapped[str | None] = mapped_column(Text)
     score: Mapped[float | None] = mapped_column(REAL)

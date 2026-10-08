@@ -60,7 +60,7 @@ def test_deleted_offer_is_not_evaluated_again(graph, container, evaluator):
     evaluated = len(evaluator.evaluated)
     with container.database.session() as session:
         jobs = JobRepository(session, ALICE)
-        jobs.delete_jobs([job.url for job in jobs.list_jobs()])
+        jobs.delete_jobs([job.id for job in jobs.list_jobs()])
 
     result = graph.invoke({"user_id": ALICE})
 
