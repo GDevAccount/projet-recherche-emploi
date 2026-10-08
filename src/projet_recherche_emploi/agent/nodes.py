@@ -22,6 +22,10 @@ def get_user_id(state: JobSearchState) -> int:
     return state.get("user_id", DEFAULT_USER_ID)
 
 
+# Sans ces mots, une phrase courte ramène des listes d'offres au lieu d'annonces
+OFFER_SEARCH_WORDS = "offre d'emploi"
+# Une recherche qui contient l'un de ces mots vise déjà des annonces
+OFFER_MARKERS = ("offre", "emploi", "mission", "job")
 REMOTE_SEARCH_WORDS = "télétravail complet"
 # Une recherche qui contient l'un de ces mots parle déjà de télétravail
 REMOTE_MARKERS = ("remote", "télétravail")
@@ -40,12 +44,15 @@ def _fold(text: str) -> str:
 
 
 def build_search_text(contract_type: str, query: str, location: str = "", remote: bool = False) -> str:
-    """Renvoie le texte envoyé au moteur de recherche.
+    """Renvoie le texte envoyé au moteur de recherche pour les sites français.
 
-    C'est la recherche, suivie de son type de contrat et de son lieu (ou du télétravail) s'ils n'y sont pas déjà.
+    C'est la recherche, précédée de « offre d'emploi » et suivie de son type de contrat et de son lieu
+    (ou du télétravail), s'ils n'y sont pas déjà.
     """
     folded_query = _fold(query)
     parts = [query]
+    if not any(marker in folded_query for marker in OFFER_MARKERS):
+        parts.insert(0, OFFER_SEARCH_WORDS)
     if _fold(contract_type) not in folded_query:
         parts.append(contract_type)
     if remote:
@@ -54,6 +61,35 @@ def build_search_text(contract_type: str, query: str, location: str = "", remote
     elif location and _fold(location) not in folded_query:
         parts.append(location)
     return " ".join(parts)
+
+
+def build_international_search_text(contract_type: str, query: str) -> str:
+    """Renvoie la variante en anglais d'une recherche en télétravail complet, pour les annonces hors de France.
+
+    Ni « offre d'emploi » ni « CDI » : une annonce étrangère ne contient pas ces mots.
+    """
+    folded_query = _fold(query)
+    parts = [query]
+    if "remote" not in folded_query:
+        parts.append("remote")
+    ending = "freelance" if contract_type == "freelance" else "job"
+    if ending not in folded_query:
+        parts.append(ending)
+    return " ".join(parts)
+
+
+def build_searches(queries: Iterable[SearchQuery]) -> list[tuple[str, str, bool]]:
+    """Renvoie les recherches à lancer : la phrase saisie, le texte envoyé, et s'il vise les sites internationaux.
+
+    Une recherche en télétravail complet en donne deux, l'une en français et l'autre en anglais.
+    """
+    searches = []
+    for query in queries:
+        text = build_search_text(query.contract_type, query.query, query.location, query.remote)
+        searches.append((query.query, text, False))
+        if query.remote:
+            searches.append((query.query, build_international_search_text(query.contract_type, query.query), True))
+    return searches
 
 
 def describe_accepted_areas(queries: Iterable[SearchQuery]) -> str:
@@ -176,17 +212,14 @@ class SearchNodes:
         with self.database.session() as session:
             saved_queries = QueryRepository(session, get_user_id(state)).list_queries()
             criteria = build_criteria(saved_queries)
-            queries = [
-                (query.query, build_search_text(query.contract_type, query.query, query.location, query.remote))
-                for query in saved_queries
-            ]
+            queries = build_searches(saved_queries)
         if not queries:
             logger.warning("Aucune recherche enregistrée en base : rien à chercher")
 
         write_progress = get_stream_writer()
 
         jobs_by_url = {}
-        for index, (query, search_text) in enumerate(queries):
+        for index, (query, search_text, international) in enumerate(queries):
             write_progress(
                 {
                     "message": f"Recherche Tavily {index + 1}/{len(queries)} : {search_text}",
@@ -194,7 +227,7 @@ class SearchNodes:
                     "total": len(queries),
                 }
             )
-            for result in self.search_engine.search(search_text):
+            for result in self.search_engine.search(search_text, international):
                 jobs_by_url.setdefault(
                     result["url"],
                     {

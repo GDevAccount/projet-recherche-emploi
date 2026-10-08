@@ -202,7 +202,7 @@ def test_search_is_streamed_then_counted(client, valid_pdf):
     assert last_name == "result"
     assert summary == {"found": 2, "new": 2, "kept": 1, "rejected": 1, "inserted": 1}
     saved_urls = [saved["url"] for saved in client.get("/api/jobs", headers=ALICE).json()]
-    assert saved_urls == ["https://x/data engineer CDI/0"]
+    assert saved_urls == ["https://x/offre d'emploi data engineer CDI/0"]
     assert len(client.get("/api/rejected-jobs", headers=ALICE).json()) == 1
 
     # Le refus n'avait pas entamé le quota, la recherche si

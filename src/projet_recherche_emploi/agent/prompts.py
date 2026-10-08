@@ -66,7 +66,9 @@ FILTER_PROMPT = ChatPromptTemplate.from_messages(
             "son niveau convient aussi. Un poste de lead ou de management convient si le parcours du CV le "
             "rend crédible (dix ans de développement pour un poste de lead developer). Faux seulement si "
             "l'écart est manifeste. Ne pas tenir compte du type de contrat.\n"
-            "- reason : une phrase qui justifie la décision, en nommant chaque critère qui écarte l'offre.\n\n"
+            "- reason : une ou deux phrases courtes en français, écrites pour le candidat : ce qui fait que "
+            "l'offre lui convient, ou ce qui l'écarte (pas une offre, autre métier, compétences, niveau). "
+            "Ne pas réciter les faits lus sur la page ni les noms des champs ci-dessus.\n\n"
             "Si is_real_offer est faux, mettre faux à matches_search, matches_skills et matches_level.",
         ),
         ("human", "Titre : {title}\nURL : {url}\n\nContenu de la page :\n{page}"),
