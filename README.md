@@ -95,7 +95,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/jobs` | Offres retenues |
 | `PATCH /api/jobs/{id}` | Marquer une offre comme postulée ou non (`{"applied": true}`) |
 | `DELETE /api/jobs/{id}` | Supprimer une offre |
-| `GET /api/rejected-jobs` | Pages rejetées |
+| `GET /api/rejected-jobs` | Pages rejetées, avec leur motif (`motive`) et tous les critères en défaut (`failed_criteria`) |
 | `GET /api/queries`, `POST /api/queries`, `DELETE /api/queries/{id}` | Postes recherchés |
 | `GET /api/cv`, `PUT /api/cv` | Date du CV en place, dépôt d'un CV (fichier PDF, champ `file`) |
 | `POST /api/searches` | Lancer une recherche, suivie en direct (Server-Sent Events : `progress`, puis `result` ou `error`) |
