@@ -101,6 +101,36 @@ a {
   color: var(--app-muted);
 }
 
+// Présentation écrite dans index.html, visible tant qu'Angular n'a pas démarré. Elle n'apparaît qu'après un
+// délai, pour ne pas clignoter à chaque chargement.
+.app-boot {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 18vh 1.5rem 2rem;
+  color: var(--app-muted);
+  animation: app-boot-in 0.3s 0.6s both;
+
+  h1 {
+    margin: 0 0 1rem;
+    font-size: 2rem;
+    color: var(--app-text);
+  }
+
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    margin-top: 2rem;
+    font-size: 0.875rem;
+  }
+}
+
+@keyframes app-boot-in {
+  from {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

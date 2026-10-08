@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
@@ -13,6 +15,16 @@ def client(tmp_path):
     (front / "index.html").write_text("<app-root></app-root>", encoding="utf-8")
     (front / "main-ABC123.js").write_text("console.log('front')", encoding="utf-8")
     return TestClient(Starlette(routes=build_frontend_routes(Settings(frontend_dir=front))))
+
+
+def test_home_page_describes_the_application_without_javascript():
+    # Lu par les robots de Google pour valider l'écran de connexion : ils n'exécutent pas le JavaScript
+    page = (Path(__file__).parent.parent / "frontend" / "src" / "index.html").read_text(encoding="utf-8")
+
+    assert '<meta name="description"' in page
+    assert "offres d'emploi" in page
+    assert 'href="/confidentialite"' in page
+    assert 'href="/conditions"' in page
 
 
 def test_front_is_served_at_the_root(client):
