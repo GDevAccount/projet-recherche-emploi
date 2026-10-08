@@ -6,6 +6,7 @@ import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Literal
 
 from projet_recherche_emploi.config import DEFAULT_USER_ID, SESSION_DAYS, Settings
 from projet_recherche_emploi.data.database import Database
@@ -16,6 +17,8 @@ from projet_recherche_emploi.errors import ConfigurationError
 EVERYONE = "*"
 
 SESSION_SECONDS = SESSION_DAYS * 24 * 3600
+
+LoginMode = Literal["google", "password"]
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,14 @@ class AuthService:
     @property
     def password_required(self) -> bool:
         return bool(self.settings.app_password)
+
+    @property
+    def login_mode(self) -> LoginMode | None:
+        """Dit quelle preuve d'identité l'instance attend, ou None si elle n'est pas protégée."""
+        # La connexion Google l'emporte : une fois activée, le mot de passe n'ouvre plus rien
+        if self.settings.google_client_id:
+            return "google"
+        return "password" if self.password_required else None
 
     def password_matches(self, password: str) -> bool:
         """Dit si ce mot de passe est celui de l'instance (APP_PASSWORD)."""

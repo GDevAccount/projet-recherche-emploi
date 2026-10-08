@@ -12,6 +12,7 @@ from starlette.routing import Route
 from projet_recherche_emploi.api.main import ApiRoute, create_app
 from projet_recherche_emploi.api.security import Identity
 from projet_recherche_emploi.config import (
+    CONTRACT_TYPES,
     DEFAULT_QUERIES,
     DEFAULT_USER_ID,
     MAX_SEARCHES_PER_DAY,
@@ -73,6 +74,38 @@ def test_health_and_legal_pages_are_public(client):
     assert client.get("/confidentialite").status_code == 200
 
 
+def test_config_tells_the_front_how_to_log_in(client, tmp_path):
+    # Sans identité : le front la lit pour afficher son écran de connexion
+    assert client.get("/api/config").json() == {
+        "login_mode": "google",
+        "google_client_id": "id.apps.googleusercontent.com",
+        "contract_types": CONTRACT_TYPES,
+    }
+
+    with_password = make_client(tmp_path / "mot-de-passe", app_password="sesame").get("/api/config").json()
+    assert with_password["login_mode"] == "password" and with_password["google_client_id"] is None
+
+    unprotected = make_client(tmp_path / "ouverte").get("/api/config").json()
+    assert unprotected["login_mode"] is None
+
+
+def test_config_leaks_no_secret(tmp_path):
+    client = make_client(
+        tmp_path,
+        app_password="sesame",
+        google_client_id="id.apps.googleusercontent.com",
+        google_client_secret="code-secret",
+        auth_cookie_secret=SECRET,
+        owner_email="proprietaire@exemple.fr",
+        allowed_emails="alice@exemple.fr",
+    )
+
+    text = client.get("/api/config").text
+
+    for secret in ("sesame", "code-secret", SECRET, "proprietaire@exemple.fr", "alice@exemple.fr"):
+        assert secret not in text
+
+
 @pytest.mark.parametrize(
     ("method", "path"),
     [
@@ -101,7 +134,8 @@ def test_every_route_is_covered_by_the_identity_test(client):
     routes = {
         (method.upper(), path.replace("{query_id}", "1").replace("{job_id}", "1"))
         for path, operations in client.app.openapi()["paths"].items()
-        if path != "/api/health"
+        # Routes publiques : elles ne lisent aucune donnée d'utilisateur, et ont leurs propres tests
+        if path not in ("/api/health", "/api/config")
         for method in operations
         # La déconnexion ne lit aucune donnée : elle a son propre test
         if (method, path) != ("delete", "/api/session")
@@ -122,6 +156,8 @@ def test_account_tells_who_is_calling(client):
     assert owner == {
         "user_id": DEFAULT_USER_ID,
         "is_owner": True,
+        # Le propriétaire a les recherches par défaut, mais pas encore de CV
+        "can_search": False,
         "remaining_searches": None,
         "max_searches_per_day": MAX_SEARCHES_PER_DAY,
     }
@@ -193,7 +229,9 @@ def test_search_is_streamed_then_counted(client, valid_pdf):
     assert refused.status_code == 422
 
     client.put("/api/cv", headers=ALICE, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    assert client.get("/api/me", headers=ALICE).json()["can_search"] is False
     client.post("/api/queries", headers=ALICE, json={"contract_type": "CDI", "query": "data engineer"})
+    assert client.get("/api/me", headers=ALICE).json()["can_search"] is True
     response = client.post("/api/searches", headers=ALICE)
 
     assert response.status_code == 200 and response.headers["content-type"].startswith("text/event-stream")

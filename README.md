@@ -90,7 +90,8 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | Route | Rôle |
 |---|---|
 | `GET /api/health` | État du serveur (sans connexion) |
-| `GET /api/me` | Utilisateur de la requête et recherches restantes aujourd'hui |
+| `GET /api/config` | Ce qu'un front lit avant la connexion (sans connexion) : mode de connexion (`google` ou `password`), identifiant client Google, types de contrat |
+| `GET /api/me` | Utilisateur de la requête, recherches restantes aujourd'hui, et s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché) |
 | `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer |
 | `GET /api/jobs` | Offres retenues |
 | `PATCH /api/jobs/{id}` | Marquer une offre comme postulée ou non (`{"applied": true}`) |
@@ -119,7 +120,7 @@ Les erreurs ont la forme `{"detail": "message en français"}`, avec le code 422 
 
 ## Front Angular
 
-Un front [Angular](https://angular.dev/) 22, avec les composants [PrimeNG](https://primeng.org/), remplacera l'interface Streamlit. Il est dans `frontend/` et n'appelle que l'API. Tant qu'il ne couvre pas tous les écrans, Streamlit reste à la racine du site et le front est servi sous `/frontend` : <https://projet-recherche-emploi.fly.dev/frontend/>. Pour l'instant, il n'affiche qu'une page qui vérifie que l'API répond.
+Un front [Angular](https://angular.dev/) 22, avec les composants [PrimeNG](https://primeng.org/), remplacera l'interface Streamlit. Il est dans `frontend/` et n'appelle que l'API. Tant qu'il ne couvre pas tous les écrans, Streamlit reste à la racine du site et le front est servi sous `/frontend` : <https://projet-recherche-emploi.fly.dev/frontend/>. Pour l'instant, il couvre la connexion (bouton Google, ou mot de passe de l'instance) et le cadre de l'application ; les écrans arrivent un par un.
 
 Il demande [Node.js](https://nodejs.org/) 22.22.3 ou plus récent.
 
@@ -223,6 +224,8 @@ Dans la [console Google Cloud](https://console.cloud.google.com/apis/credentials
 
 - `https://projet-recherche-emploi.fly.dev/oauth2callback` pour l'instance en ligne ;
 - `http://localhost:8501/oauth2callback` pour un essai en local.
+
+Le front Angular se connecte autrement, par le bouton de Google : il lui faut des « origines JavaScript autorisées », sur le même ID client. Ce sont `https://projet-recherche-emploi.fly.dev` pour l'instance en ligne et `http://localhost:4200` pour `npm start`, sans barre oblique finale.
 
 Google fournit alors un identifiant client et un code secret. Tant que l'écran de consentement est en mode « Test », seules les adresses ajoutées comme utilisateurs de test peuvent se connecter.
 

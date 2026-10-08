@@ -1,6 +1,7 @@
 """Objets échangés entre les services et les interfaces. L'API les sert tels quels en JSON."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, computed_field
 
@@ -103,9 +104,21 @@ class SearchSummary(BaseModel):
     inserted: int
 
 
+class AppConfig(BaseModel):
+    """Ce qu'un front doit savoir avant toute connexion. Servi sans identité : rien de secret ici."""
+
+    # Preuve d'identité attendue par « POST /api/session » ; None si l'instance n'est pas protégée, et refuse tout
+    login_mode: Literal["google", "password"] | None
+    # Identifiant public de l'application chez Google, pour le bouton de connexion ; None hors connexion Google
+    google_client_id: str | None
+    contract_types: list[str]
+
+
 class Account(BaseModel):
     user_id: int
     is_owner: bool
+    # Un CV et au moins un poste recherché sont enregistrés
+    can_search: bool
     # None pour le propriétaire, qui n'a pas de quota
     remaining_searches: int | None
     max_searches_per_day: int
