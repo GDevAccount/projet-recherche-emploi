@@ -6,7 +6,9 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend ./
-RUN npm run build
+# Clé de licence PrimeNG, passée par « fly deploy --build-arg ». Vide : le front affiche un bandeau de licence
+ARG PRIMEUI_LICENSE=""
+RUN npm run build -- --define "PRIMEUI_LICENSE='${PRIMEUI_LICENSE}'"
 
 FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
 

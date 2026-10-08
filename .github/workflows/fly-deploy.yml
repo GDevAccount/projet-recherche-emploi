@@ -44,6 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
+      - run: flyctl deploy --remote-only --build-arg PRIMEUI_LICENSE="$PRIMEUI_LICENSE"
         env:
+          PRIMEUI_LICENSE: ${{ secrets.PRIMEUI_LICENSE }}
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
