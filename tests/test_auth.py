@@ -138,3 +138,18 @@ def test_half_configured_login_stops_the_server(database, settings, missing):
     # Le message nomme la variable d'environnement à définir
     with pytest.raises(ConfigurationError, match=missing):
         auth_service(database, **settings).check_configuration()
+
+
+def test_session_token_carries_the_profile_for_display_only(database):
+    auth = auth_service(database, google_client_id="id", auth_cookie_secret="secret")
+
+    token = auth.create_session_token("alice@exemple.fr", "Alice", "https://lh3.googleusercontent.com/alice")
+    bare = auth.create_session_token("alice@exemple.fr")
+
+    session = auth.read_session_token(token)
+    assert (session.email, session.name, session.picture) == (
+        "alice@exemple.fr",
+        "Alice",
+        "https://lh3.googleusercontent.com/alice",
+    )
+    assert (auth.read_session_token(bare).name, auth.read_session_token(bare).picture) == (None, None)

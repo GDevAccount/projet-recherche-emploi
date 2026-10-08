@@ -4,6 +4,7 @@ from helpers import blank_pdf, job, rejected_job
 from projet_recherche_emploi.config import DEFAULT_QUERIES, DEFAULT_USER_ID, MAX_SEARCHES_PER_DAY
 from projet_recherche_emploi.data.job_repository import JobRepository
 from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
+from projet_recherche_emploi.data.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
 from projet_recherche_emploi.schemas import SearchProgress, SearchSummary
 from projet_recherche_emploi.services import cv_service
@@ -251,3 +252,57 @@ def test_rejected_page_tells_why_it_was_rejected(container):
     assert motives(matches_cv=True, matches_location=False) == ("Hors lieu recherché", ["Hors lieu recherché"])
     # Une page rejetée avant le verdict détaillé n'a que le motif général
     assert motives(matches_location=None) == ("Hors profil", ["Hors profil"])
+
+
+def test_deleting_an_account_leaves_nothing_behind(container, valid_pdf):
+    with container.database.session() as session:
+        user_id = UserRepository(session).get_or_create_user_id("alice@exemple.fr")
+    container.cv.save_cv(user_id, valid_pdf)
+    container.queries.add_query(user_id, "CDI", "data engineer")
+    container.search.run_search(user_id)
+    backup = container.settings.db_path.with_name("jobs.avant-migration-0001.db")
+    backup.write_bytes(b"copie")
+
+    container.account.delete_account(user_id)
+
+    assert container.jobs.list_jobs(user_id) == [] and container.jobs.list_rejected_jobs(user_id) == []
+    assert container.queries.list_queries(user_id) == []
+    assert container.cv.get_status(user_id).updated_at is None
+    assert not container.cv_storage.path_for(user_id).exists()
+    # Le quota repart de zéro : les lancements sont effacés aussi
+    assert container.search.remaining_searches(user_id) == MAX_SEARCHES_PER_DAY
+    # Les copies d'avant migration contenaient encore ses données
+    assert not backup.exists()
+    with container.database.session() as session:
+        users = UserRepository(session).list_users()
+        # La ligne reste, sans adresse : l'identifiant n'est pas redonné au compte suivant
+        assert [user.email for user in users if user.id == user_id] == [None]
+        assert UserRepository(session).get_or_create_user_id("alice@exemple.fr") != user_id
+
+
+def test_owner_can_erase_their_data_and_keeps_their_identifier(container, valid_pdf):
+    container.cv.save_cv(DEFAULT_USER_ID, valid_pdf)
+    assert container.queries.list_queries(DEFAULT_USER_ID)
+
+    container.account.delete_account(DEFAULT_USER_ID)
+
+    assert container.queries.list_queries(DEFAULT_USER_ID) == []
+    assert container.cv.get_status(DEFAULT_USER_ID).updated_at is None
+    with container.database.session() as session:
+        assert [user.id for user in UserRepository(session).list_users()] == [DEFAULT_USER_ID]
+
+
+def test_account_is_not_deleted_while_its_search_runs(container, valid_pdf):
+    container.cv.save_cv(DEFAULT_USER_ID, valid_pdf)
+    events = container.search.stream_search(DEFAULT_USER_ID)
+    next(events)
+
+    assert container.search.is_running(DEFAULT_USER_ID)
+    with pytest.raises(ConflictError):
+        container.account.delete_account(DEFAULT_USER_ID)
+    # Rien n'a été effacé par la tentative
+    assert container.cv.get_status(DEFAULT_USER_ID).updated_at is not None
+
+    list(events)
+    assert not container.search.is_running(DEFAULT_USER_ID)
+    container.account.delete_account(DEFAULT_USER_ID)

@@ -1,0 +1,98 @@
+@if (account(); as account) {
+  <article class="app-card identity">
+    <app-avatar [account]="account" />
+    <div class="who">
+      <span class="app-eyebrow">Compte</span>
+      @if (account.email) {
+        <h2>{{ account.name ?? account.email }}</h2>
+        @if (account.name) {
+          <p class="email">{{ account.email }}</p>
+        }
+        <p class="origin">
+          Connecté avec Google{{ account.is_owner ? ', en tant que propriétaire de cette instance' : '' }}.
+        </p>
+      } @else {
+        <h2>Propriétaire</h2>
+        <p class="origin">Session ouverte avec le mot de passe de cette instance.</p>
+      }
+    </div>
+    <p-button
+      label="Se déconnecter"
+      severity="secondary"
+      [outlined]="true"
+      [loading]="closing()"
+      (onClick)="logout()"
+    />
+  </article>
+
+  <article class="app-card">
+    <span class="app-eyebrow">Vos données</span>
+    <h2>Ce que Tamis garde de vous</h2>
+    <ul>
+      @if (account.email) {
+        <li>Votre adresse e-mail, pour vous reconnaître d'une connexion à l'autre.</li>
+      }
+      <li>Votre CV, tel que vous l'avez déposé.</li>
+      <li>Vos postes recherchés.</li>
+      <li>Les offres retenues pour vous, et le suivi de vos candidatures.</li>
+      <li>Les pages écartées et la raison de leur rejet.</li>
+      <li>La date de chacune de vos recherches.</li>
+    </ul>
+    <p class="note">
+      Le détail, et ce qui est transmis à d'autres services, est dans les
+      <a href="/confidentialite">règles de confidentialité</a>.
+    </p>
+  </article>
+
+  <article class="app-card danger">
+    <span class="app-eyebrow">Suppression</span>
+    <h2>Supprimer mon compte</h2>
+    <p>
+      Tout ce qui est listé ci-dessus est effacé définitivement, y compris votre CV. Rien ne peut être récupéré
+      ensuite.
+    </p>
+    <p class="note">
+      @if (account.is_owner) {
+        Votre accès reste ouvert : à la prochaine connexion, vous retrouverez un compte vide.
+      } @else {
+        Si vous êtes toujours invité, une nouvelle connexion ouvrira un compte vide.
+      }
+    </p>
+
+    @if (run.state() === 'running') {
+      <p class="note">Une recherche est en cours : attendez qu'elle se termine pour supprimer votre compte.</p>
+    } @else if (confirming()) {
+      <div class="confirm" role="alertdialog" aria-labelledby="confirm-title">
+        <strong id="confirm-title">Supprimer définitivement votre compte et toutes vos données ?</strong>
+        <div class="actions">
+          <p-button
+            label="Oui, tout supprimer"
+            severity="danger"
+            [loading]="deleting()"
+            (onClick)="deleteAccount()"
+          />
+          <p-button
+            label="Annuler"
+            severity="secondary"
+            [text]="true"
+            [disabled]="deleting()"
+            (onClick)="cancel()"
+          />
+        </div>
+      </div>
+    } @else {
+      <div class="actions">
+        <p-button
+          label="Supprimer mon compte"
+          severity="danger"
+          [outlined]="true"
+          (onClick)="confirming.set(true)"
+        />
+      </div>
+    }
+
+    @if (error()) {
+      <p-message severity="error" class="feedback">{{ error() }}</p-message>
+    }
+  </article>
+}

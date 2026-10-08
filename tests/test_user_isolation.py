@@ -154,3 +154,25 @@ def test_run_without_limit_is_always_recorded(session):
 
     assert all(owner.record_run() for _ in range(5))
     assert owner.count_runs_since(datetime(2000, 1, 1, tzinfo=UTC)) == 5
+
+
+def test_erasing_everything_does_not_touch_another_user(session):
+    for user_id in (ALICE, BOB):
+        JobRepository(session, user_id).insert_jobs([job("https://a/1")])
+        RejectedJobRepository(session, user_id).insert_rejected_jobs([rejected_job("https://a/2")])
+        QueryRepository(session, user_id).add_query("CDI", "data engineer")
+        SearchRunRepository(session, user_id).record_run()
+    alice_queries = len(QueryRepository(session, ALICE).list_queries())
+
+    assert JobRepository(session, BOB).delete_all() == 1
+    assert QueryRepository(session, BOB).delete_all() == 1
+    assert SearchRunRepository(session, BOB).delete_all() == 1
+    RejectedJobRepository(session, BOB).clear()
+
+    since = datetime(2000, 1, 1, tzinfo=UTC)
+    assert JobRepository(session, BOB).list_known_urls() == set()
+    assert SearchRunRepository(session, BOB).count_runs_since(since) == 0
+    assert len(JobRepository(session, ALICE).list_jobs()) == 1
+    assert len(RejectedJobRepository(session, ALICE).list_rejected_jobs()) == 1
+    assert len(QueryRepository(session, ALICE).list_queries()) == alice_queries
+    assert SearchRunRepository(session, ALICE).count_runs_since(since) == 1

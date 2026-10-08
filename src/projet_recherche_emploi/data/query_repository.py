@@ -39,3 +39,7 @@ class QueryRepository:
         """Supprime une recherche, et renvoie faux si l'identifiant est inconnu ou appartient à un autre utilisateur."""
         statement = delete(SearchQuery).where(SearchQuery.user_id == self.user_id, SearchQuery.id == query_id)
         return self.session.execute(statement).rowcount == 1
+
+    def delete_all(self) -> int:
+        """Efface toutes les recherches enregistrées de l'utilisateur, et renvoie leur nombre."""
+        return self.session.execute(delete(SearchQuery).where(SearchQuery.user_id == self.user_id)).rowcount

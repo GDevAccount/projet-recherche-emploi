@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
@@ -19,3 +19,12 @@ class UserRepository:
     def list_users(self) -> list[User]:
         """Renvoie les comptes, dans l'ordre de création."""
         return list(self.session.scalars(select(User).order_by(User.id)))
+
+    def forget_user(self, user_id: int) -> bool:
+        """Détache ce compte de son adresse, et renvoie faux s'il n'en avait pas.
+
+        La ligne reste, vide : son identifiant ne sera pas redonné, donc personne n'héritera de ce qu'une
+        recherche encore en cours écrirait sous cet identifiant.
+        """
+        statement = update(User).where(User.id == user_id, User.email.is_not(None)).values(email=None)
+        return self.session.execute(statement).rowcount == 1

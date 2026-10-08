@@ -38,6 +38,11 @@ export class SessionService {
     return this.http.delete<void>(`${environment.apiUrl}/session`).pipe(tap(() => this.forget()));
   }
 
+  /** Efface le compte et tout ce qu'il contient. L'API ferme la session : rien n'est récupérable ensuite. */
+  deleteAccount(): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}/me`).pipe(tap(() => this.forget()));
+  }
+
   /** Oublie le compte sans appeler l'API : la session a expiré côté serveur. */
   forget(): void {
     this._account.set(null);

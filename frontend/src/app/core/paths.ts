@@ -2,6 +2,7 @@ export const LOGIN_PATH = 'connexion';
 export const JOBS_PATH = 'offres';
 export const REJECTED_PATH = 'rejets';
 export const PROFILE_PATH = 'profil';
+export const ACCOUNT_PATH = 'compte';
 
 /** Rubriques de la navigation, dans l'ordre. */
 export const SECTIONS = [

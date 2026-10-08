@@ -1,3 +1,4 @@
+import threading
 from collections.abc import Callable, Iterator
 from datetime import datetime
 from typing import Protocol
@@ -27,6 +28,14 @@ class SearchService:
         self.cv_storage = cv_storage
         # Le graph n'est construit qu'à la première recherche
         self._get_graph = get_graph
+        # Utilisateurs dont une recherche tourne dans ce processus
+        self._running: set[int] = set()
+        self._running_lock = threading.Lock()
+
+    def is_running(self, user_id: int) -> bool:
+        """Dit si une recherche de l'utilisateur est en cours."""
+        with self._running_lock:
+            return user_id in self._running
 
     def remaining_searches(self, user_id: int) -> int | None:
         """Renvoie le nombre de recherches encore permises aujourd'hui, ou None si l'utilisateur n'est pas limité."""
@@ -73,12 +82,18 @@ class SearchService:
 
     def _stream(self, user_id: int) -> Iterator[SearchProgress | SearchSummary]:
         state = {}
-        # Le mode « custom » remonte l'avancement écrit par les nœuds, « values » l'état du graph
-        for mode, chunk in self._get_graph().stream({"user_id": user_id}, stream_mode=["custom", "values"]):
-            if mode == "values":
-                state = chunk
-            else:
-                yield SearchProgress(**chunk)
+        with self._running_lock:
+            self._running.add(user_id)
+        try:
+            # Le mode « custom » remonte l'avancement écrit par les nœuds, « values » l'état du graph
+            for mode, chunk in self._get_graph().stream({"user_id": user_id}, stream_mode=["custom", "values"]):
+                if mode == "values":
+                    state = chunk
+                else:
+                    yield SearchProgress(**chunk)
+        finally:
+            with self._running_lock:
+                self._running.discard(user_id)
         yield SearchSummary(
             found=len(state.get("jobs", [])),
             new=len(state.get("new_jobs", [])),

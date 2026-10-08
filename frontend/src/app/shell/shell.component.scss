@@ -146,6 +146,28 @@ nav {
   }
 }
 
+// Sur un téléphone, l'en-tête n'a pas la place : la déconnexion reste sur la page du compte
+.logout {
+  @media (max-width: 30rem) {
+    display: none;
+  }
+}
+
+.account {
+  display: block;
+  border-radius: 50%;
+  text-decoration: none;
+  // Anneau au survol et sur la page du compte, sans décaler la vignette
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color 0.15s;
+
+  &:hover,
+  &.active {
+    outline-color: var(--app-accent-strong);
+  }
+}
+
 main {
   max-width: var(--app-width);
   margin: 0 auto;

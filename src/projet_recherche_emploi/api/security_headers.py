@@ -18,7 +18,8 @@ CONTENT_SECURITY_POLICY = "; ".join(
         f"style-src 'self' 'unsafe-inline' {GOOGLE_IDENTITY}style",
         f"frame-src {GOOGLE_IDENTITY}",
         f"connect-src 'self' {GOOGLE_IDENTITY}",
-        "img-src 'self' data:",
+        # La photo du profil Google, affichée dans l'en-tête
+        "img-src 'self' data: https://*.googleusercontent.com",
         "font-src 'self' data:",
         "object-src 'none'",
         "base-uri 'self'",

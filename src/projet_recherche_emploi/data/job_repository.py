@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Mapping
 
-from sqlalchemy import false, func, select, update
+from sqlalchemy import delete, false, func, select, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
@@ -61,3 +61,7 @@ class JobRepository:
             .values(deleted=True)
         )
         return self.session.execute(statement).rowcount
+
+    def delete_all(self) -> int:
+        """Efface pour de bon toutes les offres de l'utilisateur, supprimées comprises, et renvoie leur nombre."""
+        return self.session.execute(delete(Job).where(Job.user_id == self.user_id)).rowcount

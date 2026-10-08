@@ -86,6 +86,9 @@ describe('CvCardComponent', () => {
     http.expectOne('/api/me').flush({
       user_id: 2,
       is_owner: false,
+      email: null,
+      name: null,
+      picture: null,
       can_search: true,
       remaining_searches: 2,
       max_searches_per_day: 2,

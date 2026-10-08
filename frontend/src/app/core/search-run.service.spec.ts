@@ -6,7 +6,7 @@ import { Router, provideRouter } from '@angular/router';
 import { SearchProgress } from './api.models';
 import { FETCH, SearchRunService } from './search-run.service';
 
-const ACCOUNT = { user_id: 2, is_owner: false, can_search: true, remaining_searches: 1, max_searches_per_day: 2 };
+const ACCOUNT = { user_id: 2, is_owner: false, email: null, name: null, picture: null, can_search: true, remaining_searches: 1, max_searches_per_day: 2 };
 
 function progress(values: Partial<SearchProgress>): string {
   const event: SearchProgress = {
