@@ -36,7 +36,7 @@ Ces quatre sociétés sont établies aux États-Unis. Les données hébergées p
 
 Vos données sont conservées tant que votre compte existe. Si votre accès est retiré, vous ne pouvez plus vous connecter, mais vos données restent enregistrées jusqu'à ce que vous en demandiez la suppression. Tant que vous avez accès à l'application, vous pouvez supprimer votre compte vous-même.
 
-Avant certaines mises à jour de l'application, une copie de sauvegarde de la base de données est faite et conservée au même endroit. La suppression d'un compte efface aussi ces copies.
+Avant certaines mises à jour de l'application, une copie de sauvegarde de la base de données est faite et conservée au même endroit. La suppression d'un compte retire aussi ses données de ces copies.
 
 ## Vos droits
 

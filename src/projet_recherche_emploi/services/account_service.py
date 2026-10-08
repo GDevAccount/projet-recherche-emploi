@@ -33,5 +33,5 @@ class AccountService:
             QueryRepository(session, user_id).delete_all()
             SearchRunRepository(session, user_id).delete_all()
             UserRepository(session).forget_user(user_id)
-        # Les copies d'avant migration contiennent encore ses données
-        self.database.delete_backups()
+        # Les copies d'avant migration contiennent encore ses données : elles restent, sans lui
+        self.database.purge_user_from_backups(user_id)

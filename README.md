@@ -93,7 +93,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/health` | État du serveur (sans connexion) |
 | `GET /api/config` | Ce qu'un front lit avant la connexion (sans connexion) : mode de connexion (`google` ou `password`), identifiant client Google, types de contrat |
 | `GET /api/me` | Utilisateur de la requête (avec l'adresse, le nom et la photo de son compte Google), recherches restantes aujourd'hui, et s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché) |
-| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements et adresse sont effacés, ainsi que les copies d'avant migration. Refusé (409) pendant une recherche |
+| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements et adresse sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
 | `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer |
 | `GET /api/jobs` | Offres retenues |
 | `PATCH /api/jobs/{id}` | Marquer une offre comme postulée ou non (`{"applied": true}`) |
@@ -365,7 +365,7 @@ uv run pytest                                             # vérifie que modèle
 
 La deuxième commande compare les modèles à la base locale et écrit la migration dans `src/projet_recherche_emploi/data/migrations/versions/`. La relire avant de la committer : Alembic ne devine pas tout (un renommage de colonne, par exemple, est vu comme une suppression suivie d'un ajout).
 
-Avant d'appliquer une migration à une base existante, l'application en fait une copie dans le même dossier, nommée `jobs.avant-migration-<version>.db`. Pour revenir en arrière, arrêter l'application et remettre cette copie à la place de `jobs.db`. Ces copies contiennent les données de tous les utilisateurs : les supprimer une fois la migration vérifiée. La suppression d'un compte les efface toutes.
+Avant d'appliquer une migration à une base existante, l'application en fait une copie dans le même dossier, nommée `jobs.avant-migration-<version>.db`. Pour revenir en arrière, arrêter l'application et remettre cette copie à la place de `jobs.db`. Ces copies contiennent les données de tous les utilisateurs : les supprimer une fois la migration vérifiée. La suppression d'un compte retire ses données de chacune, sans les effacer.
 
 ## Configuration
 

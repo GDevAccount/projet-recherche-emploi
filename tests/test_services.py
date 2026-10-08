@@ -1,3 +1,6 @@
+import sqlite3
+from contextlib import closing
+
 import pytest
 from helpers import blank_pdf, job, rejected_job
 
@@ -260,8 +263,15 @@ def test_deleting_an_account_leaves_nothing_behind(container, valid_pdf):
     container.cv.save_cv(user_id, valid_pdf)
     container.queries.add_query(user_id, "CDI", "data engineer")
     container.search.run_search(user_id)
+    with container.database.session() as session:
+        bob_id = UserRepository(session).get_or_create_user_id("bob@exemple.fr")
+    container.queries.add_query(bob_id, "CDI", "data engineer")
+    # Une copie d'avant migration, faite alors que les deux comptes existaient
     backup = container.settings.db_path.with_name("jobs.avant-migration-0001.db")
-    backup.write_bytes(b"copie")
+    with closing(sqlite3.connect(container.settings.db_path)) as source, closing(sqlite3.connect(backup)) as target:
+        source.backup(target)
+    unreadable = container.settings.db_path.with_name("jobs.avant-migration-0002.db")
+    unreadable.write_bytes(b"pas une base")
 
     container.account.delete_account(user_id)
 
@@ -271,8 +281,15 @@ def test_deleting_an_account_leaves_nothing_behind(container, valid_pdf):
     assert not container.cv_storage.path_for(user_id).exists()
     # Le quota repart de zéro : les lancements sont effacés aussi
     assert container.search.remaining_searches(user_id) == MAX_SEARCHES_PER_DAY
-    # Les copies d'avant migration contenaient encore ses données
-    assert not backup.exists()
+    # La copie reste, pour revenir en arrière après une migration ratée : seules ses données en sont retirées
+    with closing(sqlite3.connect(backup)) as copy:
+        for table in ("jobs", "rejected_jobs", "search_queries", "search_runs"):
+            assert copy.execute(f"SELECT COUNT(*) FROM {table} WHERE user_id = ?", (user_id,)).fetchone() == (0,)
+        assert copy.execute("SELECT email FROM users WHERE id = ?", (user_id,)).fetchone() == (None,)
+        assert copy.execute("SELECT COUNT(*) FROM search_queries WHERE user_id = ?", (bob_id,)).fetchone() == (1,)
+        assert copy.execute("SELECT email FROM users WHERE id = ?", (bob_id,)).fetchone() == ("bob@exemple.fr",)
+    # Une copie illisible ne peut pas être nettoyée : elle est effacée
+    assert not unreadable.exists()
     with container.database.session() as session:
         users = UserRepository(session).list_users()
         # La ligne reste, sans adresse : l'identifiant n'est pas redonné au compte suivant
@@ -290,6 +307,23 @@ def test_owner_can_erase_their_data_and_keeps_their_identifier(container, valid_
     assert container.cv.get_status(DEFAULT_USER_ID).updated_at is None
     with container.database.session() as session:
         assert [user.id for user in UserRepository(session).list_users()] == [DEFAULT_USER_ID]
+
+
+def test_owner_is_also_removed_from_a_backup_older_than_accounts(container, tmp_path):
+    # Avant les comptes, les tables n'avaient pas de colonne user_id : tout y était au propriétaire
+    backup = container.settings.db_path.with_name("jobs.avant-migration-0001.db")
+    with closing(sqlite3.connect(backup)) as copy:
+        copy.execute("CREATE TABLE jobs (url TEXT PRIMARY KEY, title TEXT)")
+        copy.execute("INSERT INTO jobs VALUES ('https://a/1', 'Offre')")
+        copy.commit()
+
+    assert container.database.purge_user_from_backups(BOB) == 1
+    with closing(sqlite3.connect(backup)) as copy:
+        assert copy.execute("SELECT COUNT(*) FROM jobs").fetchone() == (1,)
+
+    container.account.delete_account(DEFAULT_USER_ID)
+    with closing(sqlite3.connect(backup)) as copy:
+        assert copy.execute("SELECT COUNT(*) FROM jobs").fetchone() == (0,)
 
 
 def test_account_is_not_deleted_while_its_search_runs(container, valid_pdf):
