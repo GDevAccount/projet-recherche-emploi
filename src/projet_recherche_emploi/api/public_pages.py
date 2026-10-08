@@ -1,7 +1,8 @@
 """Pages servies sans connexion, en HTML simple : textes légaux et preuve de propriété du site.
 
-Les robots de Google ne lisent pas une page Streamlit, qui n'a de contenu qu'une fois son
-JavaScript exécuté. Ces pages sont donc des routes à part, déclarées dans server.py.
+Les robots de Google ne lisent pas une page qui n'a de contenu qu'une fois son JavaScript exécuté
+(Streamlit aujourd'hui, Angular demain). Ces pages sont donc des routes à part, ajoutées à l'interface
+Streamlit par ui/server.py et à l'API par api/main.py.
 """
 
 import html
@@ -13,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse
 from starlette.routing import Route
 
-from projet_recherche_emploi.config import MAX_SEARCHES_PER_DAY
+from projet_recherche_emploi.config import MAX_SEARCHES_PER_DAY, Settings
 
 LEGAL_DIR = Path(__file__).parent / "legal"
 # Adresse de la page -> titre
@@ -54,12 +55,11 @@ def render_legal_page(page: str, contact_email: str = "") -> str:
     )
 
 
-def build_routes(environment: dict[str, str]) -> list[Route]:
-    """Renvoie les routes publiques à ajouter à l'application Streamlit."""
-    contact_email = environment.get("CONTACT_EMAIL", "")
-    routes = [_legal_route(page, contact_email) for page in LEGAL_PAGES]
+def build_routes(settings: Settings) -> list[Route]:
+    """Renvoie les routes publiques à ajouter au serveur web."""
+    routes = [_legal_route(page, settings.contact_email) for page in LEGAL_PAGES]
 
-    verification_file = environment.get("GOOGLE_SITE_VERIFICATION_FILE", "").strip()
+    verification_file = settings.google_site_verification_file
     # Le nom est contrôlé : il devient une adresse du site
     if VERIFICATION_FILE_PATTERN.fullmatch(verification_file):
         routes.append(_verification_route(verification_file))

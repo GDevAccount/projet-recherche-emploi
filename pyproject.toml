@@ -1,25 +1,33 @@
 [project]
 name = "projet-recherche-emploi"
 version = "0.1.0"
-description = "Add your description here"
+description = "Agent de recherche d'emploi : cherche des offres, les filtre selon le CV et suit les candidatures"
 readme = "README.md"
 authors = [
     { name = "Guillaume", email = "legall.guilla@gmail.com" }
 ]
 requires-python = ">=3.11"
 dependencies = [
+    "alembic>=1.20.0",
+    "fastapi>=0.142.4",
+    "google-auth>=2.61.0",
     "langchain>=1.4.3",
     "langchain-openai>=1.6.7",
     "langchain-tavily>=0.2.18",
     "langgraph>=1.2.13",
     "markdown>=3.11",
+    "pydantic-settings>=2.15.0",
     "pypdf>=6.19.0",
     "python-dotenv>=1.2.4",
+    "python-multipart>=0.0.32",
+    "requests>=2.34.2",
+    "sqlalchemy>=2.0",
     "streamlit[auth]>=1.65.0",
+    "uvicorn>=0.54.0",
 ]
 
 [project.scripts]
-projet-recherche-emploi = "projet_recherche_emploi:main"
+projet-recherche-emploi = "projet_recherche_emploi.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13.0"]
@@ -27,5 +35,22 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.1.1",
+    "ruff>=0.16.10",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# E, F : erreurs ; I : ordre des imports ; B : pièges courants ; UP : syntaxe périmée
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Un paramètre « Depends(...) » par défaut est la façon de faire de FastAPI
+"src/projet_recherche_emploi/api/*" = ["B008"]

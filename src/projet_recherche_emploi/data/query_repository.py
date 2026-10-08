@@ -1,0 +1,36 @@
+from sqlalchemy import delete, select
+from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.orm import Session
+
+from projet_recherche_emploi.data.models import SearchQuery
+
+
+class QueryRepository:
+    def __init__(self, session: Session, user_id: int):
+        self.session = session
+        # Chaque requête se limite aux lignes de cet utilisateur
+        self.user_id = user_id
+
+    def list_queries(self) -> list[SearchQuery]:
+        """Renvoie les recherches enregistrées, dans l'ordre de création."""
+        statement = select(SearchQuery).where(SearchQuery.user_id == self.user_id).order_by(SearchQuery.id)
+        return list(self.session.scalars(statement))
+
+    def add_query(self, contract_type: str, query: str) -> SearchQuery | None:
+        """Enregistre une recherche et la renvoie, ou None si elle existe déjà."""
+        # Utilisateur + query est unique : une recherche déjà enregistrée est ignorée
+        statement = (
+            insert(SearchQuery)
+            .values(user_id=self.user_id, contract_type=contract_type, query=query)
+            .on_conflict_do_nothing()
+        )
+        if self.session.execute(statement).rowcount == 0:
+            return None
+        return self.session.scalars(
+            select(SearchQuery).where(SearchQuery.user_id == self.user_id, SearchQuery.query == query)
+        ).one()
+
+    def delete_query(self, query_id: int) -> bool:
+        """Supprime une recherche, et renvoie faux si l'identifiant est inconnu ou appartient à un autre utilisateur."""
+        statement = delete(SearchQuery).where(SearchQuery.user_id == self.user_id, SearchQuery.id == query_id)
+        return self.session.execute(statement).rowcount == 1

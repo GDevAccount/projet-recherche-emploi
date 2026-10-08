@@ -34,12 +34,12 @@ Un agent qui cherche des offres d'emploi sur le web, ne garde que celles qui cor
 Depuis la racine du projet :
 
 ```bash
-uv run streamlit run src/projet_recherche_emploi/server.py
+uv run streamlit run src/projet_recherche_emploi/ui/server.py
 ```
 
 L'interface s'ouvre dans le navigateur, à l'adresse `http://localhost:8501`.
 
-La commande doit être lancée depuis la racine : `cv.pdf`, `jobs.db` et `graph.png` sont cherchés ou créés dans le dossier courant.
+La commande doit être lancée depuis la racine : `cv.pdf` et `jobs.db` sont cherchés ou créés dans le dossier courant.
 
 ## Utiliser l'interface
 
@@ -53,7 +53,7 @@ La commande doit être lancée depuis la racine : `cv.pdf`, `jobs.db` et `graph.
 
 Chaque recherche consomme des crédits Tavily (une recherche avancée par poste recherché) et OpenAI (un appel par résultat qui n'a pas déjà été évalué, jusqu'à 20 par poste recherché).
 
-Au premier lancement d'une recherche, un schéma du graph est généré dans `graph.png`. Il est produit par le service en ligne mermaid.ink, donc une connexion internet est nécessaire.
+Un schéma du graph peut être généré dans `graph.png` avec `uv run projet-recherche-emploi graph`. Il est produit par le service en ligne mermaid.ink, donc une connexion internet est nécessaire.
 
 ### Sans l'interface
 
@@ -62,6 +62,47 @@ La recherche seule peut aussi être lancée en ligne de commande, avec le CV et 
 ```bash
 uv run projet-recherche-emploi
 ```
+
+La même commande a d'autres usages :
+
+| Commande | Effet |
+|---|---|
+| `uv run projet-recherche-emploi` (ou `search`) | Lance une recherche pour le propriétaire |
+| `uv run projet-recherche-emploi graph` | Génère le schéma du graph dans `graph.png` |
+| `uv run projet-recherche-emploi migrate` | Crée la base ou l'amène à la dernière version du schéma |
+| `uv run projet-recherche-emploi api` | Sert l'[API](#api) sur `http://127.0.0.1:8000` |
+
+## API
+
+Une API [FastAPI](https://fastapi.tiangolo.com/) expose les mêmes fonctions que l'interface. Elle est destinée au futur front Angular, qui remplacera Streamlit. Elle n'est pas encore déployée : l'instance en ligne ne sert que l'interface Streamlit.
+
+```bash
+uv run projet-recherche-emploi api
+```
+
+La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et le schéma OpenAPI à `http://127.0.0.1:8000/openapi.json` (de quoi générer le client Angular).
+
+| Route | Rôle |
+|---|---|
+| `GET /api/health` | État du serveur (sans connexion) |
+| `GET /api/me` | Utilisateur de la requête et recherches restantes aujourd'hui |
+| `GET /api/jobs` | Offres retenues |
+| `PATCH /api/jobs` | Marquer une offre comme postulée ou non (`{"url": …, "applied": true}`) |
+| `POST /api/jobs/delete` | Supprimer des offres (`{"urls": […]}`) |
+| `GET /api/rejected-jobs` | Pages rejetées |
+| `GET /api/queries`, `POST /api/queries`, `DELETE /api/queries/{id}` | Postes recherchés |
+| `GET /api/cv`, `PUT /api/cv` | Date du CV en place, dépôt d'un CV (fichier PDF, champ `file`) |
+| `POST /api/searches` | Lancer une recherche, suivie en direct (Server-Sent Events : `progress`, puis `result` ou `error`) |
+
+Chaque requête, sauf `/api/health`, porte un en-tête `Authorization: Bearer <jeton>`. La règle est celle de l'interface :
+
+- **avec la connexion Google** (`GOOGLE_CLIENT_ID` défini), le jeton est un jeton d'identité Google émis pour cet identifiant client. L'adresse qu'il porte désigne l'utilisateur, selon `OWNER_EMAIL` et `ALLOWED_EMAILS` ;
+- **sans elle**, le jeton est `APP_PASSWORD`, et désigne le propriétaire ;
+- **sans aucun des deux**, l'API refuse toutes les requêtes (code 503) : contrairement à l'interface en local, elle ne s'ouvre jamais sans protection.
+
+Un navigateur ne peut appeler l'API depuis un autre site que si son origine figure dans `CORS_ORIGINS`, par exemple `CORS_ORIGINS=http://localhost:4200` pour un front Angular en développement.
+
+Les erreurs ont la forme `{"detail": "message en français"}`, avec le code 422 (demande refusée), 404 (élément inconnu), 409 (doublon), 429 (quota atteint) ou 503 (instance mal réglée).
 
 ## Héberger l'application pour quelqu'un d'autre
 
@@ -100,7 +141,7 @@ fly volumes create data --region cdg --size 1    # volume monté sur /data (CV e
 fly secrets set TAVILY_API_KEY=... OPENAI_API_KEY=... APP_PASSWORD=...
 ```
 
-Une nouvelle version est publiée automatiquement à chaque push sur la branche `main`, par le workflow GitHub Actions `.github/workflows/fly-deploy.yml`. Le déroulement se suit dans l'onglet **Actions** du dépôt. L'instance redémarre à chaque déploiement : le volume `/data` est conservé, mais une recherche en cours est interrompue.
+Une nouvelle version est publiée automatiquement à chaque push sur la branche `main`, par le workflow GitHub Actions `.github/workflows/fly-deploy.yml`. Il lance d'abord le linter et les tests : s'ils échouent, rien n'est publié. Il les lance aussi sur chaque pull request, sans rien publier. Le déroulement se suit dans l'onglet **Actions** du dépôt. L'instance redémarre à chaque déploiement : le volume `/data` est conservé, mais une recherche en cours est interrompue.
 
 Ce workflow a besoin d'un jeton Fly.io, enregistré une seule fois comme secret `FLY_API_TOKEN` du dépôt GitHub :
 
@@ -146,7 +187,7 @@ Pour passer en mode « En production », Google demande deux liens, que l'applic
 - règles de confidentialité : `https://projet-recherche-emploi.fly.dev/confidentialite`
 - conditions d'utilisation : `https://projet-recherche-emploi.fly.dev/conditions`
 
-Ce sont des pages HTML simples, lisibles par les robots de Google, qui ne voient pas le contenu d'une page Streamlit. Leurs textes sont dans `src/projet_recherche_emploi/legal/`. Ils décrivent ce que fait l'application telle qu'elle est : les relire, et les tenir à jour si elle change. Même en production, seules les adresses de `OWNER_EMAIL` et `ALLOWED_EMAILS` accèdent à l'application, sauf si `ALLOWED_EMAILS` vaut `*`.
+Ce sont des pages HTML simples, lisibles par les robots de Google, qui ne voient pas le contenu d'une page Streamlit. Leurs textes sont dans `src/projet_recherche_emploi/api/legal/`. Ils décrivent ce que fait l'application telle qu'elle est : les relire, et les tenir à jour si elle change. Même en production, seules les adresses de `OWNER_EMAIL` et `ALLOWED_EMAILS` accèdent à l'application, sauf si `ALLOWED_EMAILS` vaut `*`.
 
 Google peut aussi demander la preuve que le site vous appartient. Dans [Search Console](https://search.google.com/search-console), ajouter une propriété de type « Préfixe de l'URL » avec l'adresse de l'instance, choisir la méthode « Fichier HTML », et mettre le nom du fichier proposé dans `GOOGLE_SITE_VERIFICATION_FILE` : l'application le sert alors à la racine du site, sans qu'il faille le déposer.
 
@@ -176,8 +217,8 @@ Pour inviter ou retirer quelqu'un, relancer `fly secrets set ALLOWED_EMAILS=...`
 En local, les mettre dans `.env`, puis générer la configuration de Streamlit avant de lancer l'interface :
 
 ```bash
-uv run python -m projet_recherche_emploi.auth_secrets
-uv run streamlit run src/projet_recherche_emploi/server.py
+uv run python -m projet_recherche_emploi.ui.auth_secrets
+uv run streamlit run src/projet_recherche_emploi/ui/server.py
 ```
 
 La première commande écrit `.streamlit/secrets.toml` (ignoré par Git). Pour revenir au mot de passe unique en local, vider les variables dans `.env` et supprimer ce fichier. L'image Docker lance cette commande toute seule à chaque démarrage.
@@ -206,7 +247,7 @@ La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/)
 
 ## Base de données
 
-`jobs.db` contient cinq tables, créées automatiquement.
+`jobs.db` contient cinq tables, créées et tenues à jour par des migrations [Alembic](https://alembic.sqlalchemy.org/) que l'application applique seule à son démarrage (voir [Faire évoluer le schéma](#faire-évoluer-le-schéma)). Une sixième, `alembic_version`, retient la version du schéma. Le code y accède avec [SQLAlchemy](https://www.sqlalchemy.org/).
 
 Table `jobs`, les offres retenues :
 
@@ -265,6 +306,20 @@ Table `search_runs`, les lancements de recherche, qui servent au quota journalie
 | `user_id` | Utilisateur qui a lancé la recherche |
 | `created_at` | Date du lancement (UTC) |
 
+### Faire évoluer le schéma
+
+Les tables sont décrites dans `src/projet_recherche_emploi/data/models.py`. Modifier ce fichier ne change aucune base existante : il faut une migration, que l'application appliquera à son prochain démarrage, en local comme en ligne (l'image Docker l'applique avant de lancer l'interface, et refuse de démarrer si elle échoue).
+
+```bash
+uv run projet-recherche-emploi migrate                    # la base locale doit d'abord être à jour
+uv run alembic revision --autogenerate -m "ajout de la colonne note" --rev-id 0002
+uv run pytest                                             # vérifie que modèles et migrations décrivent le même schéma
+```
+
+La deuxième commande compare les modèles à la base locale et écrit la migration dans `src/projet_recherche_emploi/data/migrations/versions/`. La relire avant de la committer : Alembic ne devine pas tout (un renommage de colonne, par exemple, est vu comme une suppression suivie d'un ajout).
+
+Avant d'appliquer une migration à une base existante, l'application en fait une copie dans le même dossier, nommée `jobs.avant-migration-<version>.db`. Pour revenir en arrière, arrêter l'application et remettre cette copie à la place de `jobs.db`. Ces copies contiennent les données de tous les utilisateurs : les supprimer une fois la migration vérifiée.
+
 ## Configuration
 
 Les postes recherchés et le CV se règlent dans l'interface. Le reste se règle dans le code :
@@ -272,17 +327,20 @@ Les postes recherchés et le CV se règlent dans l'interface. Le reste se règle
 | Réglage | Fichier | Valeur par défaut |
 |---|---|---|
 | Dossier de la base et du CV (`DATA_DIR`) | variable d'environnement | dossier courant |
-| Nom de la base (`DB_PATH`) | `src/projet_recherche_emploi/config.py` | `jobs.db` |
-| Emplacement du CV (`cv_path`) | `src/projet_recherche_emploi/config.py` | `cv.pdf` pour l'utilisateur 1, `cv/<identifiant>.pdf` pour les autres |
+| Nom de la base (`DB_FILE_NAME`) | `src/projet_recherche_emploi/config.py` | `jobs.db` |
+| Emplacement du CV (`CvStorage.path_for`) | `src/projet_recherche_emploi/data/cv_storage.py` | `cv.pdf` pour l'utilisateur 1, `cv/<identifiant>.pdf` pour les autres |
 | Mot de passe de l'interface (`APP_PASSWORD`) | variable d'environnement | aucun |
 | Connexion Google (`GOOGLE_CLIENT_ID`, `OWNER_EMAIL`, `ALLOWED_EMAILS`…) | variables d'environnement | désactivée |
 | Recherches par jour pour un invité (`MAX_SEARCHES_PER_DAY`) | `src/projet_recherche_emploi/config.py` | `2` |
 | Modèle OpenAI du filtre (`FILTER_MODEL`) | `src/projet_recherche_emploi/config.py` | `gpt-5-mini` |
 | Taille maximale de page envoyée au modèle (`MAX_PAGE_CHARS`) | `src/projet_recherche_emploi/config.py` | `8000` |
 | Recherches créées avec la base (`DEFAULT_QUERIES`) | `src/projet_recherche_emploi/config.py` | 2 recherches CDI, 2 freelance (ingénieur IA) |
-| Types de contrat proposés (`CONTRACT_TYPES`) | `src/projet_recherche_emploi/app.py` | CDI, freelance, CDD, alternance, stage |
-| Sites interrogés (`JOB_SITES`) | `src/projet_recherche_emploi/node.py` | 15 sites d'emploi |
-| Critères du filtre (`FILTER_PROMPT`) | `src/projet_recherche_emploi/node.py` | — |
+| Types de contrat proposés (`CONTRACT_TYPES`) | `src/projet_recherche_emploi/config.py` | CDI, freelance, CDD, alternance, stage |
+| Sites autorisés à appeler l'API depuis un navigateur (`CORS_ORIGINS`) | variable d'environnement | aucun |
+| Sites interrogés (`JOB_SITES`) | `src/projet_recherche_emploi/config.py` | 24 sites d'emploi |
+| Critères du filtre (`FILTER_PROMPT`) | `src/projet_recherche_emploi/agent/prompts.py` | — |
+
+Les variables d'environnement sont lues une seule fois, au démarrage, dans la classe `Settings` de `config.py`.
 
 Après une modification de `FILTER_PROMPT`, les pages déjà rejetées ne sont pas réévaluées. Pour les soumettre à nouveau, vider la table : `sqlite3 jobs.db "DELETE FROM rejected_jobs"`.
 
@@ -291,30 +349,63 @@ Après une modification de `FILTER_PROMPT`, les pages déjà rejetées ne sont p
 ## Tests
 
 ```bash
-uv run pytest
+uv run pytest          # tests
+uv run ruff check .    # linter
 ```
 
-Les tests vérifient que les données d'un utilisateur ne sont ni visibles ni modifiables par un autre, et qu'une recherche utilise les recherches et le CV de son utilisateur. Ils tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI.
+Les tests tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI. Ils vérifient notamment que :
+
+- les données d'un utilisateur ne sont ni visibles ni modifiables par un autre, dans les dépôts, les services et l'API ;
+- une base créée avant Alembic garde ses lignes après migration, et les modèles décrivent bien le schéma migré ;
+- une recherche utilise les recherches et le CV de son utilisateur, et respecte le quota journalier ;
+- toute route de l'API qui touche aux données exige une identité ;
+- l'interface n'affiche rien avant le mot de passe ;
+- aucune couche n'importe une couche située au-dessus d'elle.
 
 ## Structure du projet
 
+Le code est rangé en couches. Une interface (Streamlit, l'API, la commande) appelle les services, les services appellent les dépôts, et seuls les dépôts touchent à la base. Aucune couche n'importe celle du dessus, et les services ne connaissent ni Streamlit ni FastAPI : le front Angular se branchera sur l'API sans rien changer en dessous.
+
 ```
 src/projet_recherche_emploi/
-├── server.py            # point d'entrée : l'interface, plus les pages publiques
-├── app.py               # interface Streamlit
-├── public_pages.py      # pages HTML servies sans connexion (textes légaux, validation Google)
-├── __init__.py          # point d'entrée de la commande projet-recherche-emploi
-├── main.py              # construction du graph LangGraph
-├── node.py              # les quatre étapes : search_jobs, filter_duplicates, filter_jobs, insert_jobs
-├── state.py             # état partagé entre les étapes
-├── config.py            # réglages (chemins, modèle, recherches par défaut)
-├── cv_reader.py         # lecture et enregistrement du CV en PDF
-├── legal/               # textes des règles de confidentialité et des conditions d'utilisation
-├── auth.py              # adresse Google -> utilisateur, selon OWNER_EMAIL et ALLOWED_EMAILS
-├── auth_secrets.py      # écrit la configuration de connexion Google de Streamlit
-├── user_repository.py   # table des comptes
-├── search_run_repository.py    # table des lancements de recherche (quota journalier)
-├── job_repository.py           # table des offres : insertion, lecture, suivi des candidatures, suppression
-├── rejected_job_repository.py  # table des pages rejetées : insertion, lecture, vidage
-└── query_repository.py         # table des postes recherchés : lecture, ajout, suppression
+├── config.py            # réglages : variables d'environnement (Settings) et constantes
+├── errors.py            # erreurs destinées à l'utilisateur
+├── schemas.py           # objets échangés entre services et interfaces (Pydantic)
+├── container.py         # assemblage : relie réglages, base, graph et services
+├── cli.py               # commande projet-recherche-emploi
+├── ui/                  # interface Streamlit, seule couche qui importe streamlit
+│   ├── server.py        # point d'entrée : l'interface, plus les pages publiques
+│   ├── app.py           # page principale
+│   ├── auth.py          # connexion : Google, ou mot de passe unique
+│   ├── views.py         # écrans : CV, recherches, offres, pages rejetées
+│   └── auth_secrets.py  # écrit la configuration de connexion Google de Streamlit
+├── api/                 # API FastAPI, seule couche qui importe fastapi
+│   ├── main.py          # construction de l'application, traduction des erreurs en codes HTTP
+│   ├── security.py      # identification de l'appelant (jeton Google ou mot de passe)
+│   ├── routers/         # routes : compte, offres, postes recherchés, CV, recherche
+│   ├── public_pages.py  # pages HTML servies sans connexion (textes légaux, validation Google)
+│   └── legal/           # textes des règles de confidentialité et des conditions d'utilisation
+├── services/            # règles métier, sans dépendance à une interface
+│   ├── auth_service.py    # adresse Google -> utilisateur, mot de passe de l'instance
+│   ├── search_service.py  # conditions préalables, quota journalier et lancement d'une recherche
+│   ├── cv_service.py      # enregistrement du CV, oubli des rejets de l'ancien
+│   ├── job_service.py     # offres retenues et pages rejetées
+│   └── query_service.py   # postes recherchés
+├── agent/               # recherche LangGraph
+│   ├── graph.py         # construction du graph
+│   ├── nodes.py         # les quatre étapes : search_jobs, filter_duplicates, filter_jobs, insert_jobs
+│   ├── ports.py         # ce que le graph attend de l'extérieur : un moteur de recherche, un évaluateur
+│   ├── adapters.py      # leurs branchements réels : Tavily et OpenAI
+│   ├── prompts.py       # critères du filtre envoyés au modèle
+│   └── state.py         # état partagé entre les étapes
+└── data/                # seuls accès à la base et aux fichiers, seule couche qui importe sqlalchemy
+    ├── database.py      # sessions, transactions, application des migrations
+    ├── models.py        # tables (SQLAlchemy)
+    ├── migrations/      # migrations Alembic
+    ├── job_repository.py           # table des offres : insertion, lecture, suivi des candidatures, suppression
+    ├── rejected_job_repository.py  # table des pages rejetées : insertion, lecture, vidage
+    ├── query_repository.py         # table des postes recherchés : lecture, ajout, suppression
+    ├── search_run_repository.py    # table des lancements de recherche (quota journalier)
+    ├── user_repository.py          # table des comptes
+    └── cv_storage.py               # lecture et enregistrement des CV en PDF
 ```
