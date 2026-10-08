@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.routing import BaseRoute, Match, get_route_path
 from starlette.types import Receive, Scope, Send
 
+from projet_recherche_emploi.api.frontend import build_frontend_routes
 from projet_recherche_emploi.api.public_pages import build_routes
 from projet_recherche_emploi.api.routers import account, cv, jobs, queries, searches
 from projet_recherche_emploi.api.security import GoogleIdentityVerifier, IdentityVerifier
@@ -69,8 +70,9 @@ def create_app(container: Container | None = None, identity_verifier: IdentityVe
     for router in (account.router, jobs.router, queries.router, cv.router, searches.router):
         app.include_router(router, prefix=API_PREFIX)
 
-    # Pages légales et fichier de validation Google, servis sans connexion
+    # Pages légales, fichier de validation Google et fichiers du front, servis sans connexion
     app.router.routes.extend(build_routes(settings))
+    app.router.routes.extend(build_frontend_routes(settings))
     return app
 
 
