@@ -13,7 +13,10 @@ def client(tmp_path):
     front = tmp_path / "front"
     front.mkdir()
     (front / "index.html").write_text("<app-root></app-root>", encoding="utf-8")
-    (front / "main-ABC123.js").write_text("console.log('front')", encoding="utf-8")
+    (front / "main-ABC12345.js").write_text("console.log('front')", encoding="utf-8")
+    (front / "chunk-BBrCm5NO.js").write_text("", encoding="utf-8")
+    (front / "theme-init.js").write_text("", encoding="utf-8")
+    (front / "robots.txt").write_text("User-agent: *", encoding="utf-8")
     return TestClient(Starlette(routes=build_frontend_routes(Settings(frontend_dir=front))))
 
 
@@ -35,9 +38,14 @@ def test_front_is_served_at_the_root(client):
     # La page d'accueil garde son nom d'un build à l'autre : le navigateur doit la redemander
     assert response.headers["cache-control"] == "no-cache"
 
-    script = client.get("/main-ABC123.js")
+    script = client.get("/main-ABC12345.js")
     assert script.text == "console.log('front')"
-    assert "cache-control" not in script.headers
+    # Son nom porte son empreinte : il ne change jamais, le navigateur le garde
+    assert script.headers["cache-control"] == "public, max-age=31536000, immutable"
+    # Un fichier sans empreinte peut changer d'un build à l'autre
+    assert "immutable" in client.get("/chunk-BBrCm5NO.js").headers["cache-control"]
+    for path in ("/robots.txt", "/theme-init.js"):
+        assert "cache-control" not in client.get(path).headers
 
 
 def test_unknown_address_is_left_to_the_angular_router(client):

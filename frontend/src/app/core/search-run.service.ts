@@ -188,7 +188,13 @@ export class SearchRunService {
     if (!name || !data) {
       return;
     }
-    const payload: unknown = JSON.parse(data);
+    let payload: unknown;
+    try {
+      payload = JSON.parse(data);
+    } catch {
+      // Un événement illisible ne doit pas faire perdre le suivi des suivants
+      return;
+    }
     if (name === 'progress') {
       this.progress(payload as SearchProgress);
     } else if (name === 'result') {

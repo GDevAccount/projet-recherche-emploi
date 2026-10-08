@@ -1,9 +1,9 @@
 @let state = run.state();
 
-<section class="panel" [attr.data-state]="state" aria-live="polite">
+<section class="panel" [attr.data-state]="state">
   <header>
     <span class="signal"></span>
-    <h2>
+    <h2 role="status">
       @switch (state) {
         @case ('running') {
           Recherche en cours
