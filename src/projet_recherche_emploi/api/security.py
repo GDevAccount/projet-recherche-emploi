@@ -1,21 +1,36 @@
-"""Identification de l'appelant de l'API, à partir de l'en-tête « Authorization: Bearer … ».
+"""Identification de l'appelant de l'API.
 
-Même règle que l'interface Streamlit : avec la connexion Google, le jeton est un jeton d'identité Google
-et l'adresse qu'il porte désigne l'utilisateur ; sans elle, le jeton est APP_PASSWORD et désigne le propriétaire.
-Sans aucun des deux, l'API refuse tout : elle ne s'ouvre jamais par défaut.
+Une preuve d'identité se présente dans l'en-tête « Authorization: Bearer … ». Même règle que l'interface
+Streamlit : avec la connexion Google, c'est un jeton d'identité Google et l'adresse qu'il porte désigne
+l'utilisateur ; sans elle, c'est APP_PASSWORD, qui désigne le propriétaire. Sans aucun des deux, l'API
+refuse tout : elle ne s'ouvre jamais par défaut.
+
+Un navigateur ne présente cette preuve qu'une fois, à « POST /api/session », qui l'échange contre un cookie
+de session : le jeton Google expire au bout d'une heure, et le cookie n'est pas lisible par le JavaScript de la page.
 """
 
 from dataclasses import dataclass
 from typing import Annotated, Protocol
+from urllib.parse import urlsplit
 
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
 from google.auth.exceptions import GoogleAuthError
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
 from projet_recherche_emploi.config import DEFAULT_USER_ID
 from projet_recherche_emploi.container import Container
+from projet_recherche_emploi.services.auth_service import SESSION_SECONDS
+
+SESSION_COOKIE = "session"
+SESSION_COOKIE_PATH = "/api"
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+# Méthodes qui ne modifient rien : une requête forgée par un autre site n'y gagne rien
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+BearerCredentials = Annotated[HTTPAuthorizationCredentials | None, Depends(HTTPBearer(auto_error=False))]
+SessionToken = Annotated[str | None, Depends(APIKeyCookie(name=SESSION_COOKIE, auto_error=False))]
 
 
 @dataclass(frozen=True)
@@ -43,36 +58,115 @@ class GoogleIdentityVerifier:
         return Identity(claims.get("email"), claims.get("email_verified"))
 
 
+@dataclass(frozen=True)
+class Caller:
+    user_id: int
+    # Adresse Google vérifiée, ou None si l'appelant a donné le mot de passe de l'instance
+    email: str | None
+
+
 def get_container(request: Request) -> Container:
     return request.app.state.container
+
+
+def get_caller_from_credentials(
+    request: Request,
+    container: Annotated[Container, Depends(get_container)],
+    credentials: BearerCredentials,
+) -> Caller:
+    """Renvoie l'appelant prouvé par l'en-tête Authorization. Seule preuve acceptée pour ouvrir une session."""
+    _require_protection(container)
+    if credentials is None:
+        raise _unauthorized()
+    return _caller_from_credentials(request, container, credentials.credentials)
 
 
 def get_current_user_id(
     request: Request,
     container: Annotated[Container, Depends(get_container)],
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(HTTPBearer(auto_error=False))],
+    credentials: BearerCredentials,
+    session_token: SessionToken,
 ) -> int:
     """Renvoie l'utilisateur de la requête. Toute route qui lit ou modifie des données en dépend."""
+    _require_protection(container)
+    if credentials is not None:
+        return _caller_from_credentials(request, container, credentials.credentials).user_id
+    if session_token is None:
+        raise _unauthorized()
+
+    session = container.auth.read_session_token(session_token)
+    if session is None:
+        raise _unauthorized()
+    _check_origin(request, container)
+    if session.email is None:
+        return DEFAULT_USER_ID
+    # L'adresse a été vérifiée par Google à l'ouverture de la session ; l'autorisation, elle, est relue ici
+    user_id = container.auth.resolve_user_id(session.email, True)
+    if user_id is None:
+        raise _forbidden()
+    return user_id
+
+
+def set_session_cookie(request: Request, response: Response, token: str) -> None:
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        max_age=SESSION_SECONDS,
+        path=SESSION_COOKIE_PATH,
+        httponly=True,
+        secure=_is_secure(request),
+        samesite="strict",
+    )
+
+
+def clear_session_cookie(request: Request, response: Response) -> None:
+    response.delete_cookie(
+        SESSION_COOKIE, path=SESSION_COOKIE_PATH, httponly=True, secure=_is_secure(request), samesite="strict"
+    )
+
+
+def _require_protection(container: Container) -> None:
+    if not container.settings.google_client_id and not container.auth.password_required:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "L'API n'est pas protégée : définir la connexion Google ou APP_PASSWORD.",
+        )
+
+
+def _caller_from_credentials(request: Request, container: Container, token: str) -> Caller:
     if container.settings.google_client_id:
-        identity = request.app.state.identity_verifier.verify(credentials.credentials) if credentials else None
+        identity = request.app.state.identity_verifier.verify(token)
         if identity is None:
             raise _unauthorized()
         user_id = container.auth.resolve_user_id(identity.email, identity.email_verified)
         if user_id is None:
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN, "Cette adresse n'est pas autorisée à utiliser l'application."
-            )
-        return user_id
+            raise _forbidden()
+        return Caller(user_id, identity.email)
 
-    if container.auth.password_required:
-        if credentials is None or not container.auth.password_matches(credentials.credentials):
-            raise _unauthorized()
-        return DEFAULT_USER_ID
+    if not container.auth.password_matches(token):
+        raise _unauthorized()
+    return Caller(DEFAULT_USER_ID, None)
 
-    raise HTTPException(
-        status.HTTP_503_SERVICE_UNAVAILABLE,
-        "L'API n'est pas protégée : définir la connexion Google ou APP_PASSWORD.",
-    )
+
+def _check_origin(request: Request, container: Container) -> None:
+    """Refuse une requête qui modifie des données si elle vient d'un autre site que le front.
+
+    Le navigateur joint le cookie de lui-même : sans ce contrôle, une page d'un autre site pourrait agir
+    au nom de l'utilisateur. SameSite=Strict l'empêche déjà, ceci couvre un navigateur qui l'ignorerait.
+    L'en-tête Authorization n'est pas concerné : un autre site ne peut pas le remplir.
+    """
+    origin = request.headers.get("origin")
+    if request.method in SAFE_METHODS or origin is None:
+        return
+    same_host = urlsplit(origin).netloc == request.headers.get("host")
+    if not same_host and origin not in container.settings.cors_origin_list:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Cette origine n'est pas autorisée à appeler l'API.")
+
+
+def _is_secure(request: Request) -> bool:
+    # Le cookie ne circule qu'en HTTPS, sauf sur la machine du développeur. On ne se fie pas au schéma
+    # de la requête : derrière le proxy d'un hébergeur, l'application la reçoit en HTTP.
+    return request.url.hostname not in LOOPBACK_HOSTS
 
 
 def _unauthorized() -> HTTPException:
@@ -81,5 +175,10 @@ def _unauthorized() -> HTTPException:
     )
 
 
+def _forbidden() -> HTTPException:
+    return HTTPException(status.HTTP_403_FORBIDDEN, "Cette adresse n'est pas autorisée à utiliser l'application.")
+
+
 Services = Annotated[Container, Depends(get_container)]
 UserId = Annotated[int, Depends(get_current_user_id)]
+CredentialsCaller = Annotated[Caller, Depends(get_caller_from_credentials)]

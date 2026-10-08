@@ -86,6 +86,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 |---|---|
 | `GET /api/health` | État du serveur (sans connexion) |
 | `GET /api/me` | Utilisateur de la requête et recherches restantes aujourd'hui |
+| `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer |
 | `GET /api/jobs` | Offres retenues |
 | `PATCH /api/jobs` | Marquer une offre comme postulée ou non (`{"url": …, "applied": true}`) |
 | `POST /api/jobs/delete` | Supprimer des offres (`{"urls": […]}`) |
@@ -94,11 +95,18 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/cv`, `PUT /api/cv` | Date du CV en place, dépôt d'un CV (fichier PDF, champ `file`) |
 | `POST /api/searches` | Lancer une recherche, suivie en direct (Server-Sent Events : `progress`, puis `result` ou `error`) |
 
-Chaque requête, sauf `/api/health`, porte un en-tête `Authorization: Bearer <jeton>`. La règle est celle de l'interface :
+L'appelant prouve son identité par un en-tête `Authorization: Bearer <jeton>`. La règle est celle de l'interface :
 
 - **avec la connexion Google** (`GOOGLE_CLIENT_ID` défini), le jeton est un jeton d'identité Google émis pour cet identifiant client. L'adresse qu'il porte désigne l'utilisateur, selon `OWNER_EMAIL` et `ALLOWED_EMAILS` ;
 - **sans elle**, le jeton est `APP_PASSWORD`, et désigne le propriétaire ;
 - **sans aucun des deux**, l'API refuse toutes les requêtes (code 503) : contrairement à l'interface en local, elle ne s'ouvre jamais sans protection.
+
+Un script peut envoyer cet en-tête à chaque requête. Un navigateur ne l'envoie qu'une fois, à `POST /api/session`, qui répond par un cookie `session` valable 30 jours ; les requêtes suivantes n'ont plus besoin d'en-tête. Le jeton Google n'est en effet valable qu'une heure, et ce cookie est illisible pour le JavaScript de la page (`HttpOnly`), donc hors de portée d'un script injecté. `DELETE /api/session` le supprime.
+
+- Le cookie est signé avec `AUTH_COOKIE_SECRET`, qui doit donc être défini, même sans connexion Google. Changer ce secret, ou `APP_PASSWORD`, ferme toutes les sessions.
+- Il porte l'adresse Google, pas un droit d'accès : retirer une adresse de `ALLOWED_EMAILS` ferme ses sessions au redémarrage.
+- Il n'est envoyé qu'en HTTPS, sauf sur `localhost`, et jamais à la demande d'un autre site (`SameSite=Strict`). Une requête qui modifie des données est en plus refusée (403) si son en-tête `Origin` n'est ni l'adresse de l'API ni une origine de `CORS_ORIGINS`.
+- Une session ne se prolonge pas : au bout de 30 jours, le front redemande une connexion.
 
 Un navigateur ne peut appeler l'API depuis un autre site que si son origine figure dans `CORS_ORIGINS`, par exemple `CORS_ORIGINS=http://localhost:4200` pour un front Angular en développement.
 
@@ -197,7 +205,7 @@ Google peut aussi demander la preuve que le site vous appartient. Dans [Search C
 |---|---|
 | `GOOGLE_CLIENT_ID` | Identifiant client fourni par Google |
 | `GOOGLE_CLIENT_SECRET` | Code secret fourni par Google |
-| `AUTH_COOKIE_SECRET` | Chaîne aléatoire longue, qui signe le cookie de session (`python -c "import secrets; print(secrets.token_hex(32))"`) |
+| `AUTH_COOKIE_SECRET` | Chaîne aléatoire longue, qui signe le cookie de session de l'interface et celui de l'API (`python -c "import secrets; print(secrets.token_hex(32))"`) |
 | `AUTH_REDIRECT_URI` | L'URI de redirection déclaré à l'étape 1, pour cette instance |
 | `OWNER_EMAIL` | Adresse Google du propriétaire |
 | `ALLOWED_EMAILS` | Adresses des invités, séparées par des virgules (peut être vide), ou `*` pour accepter tout compte Google |
@@ -359,6 +367,7 @@ Les tests tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI. I
 - une base créée avant Alembic garde ses lignes après migration, et les modèles décrivent bien le schéma migré ;
 - une recherche utilise les recherches et le CV de son utilisateur, et respecte le quota journalier ;
 - toute route de l'API qui touche aux données exige une identité ;
+- un cookie de session falsifié, expiré ou présenté par un autre site est refusé ;
 - l'interface n'affiche rien avant le mot de passe ;
 - aucune couche n'importe une couche située au-dessus d'elle.
 
