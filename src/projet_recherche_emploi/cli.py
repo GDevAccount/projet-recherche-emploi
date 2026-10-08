@@ -1,6 +1,6 @@
 """Commande projet-recherche-emploi.
 
-Sans argument, lance une recherche pour le propriétaire, sans interface.
+Sans argument, lance une recherche pour le propriétaire, sans passer par le serveur.
 """
 
 import argparse
@@ -14,6 +14,8 @@ from projet_recherche_emploi.errors import AppError
 from projet_recherche_emploi.schemas import SearchProgress
 
 logger = logging.getLogger(__name__)
+
+PORT = 8000
 
 
 def run_search() -> None:
@@ -38,21 +40,30 @@ def draw_graph() -> None:
 
 
 def migrate() -> None:
-    # Construire le conteneur met déjà la base à jour
-    get_container()
+    # Construire le conteneur met déjà la base à jour. L'image Docker passe par ici avant de servir :
+    # une connexion à moitié réglée arrête donc le déploiement, comme une migration qui échoue
+    get_container().auth.check_configuration()
 
 
 def serve_api() -> None:
     import uvicorn
 
-    uvicorn.run("projet_recherche_emploi.api.main:create_app", factory=True, host="127.0.0.1", port=8000)
+    uvicorn.run("projet_recherche_emploi.api.main:create_app", factory=True, host="127.0.0.1", port=PORT)
+
+
+def serve() -> None:
+    import uvicorn
+
+    # Toutes les interfaces : dans un conteneur, la requête arrive par le réseau de l'hébergeur
+    uvicorn.run("projet_recherche_emploi.api.main:create_server_app", factory=True, host="0.0.0.0", port=PORT)
 
 
 COMMANDS = {
     "search": (run_search, "lance une recherche pour le propriétaire (par défaut)"),
     "graph": (draw_graph, "génère le schéma du graph dans graph.png"),
     "migrate": (migrate, "crée la base ou l'amène à la dernière version du schéma"),
-    "api": (serve_api, "sert l'API sur http://127.0.0.1:8000"),
+    "api": (serve_api, "sert l'application en développement, avec la documentation : http://127.0.0.1:8000/docs"),
+    "serve": (serve, "sert l'application en ligne sur le port 8000, sans la documentation de l'API"),
 }
 
 

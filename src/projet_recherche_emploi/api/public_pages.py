@@ -1,8 +1,7 @@
 """Pages servies sans connexion, en HTML simple : textes légaux et preuve de propriété du site.
 
-Les robots de Google ne lisent pas une page qui n'a de contenu qu'une fois son JavaScript exécuté
-(Streamlit aujourd'hui, Angular demain). Ces pages sont donc des routes à part, ajoutées à l'interface
-Streamlit par ui/server.py et à l'API par api/main.py.
+Les robots de Google ne lisent pas une page qui n'a de contenu qu'une fois son JavaScript exécuté,
+comme celles du front Angular. Ces pages sont donc des routes à part, ajoutées au serveur par api/main.py.
 """
 
 import html

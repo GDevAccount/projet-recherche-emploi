@@ -1,9 +1,9 @@
 """Identification de l'appelant de l'API.
 
-Une preuve d'identité se présente dans l'en-tête « Authorization: Bearer … ». Même règle que l'interface
-Streamlit : avec la connexion Google, c'est un jeton d'identité Google et l'adresse qu'il porte désigne
-l'utilisateur ; sans elle, c'est APP_PASSWORD, qui désigne le propriétaire. Sans aucun des deux, l'API
-refuse tout : elle ne s'ouvre jamais par défaut.
+Une preuve d'identité se présente dans l'en-tête « Authorization: Bearer … ». Avec la connexion Google,
+c'est un jeton d'identité Google et l'adresse qu'il porte désigne l'utilisateur ; sans elle, c'est
+APP_PASSWORD, qui désigne le propriétaire. Sans aucun des deux, l'API refuse tout : elle ne s'ouvre
+jamais par défaut.
 
 Un navigateur ne présente cette preuve qu'une fois, à « POST /api/session », qui l'échange contre un cookie
 de session : le jeton Google expire au bout d'une heure, et le cookie n'est pas lisible par le JavaScript de la page.

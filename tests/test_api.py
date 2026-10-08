@@ -5,11 +5,8 @@ import pytest
 from conftest import FakeEvaluator, FakeSearchEngine
 from fastapi.testclient import TestClient
 from helpers import blank_pdf, job
-from starlette.applications import Starlette
-from starlette.responses import PlainTextResponse
-from starlette.routing import Route
 
-from projet_recherche_emploi.api.main import ApiRoute, create_app
+from projet_recherche_emploi.api.main import create_app
 from projet_recherche_emploi.api.security import Identity
 from projet_recherche_emploi.config import (
     CONTRACT_TYPES,
@@ -42,6 +39,8 @@ class FakeIdentityVerifier:
 
 
 def make_client(tmp_path, evaluator=None, base_url="http://localhost", **settings) -> TestClient:
+    # Sans front construit, sauf si le test en fournit un : celui de la machine ne doit pas répondre à sa place
+    settings.setdefault("frontend_dir", tmp_path / "pas-de-front")
     container = build_container(
         Settings(data_dir=tmp_path, **settings), FakeSearchEngine(), evaluator or FakeEvaluator()
     )
@@ -94,7 +93,6 @@ def test_config_leaks_no_secret(tmp_path):
         tmp_path,
         app_password="sesame",
         google_client_id="id.apps.googleusercontent.com",
-        google_client_secret="code-secret",
         auth_cookie_secret=SECRET,
         owner_email="proprietaire@exemple.fr",
         allowed_emails="alice@exemple.fr",
@@ -102,7 +100,7 @@ def test_config_leaks_no_secret(tmp_path):
 
     text = client.get("/api/config").text
 
-    for secret in ("sesame", "code-secret", SECRET, "proprietaire@exemple.fr", "alice@exemple.fr"):
+    for secret in ("sesame", SECRET, "proprietaire@exemple.fr", "alice@exemple.fr"):
         assert secret not in text
 
 
@@ -433,18 +431,49 @@ def test_cors_lets_the_listed_front_send_the_session_cookie(tmp_path):
     assert headers["access-control-allow-origin"] == "http://localhost:4200"
 
 
-def test_api_route_serves_only_the_api_inside_another_server(client):
-    # Ce que fait ui/server.py : l'API est servie par le serveur de l'interface, à la même adresse
-    async def interface(request):
-        return PlainTextResponse("interface")
+def test_documentation_is_served_in_development_only(tmp_path):
+    settings = Settings(data_dir=tmp_path, frontend_dir=tmp_path / "pas-de-front")
+    container = build_container(settings, FakeSearchEngine(), FakeEvaluator())
 
-    routes = [ApiRoute(client.app), Route("/{path:path}", interface)]
-    server = TestClient(Starlette(routes=routes), base_url="http://localhost")
+    development = TestClient(create_app(container, FakeIdentityVerifier()))
+    assert development.get("/docs").status_code == 200
+    assert development.get("/openapi.json").status_code == 200
 
-    assert server.get("/api/health").json() == {"status": "ok"}
-    assert server.get("/api/me").status_code == 401
-    assert server.get("/api/me", headers=ALICE).json()["is_owner"] is False
-    assert server.get("/api/inconnu").status_code == 404
-    # Ni la documentation de l'API ni ses pages publiques ne passent par cette route
-    for path in ("/", "/apix", "/docs", "/openapi.json", "/confidentialite"):
-        assert server.get(path).text == "interface"
+    # En ligne, rien ne décrit les routes à qui n'est pas connecté
+    online = TestClient(create_app(container, FakeIdentityVerifier(), docs=False))
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert online.get(path).status_code == 404
+    assert online.get("/api/health").json() == {"status": "ok"}
+
+
+def test_front_is_served_beside_the_api_without_hiding_it(tmp_path):
+    front = tmp_path / "front"
+    front.mkdir()
+    (front / "index.html").write_text("<app-root></app-root>", encoding="utf-8")
+    client = make_client(tmp_path, frontend_dir=front, app_password="sesame", auth_cookie_secret=SECRET)
+
+    assert "<app-root>" in client.get("/").text
+    assert "<app-root>" in client.get("/offres").text
+    assert client.get("/api/health").json() == {"status": "ok"}
+    assert client.get("/api/me").status_code == 401
+    assert client.get("/confidentialite").status_code == 200 and "<app-root>" not in client.get("/confidentialite").text
+    # Une adresse inconnue de l'API reste une erreur : elle ne reçoit pas la page d'accueil du front
+    for path in ("/api", "/api/inconnu", "/api/jobs/1/inconnu"):
+        response = client.get(path)
+        assert response.status_code == 404 and "<app-root>" not in response.text
+
+
+def test_front_is_compressed_but_a_search_stream_is_not(tmp_path, valid_pdf):
+    front = tmp_path / "front"
+    front.mkdir()
+    (front / "index.html").write_text("<app-root></app-root>", encoding="utf-8")
+    (front / "main-ABC123.js").write_text("console.log('front');" * 200, encoding="utf-8")
+    client = make_client(tmp_path, frontend_dir=front, app_password="sesame", auth_cookie_secret=SECRET)
+
+    assert client.get("/main-ABC123.js").headers["content-encoding"] == "gzip"
+
+    client.put("/api/cv", headers=PASSWORD, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    stream = client.post("/api/searches", headers=PASSWORD)
+    # Compressé, le flux serait retenu jusqu'à la fin : le suivi de la recherche n'arriverait plus en direct
+    assert stream.headers["content-type"].startswith("text/event-stream")
+    assert "content-encoding" not in stream.headers

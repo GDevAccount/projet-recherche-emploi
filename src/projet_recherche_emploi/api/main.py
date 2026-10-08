@@ -1,14 +1,16 @@
-"""API HTTP, destinée au futur front Angular. Elle expose les mêmes services que l'interface Streamlit.
+"""Serveur de l'application : l'API sous /api, les pages légales et le front Angular à la racine.
 
-Se lance avec : projet-recherche-emploi api
+Tout tient dans un seul processus, à une seule adresse : la base est un fichier sur un volume qui n'est pas
+partagé entre machines, et le front appelle l'API sans changer d'origine.
+
+Se lance avec : projet-recherche-emploi serve (en ligne), ou projet-recherche-emploi api (développement)
 """
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from starlette.routing import BaseRoute, Match, get_route_path
-from starlette.types import Receive, Scope, Send
 
 from projet_recherche_emploi.api.frontend import build_frontend_routes
 from projet_recherche_emploi.api.public_pages import build_routes
@@ -36,17 +38,27 @@ STATUS_CODES = {
 }
 
 
-def create_app(container: Container | None = None, identity_verifier: IdentityVerifier | None = None) -> FastAPI:
-    """Construit l'API. Sans conteneur, c'est le point d'entrée du serveur : il charge alors .env et règle les logs."""
+def create_app(
+    container: Container | None = None, identity_verifier: IdentityVerifier | None = None, docs: bool = True
+) -> FastAPI:
+    """Construit le serveur. Sans conteneur, c'est son point d'entrée : il charge alors .env et règle les logs."""
     if container is None:
         load_dotenv()
         configure_logging()
         container = get_container()
+        # Une connexion à moitié réglée arrête le serveur au lieu de refuser tout le monde une fois en ligne
+        container.auth.check_configuration()
     settings = container.settings
 
-    app = FastAPI(title="Recherche d'emploi", version="0.1.0")
+    # La documentation décrit toutes les routes : elle n'est servie qu'en développement
+    documentation = {} if docs else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    app = FastAPI(title="Recherche d'emploi", version="0.1.0", **documentation)
     app.state.container = container
     app.state.identity_verifier = identity_verifier or GoogleIdentityVerifier(settings.google_client_id)
+
+    # Le front pèse plusieurs centaines de ko non compressé. Le flux d'une recherche (text/event-stream)
+    # n'est pas concerné : le compresser le retiendrait, et son suivi n'arriverait plus en direct
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     if settings.cors_origin_list:
         app.add_middleware(
@@ -72,27 +84,11 @@ def create_app(container: Container | None = None, identity_verifier: IdentityVe
 
     # Pages légales, fichier de validation Google et fichiers du front, servis sans connexion
     app.router.routes.extend(build_routes(settings))
+    # En dernier : le front reçoit toute adresse que l'API et les pages publiques n'ont pas prise
     app.router.routes.extend(build_frontend_routes(settings))
     return app
 
 
-class ApiRoute(BaseRoute):
-    """Route qui confie à l'API toute requête sous /api, pour la servir depuis un autre serveur web.
-
-    C'est ainsi que l'interface Streamlit sert l'API à la même adresse qu'elle (ui/server.py). Le chemin est
-    transmis entier, contrairement à un Mount de Starlette : les routes de l'API portent déjà leur préfixe.
-    Le reste de l'application (documentation, pages publiques) n'est pas exposé par cette route.
-    """
-
-    def __init__(self, app: FastAPI):
-        self.app = app
-        self.path = API_PREFIX
-
-    def matches(self, scope: Scope) -> tuple[Match, Scope]:
-        path = get_route_path(scope)
-        if scope["type"] == "http" and (path == API_PREFIX or path.startswith(f"{API_PREFIX}/")):
-            return Match.FULL, {}
-        return Match.NONE, {}
-
-    async def handle(self, scope: Scope, receive: Receive, send: Send) -> None:
-        await self.app(scope, receive, send)
+def create_server_app() -> FastAPI:
+    """Point d'entrée du serveur en ligne : comme create_app, sans la documentation de l'API."""
+    return create_app(docs=False)

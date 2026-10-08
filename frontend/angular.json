@@ -39,7 +39,7 @@
               "src/styles.scss"
             ],
             "inlineStyleLanguage": "scss",
-            "baseHref": "/frontend/",
+            "baseHref": "/",
             "define": {
               "PRIMEUI_LICENSE": "\"\""
             }
