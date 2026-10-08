@@ -22,3 +22,21 @@ export interface CvStatus {
   /** Date UTC du CV en place ; null tant qu'aucun n'a été déposé */
   updated_at: string | null;
 }
+
+export interface SearchQuery {
+  id: number;
+  contract_type: string;
+  query: string;
+  /** Vide : toute la France */
+  location: string;
+  /** Télétravail complet, sans condition de lieu */
+  remote: boolean;
+  created_at: string;
+}
+
+export interface SearchQueryCreate {
+  contract_type: string;
+  query: string;
+  location: string;
+  remote: boolean;
+}

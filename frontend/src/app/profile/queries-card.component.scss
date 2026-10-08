@@ -1,0 +1,221 @@
+:host {
+  display: block;
+}
+
+header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+
+  h2 {
+    margin: 0.6rem 0 0;
+    font-size: 1.5rem;
+  }
+}
+
+.count {
+  display: grid;
+  place-items: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.6rem;
+  border-radius: 999px;
+  background: var(--app-accent);
+  color: var(--app-accent-ink);
+  font-family: var(--app-display);
+  font-weight: 700;
+}
+
+ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.8rem 0.6rem 0.8rem 0.9rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: color-mix(in srgb, var(--app-surface-2), transparent 55%);
+  transition:
+    border-color 0.15s,
+    opacity 0.15s,
+    transform 0.15s;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--app-text), transparent 72%);
+  }
+
+  &.leaving {
+    opacity: 0.4;
+    transform: scale(0.99);
+  }
+}
+
+.contract {
+  flex: none;
+  min-width: 6.75rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+  background: var(--app-text);
+  color: var(--app-bg);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.what {
+  display: grid;
+  flex: 1;
+  gap: 0.15rem;
+  min-width: 0;
+
+  strong {
+    overflow-wrap: anywhere;
+    font-weight: 600;
+  }
+}
+
+.where {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+
+  &.remote {
+    // Le citron vert pur manque de contraste en petit texte sur fond clair
+    color: color-mix(in srgb, var(--app-accent-strong), var(--app-text) 30%);
+    font-weight: 600;
+  }
+
+  svg {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+}
+
+.remove {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--app-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background-color 0.15s;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, #ef4444, transparent 86%);
+    color: #ef4444;
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+
+  svg {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+}
+
+.empty {
+  margin: 0;
+  padding: 1.25rem;
+  border: 1.5px dashed var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+}
+
+form {
+  display: grid;
+  gap: 1.1rem;
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--app-border);
+
+  h3 {
+    margin: 0;
+    font-size: 1.125rem;
+  }
+
+  p-button {
+    justify-self: start;
+  }
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+
+  > span {
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  small {
+    font-size: 0.8125rem;
+    color: var(--app-muted);
+  }
+
+  input {
+    width: 100%;
+  }
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: none;
+    color: var(--app-muted);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 550;
+    cursor: pointer;
+    transition:
+      color 0.15s,
+      border-color 0.15s,
+      background-color 0.15s;
+
+    &:hover {
+      color: var(--app-text);
+      border-color: var(--app-muted);
+    }
+
+    &.on {
+      border-color: var(--app-accent-strong);
+      background: var(--app-accent);
+      color: var(--app-accent-ink);
+    }
+
+    svg {
+      width: 0.95rem;
+      height: 0.95rem;
+    }
+  }
+}
