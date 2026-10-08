@@ -120,7 +120,7 @@ Les erreurs ont la forme `{"detail": "message en français"}`, avec le code 422 
 
 ## Front Angular
 
-Un front [Angular](https://angular.dev/) 22, avec les composants [PrimeNG](https://primeng.org/), remplacera l'interface Streamlit. Il est dans `frontend/` et n'appelle que l'API. Tant qu'il ne couvre pas tous les écrans, Streamlit reste à la racine du site et le front est servi sous `/frontend` : <https://projet-recherche-emploi.fly.dev/frontend/>. Pour l'instant, il couvre la connexion (bouton Google, ou mot de passe de l'instance) et le cadre de l'application ; les écrans arrivent un par un.
+Un front [Angular](https://angular.dev/) 22, avec les composants [PrimeNG](https://primeng.org/), remplacera l'interface Streamlit. Il est dans `frontend/` et n'appelle que l'API. Tant qu'il ne couvre pas tous les écrans, Streamlit reste à la racine du site et le front est servi sous `/frontend` : <https://projet-recherche-emploi.fly.dev/frontend/>. Pour l'instant, il couvre la connexion (bouton Google, ou mot de passe de l'instance) et le cadre de l'application, avec ses trois rubriques (Offres, Rejets, Profil) et un thème clair ou sombre ; les écrans arrivent un par un. Il a sa propre présentation : il reprend les fonctions de l'interface Streamlit, pas sa mise en page.
 
 Il demande [Node.js](https://nodejs.org/) 22.22.3 ou plus récent.
 

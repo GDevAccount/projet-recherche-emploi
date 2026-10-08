@@ -1,0 +1,30 @@
+section {
+  padding: clamp(2rem, 6vw, 4rem);
+  border: 1px dashed var(--app-border);
+  border-radius: var(--app-radius);
+  background: color-mix(in srgb, var(--app-surface), transparent 40%);
+  text-align: center;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: var(--app-accent);
+  color: var(--app-accent-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+h2 {
+  margin: 1rem 0 0.5rem;
+  font-size: 1.75rem;
+}
+
+p {
+  max-width: 32rem;
+  margin: 0 auto;
+  color: var(--app-muted);
+}

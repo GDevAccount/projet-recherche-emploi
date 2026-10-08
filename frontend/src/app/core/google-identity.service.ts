@@ -25,10 +25,21 @@ export class GoogleIdentityService {
   private script?: Promise<GoogleIdentityApi>;
 
   /** Affiche le bouton dans l'élément donné, et appelle onCredential avec le jeton d'identité obtenu. */
-  async renderButton(parent: HTMLElement, clientId: string, onCredential: (idToken: string) => void): Promise<void> {
+  async renderButton(
+    parent: HTMLElement,
+    clientId: string,
+    dark: boolean,
+    onCredential: (idToken: string) => void,
+  ): Promise<void> {
     const api = await this.load();
     api.initialize({ client_id: clientId, callback: (response) => onCredential(response.credential) });
-    api.renderButton(parent, { theme: 'outline', size: 'large', text: 'signin_with', locale: 'fr' });
+    api.renderButton(parent, {
+      theme: dark ? 'filled_black' : 'outline',
+      size: 'large',
+      shape: 'pill',
+      text: 'signin_with',
+      locale: 'fr',
+    });
   }
 
   private load(): Promise<GoogleIdentityApi> {

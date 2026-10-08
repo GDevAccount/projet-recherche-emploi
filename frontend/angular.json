@@ -34,6 +34,8 @@
               }
             ],
             "styles": [
+              "node_modules/@fontsource-variable/inter/index.css",
+              "node_modules/@fontsource-variable/bricolage-grotesque/index.css",
               "src/styles.scss"
             ],
             "inlineStyleLanguage": "scss",
