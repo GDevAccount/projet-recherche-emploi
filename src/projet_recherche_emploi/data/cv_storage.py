@@ -46,6 +46,14 @@ class CvStorage:
         cv_file.parent.mkdir(parents=True, exist_ok=True)
         cv_file.write_bytes(data)
 
+    def delete(self, user_id: int) -> bool:
+        """Efface le CV de l'utilisateur, et renvoie faux s'il n'en avait pas."""
+        cv_file = self.path_for(user_id)
+        if not cv_file.is_file():
+            return False
+        cv_file.unlink()
+        return True
+
 
 def _extract_text(pdf: PdfReader) -> str:
     pages = [page.extract_text() for page in pdf.pages]

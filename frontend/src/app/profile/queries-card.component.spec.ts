@@ -8,6 +8,9 @@ import { QueriesCardComponent } from './queries-card.component';
 const ACCOUNT: Account = {
   user_id: 2,
   is_owner: false,
+  email: null,
+  name: null,
+  picture: null,
   can_search: true,
   remaining_searches: 2,
   max_searches_per_day: 2,

@@ -59,6 +59,18 @@ class Database:
             config.attributes["connection"] = connection
             command.upgrade(config, "head")
 
+    def delete_backups(self) -> int:
+        """Efface les copies faites avant les migrations, et renvoie leur nombre.
+
+        Elles contiennent les données de tous les utilisateurs, y compris de ceux qui ont supprimé leur compte.
+        """
+        backups = list(self.db_path.parent.glob(f"{self.db_path.stem}.avant-migration-*.db"))
+        for backup in backups:
+            backup.unlink()
+        if backups:
+            logger.info("%d copie(s) d'avant migration effacée(s)", len(backups))
+        return len(backups)
+
     def _backup(self, target_revision: str) -> None:
         # Une copie par migration : une montée de version ratée ne doit rien coûter à l'utilisateur
         backup_path = self.db_path.with_name(f"{self.db_path.stem}.avant-migration-{target_revision}.db")

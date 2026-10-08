@@ -37,6 +37,8 @@ SessionToken = Annotated[str | None, Depends(APIKeyCookie(name=SESSION_COOKIE, a
 class Identity:
     email: str | None
     email_verified: bool | None
+    name: str | None = None
+    picture: str | None = None
 
 
 class IdentityVerifier(Protocol):
@@ -55,7 +57,7 @@ class GoogleIdentityVerifier:
             claims = id_token.verify_oauth2_token(token, google_requests.Request(), self.client_id)
         except (ValueError, GoogleAuthError):
             return None
-        return Identity(claims.get("email"), claims.get("email_verified"))
+        return Identity(claims.get("email"), claims.get("email_verified"), claims.get("name"), claims.get("picture"))
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,9 @@ class Caller:
     user_id: int
     # Adresse Google vérifiée, ou None si l'appelant a donné le mot de passe de l'instance
     email: str | None
+    # Nom et photo du profil Google, pour l'affichage seulement
+    name: str | None = None
+    picture: str | None = None
 
 
 def get_container(request: Request) -> Container:
@@ -81,16 +86,16 @@ def get_caller_from_credentials(
     return _caller_from_credentials(request, container, credentials.credentials)
 
 
-def get_current_user_id(
+def get_current_caller(
     request: Request,
     container: Annotated[Container, Depends(get_container)],
     credentials: BearerCredentials,
     session_token: SessionToken,
-) -> int:
-    """Renvoie l'utilisateur de la requête. Toute route qui lit ou modifie des données en dépend."""
+) -> Caller:
+    """Renvoie l'appelant de la requête, prouvé par l'en-tête Authorization ou par le cookie de session."""
     _require_protection(container)
     if credentials is not None:
-        return _caller_from_credentials(request, container, credentials.credentials).user_id
+        return _caller_from_credentials(request, container, credentials.credentials)
     if session_token is None:
         raise _unauthorized()
 
@@ -99,12 +104,17 @@ def get_current_user_id(
         raise _unauthorized()
     _check_origin(request, container)
     if session.email is None:
-        return DEFAULT_USER_ID
+        return Caller(DEFAULT_USER_ID, None)
     # L'adresse a été vérifiée par Google à l'ouverture de la session ; l'autorisation, elle, est relue ici
     user_id = container.auth.resolve_user_id(session.email, True)
     if user_id is None:
         raise _forbidden()
-    return user_id
+    return Caller(user_id, session.email, session.name, session.picture)
+
+
+def get_current_user_id(caller: Annotated[Caller, Depends(get_current_caller)]) -> int:
+    """Renvoie l'utilisateur de la requête. Toute route qui lit ou modifie des données en dépend."""
+    return caller.user_id
 
 
 def set_session_cookie(request: Request, response: Response, token: str) -> None:
@@ -141,7 +151,7 @@ def _caller_from_credentials(request: Request, container: Container, token: str)
         user_id = container.auth.resolve_user_id(identity.email, identity.email_verified)
         if user_id is None:
             raise _forbidden()
-        return Caller(user_id, identity.email)
+        return Caller(user_id, identity.email, identity.name, identity.picture)
 
     if not container.auth.password_matches(token):
         raise _unauthorized()
@@ -181,4 +191,5 @@ def _forbidden() -> HTTPException:
 
 Services = Annotated[Container, Depends(get_container)]
 UserId = Annotated[int, Depends(get_current_user_id)]
+CurrentCaller = Annotated[Caller, Depends(get_current_caller)]
 CredentialsCaller = Annotated[Caller, Depends(get_caller_from_credentials)]

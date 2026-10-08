@@ -16,6 +16,7 @@ from projet_recherche_emploi.agent.ports import JobEvaluator, JobSearchEngine
 from projet_recherche_emploi.config import Settings
 from projet_recherche_emploi.data.cv_storage import CvStorage
 from projet_recherche_emploi.data.database import Database
+from projet_recherche_emploi.services.account_service import AccountService
 from projet_recherche_emploi.services.auth_service import AuthService
 from projet_recherche_emploi.services.cv_service import CvService
 from projet_recherche_emploi.services.job_service import JobService
@@ -41,6 +42,7 @@ class Container:
         self.queries = QueryService(self.database)
         self.cv = CvService(self.database, self.cv_storage)
         self.search = SearchService(self.database, self.cv_storage, lambda: self.graph)
+        self.account = AccountService(self.database, self.cv_storage, self.search)
 
     @cached_property
     def graph(self) -> CompiledStateGraph:

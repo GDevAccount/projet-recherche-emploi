@@ -12,6 +12,10 @@ export interface AppConfig {
 export interface Account {
   user_id: number;
   is_owner: boolean;
+  /** Adresse, nom et photo du compte Google ; null avec le mot de passe de l'instance */
+  email: string | null;
+  name: string | null;
+  picture: string | null;
   can_search: boolean;
   /** null pour le propriétaire, qui n'a pas de quota */
   remaining_searches: number | null;

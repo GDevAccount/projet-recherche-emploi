@@ -10,6 +10,9 @@ import { LoginComponent } from './login.component';
 const ACCOUNT: Account = {
   user_id: 1,
   is_owner: true,
+  email: null,
+  name: null,
+  picture: null,
   can_search: true,
   remaining_searches: null,
   max_searches_per_day: 2,

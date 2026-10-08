@@ -1,6 +1,6 @@
 # Règles de confidentialité
 
-Tamis est une application qui cherche des offres d'emploi sur le web et ne garde que celles qui correspondent à votre CV. Cette page explique quelles données elle utilise, pourquoi, et comment les faire supprimer.
+Tamis est une application qui cherche des offres d'emploi sur le web et ne garde que celles qui correspondent à votre CV. Cette page explique quelles données elle utilise, pourquoi, et comment les supprimer.
 
 ## Qui est responsable de vos données
 
@@ -8,7 +8,7 @@ L'application est un projet personnel, exploité par un particulier. Pour toute 
 
 ## Données enregistrées
 
-- **Votre adresse e-mail Google**, pour vous reconnaître d'une connexion à l'autre. Votre nom et votre photo de profil, transmis par Google à la connexion, ne sont pas enregistrés.
+- **Votre adresse e-mail Google**, pour vous reconnaître d'une connexion à l'autre. Votre nom et votre photo de profil, transmis par Google à la connexion, ne sont pas enregistrés sur le serveur : ils sont gardés dans le cookie de votre session, pour afficher votre vignette. La photo elle-même est chargée depuis les serveurs de Google.
 - **Votre CV**, au format PDF, tel que vous l'avez déposé.
 - **Vos recherches** : les phrases de recherche, les types de contrat et les lieux que vous enregistrez.
 - **Les offres trouvées pour vous** : titre, lien, extrait, type de contrat et lieu lus sur l'annonce, raison pour laquelle l'offre a été retenue, et le suivi que vous en faites (offre postulée, date, offre supprimée).
@@ -34,15 +34,15 @@ Ces quatre sociétés sont établies aux États-Unis. Les données hébergées p
 
 ## Durée de conservation
 
-Vos données sont conservées tant que votre compte existe. Si votre accès est retiré, vous ne pouvez plus vous connecter, mais vos données restent enregistrées jusqu'à ce que vous en demandiez la suppression.
+Vos données sont conservées tant que votre compte existe. Si votre accès est retiré, vous ne pouvez plus vous connecter, mais vos données restent enregistrées jusqu'à ce que vous en demandiez la suppression. Tant que vous avez accès à l'application, vous pouvez supprimer votre compte vous-même.
 
-Avant certaines mises à jour de l'application, une copie de sauvegarde de la base de données est faite et conservée au même endroit. Une demande de suppression porte aussi sur ces copies.
+Avant certaines mises à jour de l'application, une copie de sauvegarde de la base de données est faite et conservée au même endroit. La suppression d'un compte efface aussi ces copies.
 
 ## Vos droits
 
 Conformément au règlement général sur la protection des données (RGPD), vous pouvez demander l'accès à vos données, leur rectification ou leur suppression, en recevoir une copie dans un format courant (portabilité), et demander la limitation de leur traitement ou vous y opposer, en écrivant à l'adresse indiquée plus haut. Une réponse vous est donnée dans un délai d'un mois. La suppression porte sur l'ensemble de votre compte : adresse e-mail, CV, recherches, offres et pages écartées.
 
-Vous pouvez remplacer votre CV et supprimer vos recherches vous-même dans l'application. Vous pouvez aussi retirer l'accès de l'application à votre compte Google depuis les paramètres de sécurité de ce compte.
+Vous pouvez supprimer votre compte vous-même, depuis la page « Compte » de l'application : votre adresse e-mail, votre CV, vos recherches, vos offres et les pages écartées sont alors effacés immédiatement, sans retour possible. Vous pouvez aussi remplacer votre CV et supprimer vos recherches sans supprimer votre compte. Vous pouvez aussi retirer l'accès de l'application à votre compte Google depuis les paramètres de sécurité de ce compte.
 
 Si vous estimez que vos droits ne sont pas respectés, vous pouvez adresser une réclamation à la CNIL (www.cnil.fr).
 

@@ -35,7 +35,12 @@ class FakeIdentityVerifier:
         if not token.startswith("jeton-"):
             return None
         name = token.removeprefix("jeton-")
-        return Identity(email=f"{name}@exemple.fr", email_verified=name != "non-verifie")
+        return Identity(
+            email=f"{name}@exemple.fr",
+            email_verified=name != "non-verifie",
+            name=name.capitalize(),
+            picture=f"https://lh3.googleusercontent.com/{name}",
+        )
 
 
 def make_client(tmp_path, evaluator=None, base_url="http://localhost", **settings) -> TestClient:
@@ -108,6 +113,7 @@ def test_config_leaks_no_secret(tmp_path):
     ("method", "path"),
     [
         ("GET", "/api/me"),
+        ("DELETE", "/api/me"),
         ("POST", "/api/session"),
         ("GET", "/api/jobs"),
         ("PATCH", "/api/jobs/1"),
@@ -154,6 +160,9 @@ def test_account_tells_who_is_calling(client):
     assert owner == {
         "user_id": DEFAULT_USER_ID,
         "is_owner": True,
+        "email": "proprietaire@exemple.fr",
+        "name": "Proprietaire",
+        "picture": "https://lh3.googleusercontent.com/proprietaire",
         # Le propriétaire a les recherches par défaut, mais pas encore de CV
         "can_search": False,
         "remaining_searches": None,
@@ -502,3 +511,54 @@ def test_every_response_carries_the_security_headers(tmp_path):
     # La documentation, servie en développement, charge ses scripts d'un autre site
     assert "content-security-policy" not in client.get("/docs").headers
     assert client.get("/docs").headers["x-content-type-options"] == "nosniff"
+
+
+def test_session_keeps_the_google_profile_for_display(client):
+    client.post("/api/session", headers=ALICE)
+
+    # Sans en-tête : c'est le cookie qui porte le nom et la photo, rien n'est enregistré en base
+    account = client.get("/api/me").json()
+
+    assert (account["email"], account["name"]) == ("alice@exemple.fr", "Alice")
+    assert account["picture"] == "https://lh3.googleusercontent.com/alice"
+
+
+def test_password_account_has_no_profile(tmp_path):
+    client = make_client(tmp_path, app_password="sesame", auth_cookie_secret=SECRET)
+
+    account = client.get("/api/me", headers=PASSWORD).json()
+
+    assert (account["email"], account["name"], account["picture"]) == (None, None, None)
+
+
+def test_deleting_an_account_erases_it_and_closes_the_session(client, valid_pdf):
+    for headers in (ALICE, BOB):
+        client.put("/api/cv", headers=headers, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+        client.post("/api/queries", headers=headers, json={"contract_type": "CDI", "query": "data engineer"})
+    client.post("/api/searches", headers=ALICE)
+    alice_id = client.get("/api/me", headers=ALICE).json()["user_id"]
+    client.post("/api/session", headers=ALICE)
+
+    response = client.delete("/api/me")
+
+    assert response.status_code == 204
+    # Le cookie est retiré : la session ne survit pas au compte
+    assert client.get("/api/me").status_code == 401
+    # Encore invitée, Alice retrouve un compte neuf, sous un autre identifiant
+    again = client.get("/api/me", headers=ALICE).json()
+    assert again["user_id"] != alice_id and again["can_search"] is False
+    assert client.get("/api/jobs", headers=ALICE).json() == []
+    assert client.get("/api/rejected-jobs", headers=ALICE).json() == []
+    assert client.get("/api/queries", headers=ALICE).json() == []
+    assert client.get("/api/cv", headers=ALICE).json() == {"updated_at": None}
+    # Bob n'a rien perdu
+    assert client.get("/api/me", headers=BOB).json()["can_search"] is True
+    assert len(client.get("/api/queries", headers=BOB).json()) == 1
+
+
+def test_account_cannot_be_deleted_from_another_site(tmp_path):
+    client = make_client(tmp_path, app_password="sesame", auth_cookie_secret=SECRET)
+    client.post("/api/session", headers=PASSWORD)
+
+    assert client.delete("/api/me", headers={"Origin": "https://ailleurs.exemple"}).status_code == 403
+    assert client.get("/api/me").status_code == 200

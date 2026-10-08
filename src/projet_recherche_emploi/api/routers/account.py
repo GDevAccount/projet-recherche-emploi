@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Request, Response, status
 
 from projet_recherche_emploi.api.security import (
+    Caller,
     CredentialsCaller,
+    CurrentCaller,
     Services,
-    UserId,
     clear_session_cookie,
     set_session_cookie,
 )
@@ -25,15 +26,23 @@ def get_config(services: Services) -> AppConfig:
 
 
 @router.get("/me")
-def get_account(user_id: UserId, services: Services) -> Account:
-    return _account(user_id, services)
+def get_account(caller: CurrentCaller, services: Services) -> Account:
+    return _account(caller, services)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(caller: CurrentCaller, services: Services, request: Request, response: Response) -> None:
+    """Efface le compte de l'appelant et tout ce qu'il contient, puis ferme sa session."""
+    services.account.delete_account(caller.user_id)
+    clear_session_cookie(request, response)
 
 
 @router.post("/session")
 def open_session(caller: CredentialsCaller, services: Services, request: Request, response: Response) -> Account:
     """Échange un jeton d'identité Google (ou le mot de passe de l'instance) contre un cookie de session."""
-    set_session_cookie(request, response, services.auth.create_session_token(caller.email))
-    return _account(caller.user_id, services)
+    token = services.auth.create_session_token(caller.email, caller.name, caller.picture)
+    set_session_cookie(request, response, token)
+    return _account(caller, services)
 
 
 @router.delete("/session", status_code=status.HTTP_204_NO_CONTENT)
@@ -42,10 +51,14 @@ def close_session(request: Request, response: Response) -> None:
     clear_session_cookie(request, response)
 
 
-def _account(user_id: int, services: Container) -> Account:
+def _account(caller: Caller, services: Container) -> Account:
+    user_id = caller.user_id
     return Account(
         user_id=user_id,
         is_owner=user_id == DEFAULT_USER_ID,
+        email=caller.email,
+        name=caller.name,
+        picture=caller.picture,
         can_search=services.search.can_search(user_id),
         remaining_searches=services.search.remaining_searches(user_id),
         max_searches_per_day=MAX_SEARCHES_PER_DAY,

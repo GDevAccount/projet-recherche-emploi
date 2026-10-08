@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import func, insert, literal, select
+from sqlalchemy import delete, func, insert, literal, select
 from sqlalchemy.orm import Session
 
 from projet_recherche_emploi.data.models import SearchRun
@@ -37,3 +37,7 @@ class SearchRunRepository:
             .select_from(SearchRun)
             .where(SearchRun.user_id == self.user_id, SearchRun.created_at >= since)
         )
+
+    def delete_all(self) -> int:
+        """Efface tous les lancements de recherche de l'utilisateur, et renvoie leur nombre."""
+        return self.session.execute(delete(SearchRun).where(SearchRun.user_id == self.user_id)).rowcount

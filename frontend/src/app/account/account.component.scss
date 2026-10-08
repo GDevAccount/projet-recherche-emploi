@@ -1,0 +1,82 @@
+:host {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 46rem;
+}
+
+h2 {
+  margin: 0.6rem 0 0.4rem;
+  font-size: 1.5rem;
+}
+
+p {
+  margin: 0.5rem 0 0;
+}
+
+.identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.25rem;
+
+  app-avatar {
+    --avatar-size: 4.5rem;
+  }
+
+  h2 {
+    margin: 0.4rem 0 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.who {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.email {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.origin,
+.note {
+  font-size: 0.875rem;
+  color: var(--app-muted);
+}
+
+ul {
+  margin: 0.75rem 0 0;
+  padding-left: 1.2rem;
+
+  li + li {
+    margin-top: 0.3rem;
+  }
+}
+
+.danger {
+  border-color: color-mix(in srgb, #dc2626, transparent 65%);
+}
+
+.confirm {
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--app-radius-sm);
+  background: color-mix(in srgb, #dc2626, transparent 90%);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+
+  .confirm & {
+    margin-top: 0.9rem;
+  }
+}
+
+.feedback {
+  display: block;
+  margin-top: 1.25rem;
+}

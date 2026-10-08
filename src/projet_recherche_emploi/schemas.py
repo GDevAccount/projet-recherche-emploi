@@ -129,6 +129,10 @@ class AppConfig(BaseModel):
 class Account(BaseModel):
     user_id: int
     is_owner: bool
+    # Adresse, nom et photo du compte Google ; None avec le mot de passe de l'instance
+    email: str | None
+    name: str | None
+    picture: str | None
     # Un CV et au moins un poste recherché sont enregistrés
     can_search: bool
     # None pour le propriétaire, qui n'a pas de quota

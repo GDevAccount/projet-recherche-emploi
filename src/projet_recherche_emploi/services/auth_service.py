@@ -25,6 +25,9 @@ LoginMode = Literal["google", "password"]
 class SessionIdentity:
     # Adresse Google vérifiée à l'ouverture de la session, ou None pour une session ouverte par mot de passe
     email: str | None
+    # Nom et photo du profil Google, pour l'affichage seulement : ils ne sont enregistrés nulle part ailleurs
+    name: str | None = None
+    picture: str | None = None
 
 
 class AuthService:
@@ -82,7 +85,7 @@ class AuthService:
         with self.database.session() as session:
             return UserRepository(session).get_or_create_user_id(email)
 
-    def create_session_token(self, email: str | None) -> str:
+    def create_session_token(self, email: str | None, name: str | None = None, picture: str | None = None) -> str:
         """Renvoie le jeton de session d'une identité déjà vérifiée : une adresse Google, ou None pour le mot de passe.
 
         Le jeton porte l'adresse, pas l'utilisateur : chaque requête repasse par resolve_user_id, donc
@@ -91,7 +94,8 @@ class AuthService:
         key = self._session_key()
         if key is None:
             raise ConfigurationError("AUTH_COOKIE_SECRET n'est pas défini : l'API ne peut pas ouvrir de session.")
-        payload = json.dumps({"email": email, "exp": int(self.clock()) + SESSION_SECONDS})
+        expires_at = int(self.clock()) + SESSION_SECONDS
+        payload = json.dumps({"email": email, "name": name, "picture": picture, "exp": expires_at})
         body = base64.urlsafe_b64encode(payload.encode())
         return f"{body.decode()}.{_sign(key, body)}"
 
@@ -111,7 +115,8 @@ class AuthService:
         # Une session ouverte par mot de passe ne vaut plus rien une fois la connexion Google activée, et inversement
         if (email is None) == bool(self.settings.google_client_id):
             return None
-        return SessionIdentity(email)
+        # Absents d'une session ouverte avant qu'ils y soient portés
+        return SessionIdentity(email, payload.get("name"), payload.get("picture"))
 
     def _session_key(self) -> bytes | None:
         secret = self.settings.auth_cookie_secret

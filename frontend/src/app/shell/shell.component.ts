@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
-import { LOGIN_PATH, PROFILE_PATH, SECTIONS } from '../core/paths';
+import { AvatarComponent } from '../account/avatar.component';
+import { ACCOUNT_PATH, LOGIN_PATH, PROFILE_PATH, SECTIONS } from '../core/paths';
 import { SearchRunService } from '../core/search-run.service';
 import { SessionService } from '../core/session.service';
 import { ThemeService } from '../core/theme.service';
@@ -10,7 +11,7 @@ import { RunPanelComponent } from '../run/run-panel.component';
 /** Cadre de l'application une fois connecté : en-tête, navigation, bandeau d'état. Les écrans s'y affichent. */
 @Component({
   selector: 'app-shell',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, RunPanelComponent],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, AvatarComponent, RunPanelComponent],
   templateUrl: './shell.component.html',
   styleUrl: './shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,6 +24,7 @@ export class ShellComponent {
 
   protected readonly sections = SECTIONS;
   protected readonly profilePath = PROFILE_PATH;
+  protected readonly accountPath = ACCOUNT_PATH;
   protected readonly account = this.session.account;
   protected readonly closing = signal(false);
 

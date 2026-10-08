@@ -12,6 +12,9 @@ import { ShellComponent } from './shell.component';
 const GUEST: Account = {
   user_id: 2,
   is_owner: false,
+  email: null,
+  name: null,
+  picture: null,
   can_search: false,
   remaining_searches: 1,
   max_searches_per_day: 2,
@@ -111,6 +114,15 @@ describe('ShellComponent', () => {
 
     const links = [...element().querySelectorAll('nav a')].map((link) => link.getAttribute('href'));
     expect(links).toEqual(['/offres', '/rejets', '/profil']);
+  });
+
+  it('should lead to the account page from the avatar', async () => {
+    await openSession({ ...GUEST, email: 'alice@exemple.fr', name: 'Alice' });
+
+    const link = element().querySelector('a.account')!;
+    expect(link.getAttribute('href')).toBe('/compte');
+    expect(link.getAttribute('aria-label')).toBe('Mon compte : alice@exemple.fr');
+    expect(text(link)).toBe('A');
   });
 
   it('should switch theme and remember the choice', async () => {
