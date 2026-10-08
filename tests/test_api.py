@@ -209,7 +209,13 @@ def test_jobs_are_private(client):
     paths = {saved["url"]: f"/api/jobs/{saved['id']}" for saved in client.get("/api/jobs", headers=ALICE).json()}
     applied = {"applied": True}
     assert client.patch(paths["https://a/1"], headers=BOB, json=applied).status_code == 404
-    assert client.patch(paths["https://a/1"], headers=ALICE, json=applied).status_code == 204
+    updated = client.patch(paths["https://a/1"], headers=ALICE, json=applied)
+    # L'offre revient telle qu'elle est maintenant, avec la date que le serveur vient de lui donner
+    assert updated.status_code == 200
+    assert (updated.json()["url"], updated.json()["applied"]) == ("https://a/1", True)
+    assert updated.json()["applied_at"].endswith(("Z", "+00:00"))
+    assert client.patch(paths["https://a/1"], headers=ALICE, json={"applied": False}).json()["applied_at"] is None
+    client.patch(paths["https://a/1"], headers=ALICE, json=applied)
     assert client.delete(paths["https://a/2"], headers=BOB).status_code == 404
     assert client.delete(paths["https://a/2"], headers=ALICE).status_code == 204
     assert client.delete(paths["https://a/2"], headers=ALICE).status_code == 404

@@ -16,9 +16,10 @@ def list_jobs(user_id: UserId, services: Services) -> list[JobRead]:
     return services.jobs.list_jobs(user_id)
 
 
-@router.patch("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-def set_applied(job_id: int, update: AppliedUpdate, user_id: UserId, services: Services) -> None:
-    services.jobs.set_applied(user_id, job_id, update.applied)
+@router.patch("/jobs/{job_id}")
+def set_applied(job_id: int, update: AppliedUpdate, user_id: UserId, services: Services) -> JobRead:
+    # L'offre revient mise à jour : le front n'a pas à recharger toute la liste pour connaître sa date de candidature
+    return services.jobs.set_applied(user_id, job_id, update.applied)
 
 
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
