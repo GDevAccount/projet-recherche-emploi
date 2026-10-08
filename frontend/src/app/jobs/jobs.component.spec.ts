@@ -99,7 +99,7 @@ describe('JobsComponent', () => {
     const tiles = [...element().querySelectorAll('.stats .tile')].map((tile) => text(tile));
     expect(tiles[0]).toMatch(/^2\s*à traiter$/);
     expect(tiles[1]).toMatch(/^2\s*candidatures envoyées$/);
-    expect(tiles[2]).toContain('4 offres retenues');
+    expect(tiles[2]).toMatch(/2\s+offres sur\s+4\s+ont reçu une candidature/);
     expect(tiles[2]).toContain('50 %');
   });
 
