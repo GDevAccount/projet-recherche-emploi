@@ -83,6 +83,24 @@ a {
   color: var(--app-accent-ink);
 }
 
+// Carte : le bloc de base de chaque écran
+.app-card {
+  padding: clamp(1.5rem, 3vw, 2rem);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow);
+}
+
+// Petit libellé au-dessus d'un titre de carte
+.app-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-muted);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

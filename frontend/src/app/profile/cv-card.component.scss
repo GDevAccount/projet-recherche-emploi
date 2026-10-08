@@ -1,0 +1,137 @@
+:host {
+  display: block;
+}
+
+header {
+  margin-bottom: 1.5rem;
+
+  h2 {
+    margin: 0.6rem 0 0.4rem;
+    font-size: 1.5rem;
+  }
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  color: var(--app-muted);
+}
+
+.dot {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--app-accent-strong);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent), transparent 72%);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 14px;
+  background: var(--app-surface-2);
+
+  svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+}
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2rem 1.5rem;
+  border: 1.5px dashed var(--app-border);
+  border-radius: var(--app-radius-sm);
+  text-align: center;
+  color: var(--app-muted);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+
+  strong {
+    margin-top: 0.5rem;
+    color: var(--app-text);
+  }
+
+  span:last-child {
+    max-width: 22rem;
+    font-size: 0.875rem;
+  }
+
+  &:hover,
+  &.dragging,
+  &:focus-within {
+    border-color: var(--app-accent-strong);
+    background: color-mix(in srgb, var(--app-accent), transparent 90%);
+  }
+
+  &.dragging .icon {
+    background: var(--app-accent);
+    color: var(--app-accent-ink);
+  }
+
+  // Le champ reste atteignable au clavier, mais c'est la zone entière qui se voit
+  input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+}
+
+.chosen {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface-2);
+
+  .icon {
+    background: var(--app-accent);
+    color: var(--app-accent-ink);
+  }
+
+  .name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .size {
+    font-size: 0.8125rem;
+    color: var(--app-muted);
+  }
+}
+
+.note {
+  margin: 0.9rem 0 0;
+  font-size: 0.875rem;
+  color: var(--app-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.feedback {
+  display: block;
+  margin-top: 1.25rem;
+}

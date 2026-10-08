@@ -3,6 +3,7 @@ import { Routes } from '@angular/router';
 import { authGuard, loginGuard } from './core/auth.guard';
 import { JOBS_PATH, LOGIN_PATH, PROFILE_PATH, REJECTED_PATH } from './core/paths';
 import { LoginComponent } from './login/login.component';
+import { ProfileComponent } from './profile/profile.component';
 import { ShellComponent } from './shell/shell.component';
 import { UpcomingComponent } from './shell/upcoming.component';
 
@@ -31,14 +32,7 @@ export const routes: Routes = [
           text: 'Chaque annonce rejetée avec son motif, pour comprendre ce qui vous fait perdre des offres.',
         },
       },
-      {
-        path: PROFILE_PATH,
-        component: UpcomingComponent,
-        data: {
-          title: 'Votre profil',
-          text: 'Votre CV et les postes que vous recherchez : ce sur quoi chaque annonce est jugée.',
-        },
-      },
+      { path: PROFILE_PATH, component: ProfileComponent },
     ],
   },
   { path: '**', redirectTo: '' },

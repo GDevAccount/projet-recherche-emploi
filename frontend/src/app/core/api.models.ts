@@ -17,3 +17,8 @@ export interface Account {
   remaining_searches: number | null;
   max_searches_per_day: number;
 }
+
+export interface CvStatus {
+  /** Date UTC du CV en place ; null tant qu'aucun n'a été déposé */
+  updated_at: string | null;
+}

@@ -1,0 +1,60 @@
+<article class="app-card">
+  <header>
+    <span class="app-eyebrow">CV</span>
+    @let current = status();
+    @if (current?.updated_at; as updatedAt) {
+      <h2>Votre CV est en place</h2>
+      <p class="state"><span class="dot"></span>Mis à jour le {{ updatedAt | parisDate }}</p>
+    } @else if (current) {
+      <h2>Aucun CV pour l'instant</h2>
+      <p class="state">Chaque annonce est comparée à votre CV : sans lui, pas de recherche.</p>
+    } @else {
+      <h2>Votre CV</h2>
+      <p class="state">Chargement…</p>
+    }
+  </header>
+
+  @if (file(); as chosen) {
+    <div class="chosen">
+      <span class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
+          <path d="M14 3v5h5" />
+        </svg>
+      </span>
+      <span class="name">{{ chosen.name }}</span>
+      <span class="size">{{ size(chosen) }}</span>
+    </div>
+    @if (current?.updated_at) {
+      <p class="note">Ce fichier remplacera votre CV actuel. Les pages déjà rejetées seront réévaluées avec lui.</p>
+    }
+    <div class="actions">
+      <p-button label="Enregistrer ce CV" [loading]="saving()" (onClick)="save()" />
+      <p-button label="Annuler" severity="secondary" [text]="true" [disabled]="saving()" (onClick)="cancel()" />
+    </div>
+  } @else {
+    <label
+      class="drop"
+      [class.dragging]="dragging()"
+      (dragover)="dragOver($event)"
+      (dragleave)="dragging.set(false)"
+      (drop)="drop($event)"
+    >
+      <input #input type="file" accept="application/pdf,.pdf" (change)="choose(input)" />
+      <span class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
+        </svg>
+      </span>
+      <strong>{{ current?.updated_at ? 'Déposer un nouveau CV' : 'Déposer votre CV' }}</strong>
+      <span>Glissez un fichier ici, ou cliquez pour le choisir. PDF avec du texte sélectionnable.</span>
+    </label>
+  }
+
+  @if (saved()) {
+    <p-message severity="success" class="feedback">CV enregistré.</p-message>
+  }
+  @if (error()) {
+    <p-message severity="error" class="feedback">{{ error() }}</p-message>
+  }
+</article>
