@@ -1,58 +1,61 @@
 import tomllib
 
 import pytest
+from helpers import job
 
-from projet_recherche_emploi.auth import resolve_user_id
-from projet_recherche_emploi.auth_secrets import build_secrets
-from projet_recherche_emploi.config import DEFAULT_USER_ID
-from projet_recherche_emploi.job_repository import JobRepository
-from projet_recherche_emploi.search_run_repository import SearchRunRepository
-from projet_recherche_emploi.user_repository import UserRepository
+from projet_recherche_emploi.config import DEFAULT_USER_ID, Settings
+from projet_recherche_emploi.data.job_repository import JobRepository
+from projet_recherche_emploi.data.user_repository import UserRepository
+from projet_recherche_emploi.errors import ConfigurationError
+from projet_recherche_emploi.services.auth_service import AuthService
+from projet_recherche_emploi.ui.auth_secrets import build_secrets
 
-GOOGLE_ENVIRONMENT = {
-    "AUTH_REDIRECT_URI": "https://exemple.fly.dev/oauth2callback",
-    "AUTH_COOKIE_SECRET": 'secret avec "guillemets" et \\ barre',
-    "GOOGLE_CLIENT_ID": "id.apps.googleusercontent.com",
-    "GOOGLE_CLIENT_SECRET": "secret",
-    "OWNER_EMAIL": "proprietaire@exemple.fr",
+GOOGLE_SETTINGS = {
+    "auth_redirect_uri": "https://exemple.fly.dev/oauth2callback",
+    "auth_cookie_secret": 'secret avec "guillemets" et \\ barre',
+    "google_client_id": "id.apps.googleusercontent.com",
+    "google_client_secret": "secret",
+    "owner_email": "proprietaire@exemple.fr",
 }
 
 
+def auth_service(database, **settings) -> AuthService:
+    defaults = {"owner_email": "Proprietaire@Exemple.fr", "allowed_emails": "alice@exemple.fr, Bob@Exemple.fr ,"}
+    return AuthService(Settings(**defaults | settings), database)
+
+
 @pytest.fixture
-def db_path(tmp_path, monkeypatch):
-    monkeypatch.setenv("OWNER_EMAIL", "Proprietaire@Exemple.fr")
-    monkeypatch.setenv("ALLOWED_EMAILS", "alice@exemple.fr, Bob@Exemple.fr ,")
-    return tmp_path / "jobs.db"
+def auth(database):
+    return auth_service(database)
 
 
-def test_owner_gets_the_default_user(db_path):
-    assert resolve_user_id(db_path, "proprietaire@exemple.fr", True) == DEFAULT_USER_ID
-    assert resolve_user_id(db_path, " PROPRIETAIRE@exemple.fr ", True) == DEFAULT_USER_ID
+def test_owner_gets_the_default_user(auth):
+    assert auth.resolve_user_id("proprietaire@exemple.fr", True) == DEFAULT_USER_ID
+    assert auth.resolve_user_id(" PROPRIETAIRE@exemple.fr ", True) == DEFAULT_USER_ID
 
 
-def test_invited_users_get_their_own_stable_account(db_path):
-    alice = resolve_user_id(db_path, "alice@exemple.fr", True)
-    bob = resolve_user_id(db_path, "bob@exemple.fr", True)
+def test_invited_users_get_their_own_stable_account(auth):
+    alice = auth.resolve_user_id("alice@exemple.fr", True)
+    bob = auth.resolve_user_id("bob@exemple.fr", True)
 
     assert len({DEFAULT_USER_ID, alice, bob}) == 3
-    assert resolve_user_id(db_path, "ALICE@exemple.fr", True) == alice
-    assert resolve_user_id(db_path, "bob@exemple.fr", True) == bob
+    assert auth.resolve_user_id("ALICE@exemple.fr", True) == alice
+    assert auth.resolve_user_id("bob@exemple.fr", True) == bob
 
 
-def test_first_guest_never_gets_the_owner_account(db_path):
+def test_first_guest_never_gets_the_owner_account(auth):
     # Même si l'invité se connecte avant le propriétaire, sur une base toute neuve
-    assert resolve_user_id(db_path, "alice@exemple.fr", True) != DEFAULT_USER_ID
+    assert auth.resolve_user_id("alice@exemple.fr", True) != DEFAULT_USER_ID
 
 
-def test_guest_does_not_see_the_owner_data(db_path):
-    JobRepository(db_path).insert_jobs(
-        [{"url": "https://a/1", "title": "t", "content": "c", "score": 1.0,
-          "contract_type": "CDI", "query": "q", "match_reason": "r"}]
-    )
+def test_guest_does_not_see_the_owner_data(auth, database):
+    with database.session() as session:
+        JobRepository(session, DEFAULT_USER_ID).insert_jobs([job("https://a/1")])
 
-    alice = resolve_user_id(db_path, "alice@exemple.fr", True)
+    alice = auth.resolve_user_id("alice@exemple.fr", True)
 
-    assert JobRepository(db_path, alice).list_jobs() == []
+    with database.session() as session:
+        assert JobRepository(session, alice).list_jobs() == []
 
 
 @pytest.mark.parametrize(
@@ -66,83 +69,85 @@ def test_guest_does_not_see_the_owner_data(db_path):
         ("", True),
     ],
 )
-def test_other_addresses_are_refused_and_create_no_account(db_path, email, email_verified):
-    assert resolve_user_id(db_path, email, email_verified) is None
-    assert [user["email"] for user in UserRepository(db_path).list_users()] == [None]
+def test_other_addresses_are_refused_and_create_no_account(auth, database, email, email_verified):
+    assert auth.resolve_user_id(email, email_verified) is None
+    with database.session() as session:
+        assert [user.email for user in UserRepository(session).list_users()] == [None]
 
 
-def test_star_opens_the_application_to_any_verified_google_account(db_path, monkeypatch):
-    monkeypatch.setenv("ALLOWED_EMAILS", "*")
+def test_star_opens_the_application_to_any_verified_google_account(database):
+    auth = auth_service(database, allowed_emails="*")
 
-    stranger = resolve_user_id(db_path, "inconnu@exemple.fr", True)
+    stranger = auth.resolve_user_id("inconnu@exemple.fr", True)
 
     assert stranger not in (None, DEFAULT_USER_ID)
-    assert resolve_user_id(db_path, "inconnu@exemple.fr", True) == stranger
-    assert resolve_user_id(db_path, "proprietaire@exemple.fr", True) == DEFAULT_USER_ID
+    assert auth.resolve_user_id("inconnu@exemple.fr", True) == stranger
+    assert auth.resolve_user_id("proprietaire@exemple.fr", True) == DEFAULT_USER_ID
     # Une adresse que Google n'a pas vérifiée reste refusée
-    assert resolve_user_id(db_path, "autre@exemple.fr", False) is None
+    assert auth.resolve_user_id("autre@exemple.fr", False) is None
 
 
-def test_removed_guest_is_refused(db_path, monkeypatch):
-    assert resolve_user_id(db_path, "alice@exemple.fr", True) is not None
+def test_removed_guest_is_refused(database):
+    assert auth_service(database).resolve_user_id("alice@exemple.fr", True) is not None
 
-    monkeypatch.setenv("ALLOWED_EMAILS", "bob@exemple.fr")
+    auth = auth_service(database, allowed_emails="bob@exemple.fr")
 
-    assert resolve_user_id(db_path, "alice@exemple.fr", True) is None
-
-
-def test_missing_owner_is_an_error(db_path, monkeypatch):
-    monkeypatch.delenv("OWNER_EMAIL")
-
-    with pytest.raises(ValueError, match="OWNER_EMAIL"):
-        resolve_user_id(db_path, "alice@exemple.fr", True)
+    assert auth.resolve_user_id("alice@exemple.fr", True) is None
 
 
-def test_quota_is_per_user_and_per_day(db_path):
-    alice, bob = SearchRunRepository(db_path, 2), SearchRunRepository(db_path, 3)
-    today = "2000-01-01 00:00:00"
+def test_missing_owner_is_an_error(database):
+    auth = auth_service(database, owner_email="")
 
-    assert alice.record_run(today, limit=2) is True
-    assert alice.record_run(today, limit=2) is True
-    assert alice.record_run(today, limit=2) is False
-    assert alice.count_runs_since(today) == 2
-
-    assert bob.count_runs_since(today) == 0
-    assert bob.record_run(today, limit=2) is True
-
-    # Les recherches d'avant minuit ne comptent plus le lendemain
-    tomorrow = "2999-01-01 00:00:00"
-    assert alice.count_runs_since(tomorrow) == 0
+    with pytest.raises(ConfigurationError, match="OWNER_EMAIL"):
+        auth.resolve_user_id("alice@exemple.fr", True)
 
 
-def test_run_without_limit_is_always_recorded(db_path):
-    owner = SearchRunRepository(db_path)
+def test_password_is_only_required_when_set(database):
+    open_instance = auth_service(database)
+    protected_instance = auth_service(database, app_password="sésame")
 
-    assert all(owner.record_run() for _ in range(5))
-    assert owner.count_runs_since("2000-01-01 00:00:00") == 5
+    assert open_instance.password_required is False
+    # Sans mot de passe défini, aucune saisie ne « correspond », pas même la chaîne vide
+    assert open_instance.password_matches("") is False
+    assert protected_instance.password_required is True
+    assert protected_instance.password_matches("sésame") is True
+    assert protected_instance.password_matches("sesame") is False
+
+
+def test_settings_are_read_from_the_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("OWNER_EMAIL", "  proprietaire@exemple.fr ")
+
+    settings = Settings()
+
+    assert settings.db_path == tmp_path / "jobs.db"
+    assert settings.owner_email == "proprietaire@exemple.fr"
+    # Un secret ne doit pas apparaître dans un log qui afficherait les réglages
+    assert "sésame" not in repr(Settings(app_password="sésame"))
 
 
 def test_secrets_are_not_written_without_google_variables():
-    assert build_secrets({"OWNER_EMAIL": "proprietaire@exemple.fr", "GOOGLE_CLIENT_ID": "  "}) is None
+    assert build_secrets(Settings(owner_email="proprietaire@exemple.fr", google_client_id="  ")) is None
 
 
 def test_secrets_hold_the_streamlit_auth_section():
-    secrets = tomllib.loads(build_secrets(GOOGLE_ENVIRONMENT))
+    secrets = tomllib.loads(build_secrets(Settings(**GOOGLE_SETTINGS)))
 
     assert secrets == {
         "auth": {
-            "redirect_uri": GOOGLE_ENVIRONMENT["AUTH_REDIRECT_URI"],
-            "cookie_secret": GOOGLE_ENVIRONMENT["AUTH_COOKIE_SECRET"],
-            "client_id": GOOGLE_ENVIRONMENT["GOOGLE_CLIENT_ID"],
-            "client_secret": GOOGLE_ENVIRONMENT["GOOGLE_CLIENT_SECRET"],
+            "redirect_uri": GOOGLE_SETTINGS["auth_redirect_uri"],
+            "cookie_secret": GOOGLE_SETTINGS["auth_cookie_secret"],
+            "client_id": GOOGLE_SETTINGS["google_client_id"],
+            "client_secret": GOOGLE_SETTINGS["google_client_secret"],
             "server_metadata_url": "https://accounts.google.com/.well-known/openid-configuration",
         }
     }
 
 
-@pytest.mark.parametrize("missing", list(GOOGLE_ENVIRONMENT))
+@pytest.mark.parametrize("missing", list(GOOGLE_SETTINGS))
 def test_incomplete_google_configuration_is_an_error(missing):
-    environment = {name: value for name, value in GOOGLE_ENVIRONMENT.items() if name != missing}
+    settings = Settings(**{name: value for name, value in GOOGLE_SETTINGS.items() if name != missing})
 
-    with pytest.raises(ValueError, match=missing):
-        build_secrets(environment)
+    # Le message nomme la variable d'environnement à définir
+    with pytest.raises(ConfigurationError, match=missing.upper()):
+        build_secrets(settings)

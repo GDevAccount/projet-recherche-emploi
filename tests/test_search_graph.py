@@ -1,153 +1,136 @@
-from io import BytesIO
-from pathlib import Path
-
 import pytest
+from helpers import blank_pdf
 from langchain_core.runnables import RunnableLambda
-from langgraph.graph import END, START, StateGraph
-from pypdf import PdfWriter
 
-from projet_recherche_emploi import config, node
-from projet_recherche_emploi.cv_reader import CV_reader
-from projet_recherche_emploi.job_repository import JobRepository
-from projet_recherche_emploi.query_repository import QueryRepository
-from projet_recherche_emploi.rejected_job_repository import RejectedJobRepository
-from projet_recherche_emploi.state import JobSearchState
+from projet_recherche_emploi.agent.adapters import OpenAIJobEvaluator
+from projet_recherche_emploi.config import MAX_PAGE_CHARS
+from projet_recherche_emploi.data.cv_storage import CvStorage
+from projet_recherche_emploi.data.job_repository import JobRepository
+from projet_recherche_emploi.data.query_repository import QueryRepository
+from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
+from projet_recherche_emploi.errors import InvalidInputError
 
 ALICE = 1
 BOB = 2
 
 
-class FakeTavily:
-    """Renvoie deux pages par recherche, sans appeler Tavily."""
-
-    def __init__(self, **kwargs):
-        pass
-
-    def invoke(self, payload):
-        query = payload["query"]
-        return {
-            "results": [
-                {"title": f"{query} {index}", "url": f"https://x/{query}/{index}", "content": "c", "score": 1.0}
-                for index in range(2)
-            ]
-        }
-
-
-class FakeCVReader:
-    """Renvoie le chemin du CV à la place de son texte, pour voir quel CV le filtre a lu."""
-
-    def __init__(self, cv_path):
-        self.cv_path = cv_path
-
-    def get_cv_content(self):
-        return f"CV:{self.cv_path.name}"
-
-
 @pytest.fixture
-def graph(tmp_path, monkeypatch):
-    prompts = []
-
-    class FakeChat:
-        """Retient une page sur deux, sans appeler OpenAI."""
-
-        def __init__(self, **kwargs):
-            pass
-
-        def with_structured_output(self, schema):
-            def evaluate(prompt):
-                text = prompt.to_string()
-                prompts.append(text)
-                matches = "/0\n" in text
-                return schema(is_real_offer=True, matches_cv=matches, reason="ok" if matches else "hors profil")
-
-            return RunnableLambda(evaluate)
-
-    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(node, "DB_PATH", tmp_path / "jobs.db")
-    monkeypatch.setattr(node, "TavilySearch", FakeTavily)
-    monkeypatch.setattr(node, "ChatOpenAI", FakeChat)
-    monkeypatch.setattr(node, "CV_reader", FakeCVReader)
-
-    # Le graph est reconstruit ici : importer main.py régénère graph.png par un service en ligne
-    builder = StateGraph(JobSearchState)
-    builder.add_node("searchJobs", node.search_jobs)
-    builder.add_node("FilterDuplicates", node.filter_duplicates)
-    builder.add_node("FilterJobs", node.filter_jobs)
-    builder.add_node("InsertJobs", node.insert_jobs)
-    builder.add_edge(START, "searchJobs")
-    builder.add_edge("searchJobs", "FilterDuplicates")
-    builder.add_edge("FilterDuplicates", "FilterJobs")
-    builder.add_edge("FilterJobs", "InsertJobs")
-    builder.add_edge("InsertJobs", END)
-    compiled = builder.compile()
-    compiled.prompts = prompts
-    compiled.db_path = tmp_path / "jobs.db"
-    return compiled
+def graph(container, monkeypatch):
+    # Le texte du CV est remplacé par le nom du fichier, pour voir quel CV le filtre a lu
+    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: f"CV:{self.path_for(user_id).name}")
+    return container.graph
 
 
-def test_search_uses_the_queries_and_cv_of_its_user(graph):
-    QueryRepository(graph.db_path, BOB).add_query("CDI", "recherche de bob")
+def test_search_uses_the_queries_and_cv_of_its_user(graph, container, evaluator):
+    with container.database.session() as session:
+        QueryRepository(session, BOB).add_query("CDI", "recherche de bob")
 
     result = graph.invoke({"user_id": BOB})
 
     assert {job["query"] for job in result["jobs"]} == {"recherche de bob"}
-    assert len(graph.prompts) == 2
-    assert all("CV:2.pdf" in prompt for prompt in graph.prompts)
-    assert [job["url"] for job in JobRepository(graph.db_path, BOB).list_jobs()] == ["https://x/recherche de bob/0"]
-    assert RejectedJobRepository(graph.db_path, BOB).list_known_urls() == {"https://x/recherche de bob/1"}
-    assert JobRepository(graph.db_path, ALICE).list_jobs() == []
-    assert RejectedJobRepository(graph.db_path, ALICE).list_known_urls() == set()
+    assert [cv for cv, _ in evaluator.evaluated] == ["CV:2.pdf", "CV:2.pdf"]
+    with container.database.session() as session:
+        assert [job.url for job in JobRepository(session, BOB).list_jobs()] == ["https://x/recherche de bob/0"]
+        assert RejectedJobRepository(session, BOB).list_known_urls() == {"https://x/recherche de bob/1"}
+        assert JobRepository(session, ALICE).list_jobs() == []
+        assert RejectedJobRepository(session, ALICE).list_known_urls() == set()
 
 
-def test_a_page_evaluated_for_one_user_is_still_evaluated_for_another(graph):
-    alice_query = QueryRepository(graph.db_path, ALICE).list_queries()[0]
-    for query in QueryRepository(graph.db_path, ALICE).list_queries()[1:]:
-        QueryRepository(graph.db_path, ALICE).delete_query(query["id"])
-    QueryRepository(graph.db_path, BOB).add_query(alice_query["contract_type"], alice_query["query"])
+def test_a_page_evaluated_for_one_user_is_still_evaluated_for_another(graph, container, evaluator):
+    with container.database.session() as session:
+        alice_query, *others = QueryRepository(session, ALICE).list_queries()
+        for query in others:
+            QueryRepository(session, ALICE).delete_query(query.id)
+        QueryRepository(session, BOB).add_query(alice_query.contract_type, alice_query.query)
 
     graph.invoke({"user_id": ALICE})
-    assert len(graph.prompts) == 2
+    assert len(evaluator.evaluated) == 2
 
     # Le verdict dépend du CV : les mêmes pages repassent par le modèle pour Bob
     graph.invoke({"user_id": BOB})
-    assert len(graph.prompts) == 4
+    assert len(evaluator.evaluated) == 4
 
     # Mais pas une seconde fois pour le même utilisateur
     graph.invoke({"user_id": BOB})
-    assert len(graph.prompts) == 4
+    assert len(evaluator.evaluated) == 4
 
 
-def test_search_without_user_is_for_the_default_user(graph):
+def test_deleted_offer_is_not_evaluated_again(graph, container, evaluator):
+    graph.invoke({"user_id": ALICE})
+    evaluated = len(evaluator.evaluated)
+    with container.database.session() as session:
+        jobs = JobRepository(session, ALICE)
+        jobs.delete_jobs([job.url for job in jobs.list_jobs()])
+
+    result = graph.invoke({"user_id": ALICE})
+
+    assert result["new_jobs"] == [] and result["inserted_count"] == 0
+    assert len(evaluator.evaluated) == evaluated
+
+
+def test_search_without_user_is_for_the_default_user(graph, container, evaluator):
     result = graph.invoke({})
 
-    assert result["inserted_count"] == len(JobRepository(graph.db_path, ALICE).list_jobs()) > 0
-    assert all("CV:cv.pdf" in prompt for prompt in graph.prompts)
+    with container.database.session() as session:
+        assert result["inserted_count"] == len(JobRepository(session, ALICE).list_jobs()) > 0
+    assert {cv for cv, _ in evaluator.evaluated} == {"CV:cv.pdf"}
 
 
-def test_default_user_keeps_the_original_cv_location(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+def test_openai_evaluator_sends_the_cv_and_the_truncated_page_to_the_model():
+    prompts = []
 
-    assert config.cv_path(ALICE) == tmp_path / "cv.pdf"
-    assert config.cv_path(BOB) == tmp_path / "cv" / "2.pdf"
+    class FakeChat:
+        def with_structured_output(self, schema):
+            def evaluate(prompt):
+                prompts.append(prompt.to_string())
+                return schema(is_real_offer=True, matches_cv=False, reason="hors profil")
+
+            return RunnableLambda(evaluate)
+
+    pages = [
+        {"title": "Titre", "url": "https://x/1", "content": "extrait", "raw_content": "p" * (MAX_PAGE_CHARS + 50)},
+        {"title": "Autre", "url": "https://x/2", "content": "extrait seul", "raw_content": None},
+    ]
+
+    verdicts = dict(OpenAIJobEvaluator(FakeChat()).evaluate("texte du CV", pages))
+
+    assert set(verdicts) == {0, 1} and verdicts[0].reason == "hors profil"
+    first, second = sorted(prompts, key=lambda prompt: "https://x/2" in prompt)
+    assert "texte du CV" in first and "https://x/1" in first
+    assert "p" * MAX_PAGE_CHARS in first and "p" * (MAX_PAGE_CHARS + 1) not in first
+    # Sans contenu complet, c'est l'extrait de Tavily qui est évalué
+    assert "extrait seul" in second
 
 
-def test_saving_a_cv_creates_the_user_folder(tmp_path):
-    # Le CV versionné à la racine sert de PDF valide
-    valid_pdf = (Path(__file__).parents[1] / "cv.pdf").read_bytes()
-    reader = CV_reader(tmp_path / "cv" / "2.pdf")
+def test_default_user_keeps_the_original_cv_location(tmp_path):
+    storage = CvStorage(tmp_path)
 
-    reader.save_cv(valid_pdf)
+    assert storage.path_for(ALICE) == tmp_path / "cv.pdf"
+    assert storage.path_for(BOB) == tmp_path / "cv" / "2.pdf"
 
-    assert reader.get_cv_content()
+
+def test_saving_a_cv_creates_the_user_folder(tmp_path, valid_pdf):
+    storage = CvStorage(tmp_path)
+    assert storage.updated_at(BOB) is None
+
+    storage.save(BOB, valid_pdf)
+
+    assert storage.read_text(BOB)
+    assert storage.updated_at(BOB).tzinfo is not None
+    assert storage.updated_at(ALICE) is None
 
 
 def test_refused_cv_writes_nothing(tmp_path):
-    writer = PdfWriter()
-    writer.add_blank_page(width=200, height=200)
-    blank_pdf = BytesIO()
-    writer.write(blank_pdf)
+    storage = CvStorage(tmp_path)
 
     # Un PDF sans texte est refusé avant toute écriture : le dossier n'est même pas créé
-    with pytest.raises(ValueError):
-        CV_reader(tmp_path / "cv" / "2.pdf").save_cv(blank_pdf.getvalue())
+    with pytest.raises(InvalidInputError):
+        storage.save(BOB, blank_pdf())
+    with pytest.raises(InvalidInputError):
+        storage.save(BOB, b"pas un PDF")
     assert not (tmp_path / "cv").exists()
+
+
+def test_reading_a_missing_cv_is_a_user_error(tmp_path):
+    with pytest.raises(InvalidInputError):
+        CvStorage(tmp_path).read_text(BOB)

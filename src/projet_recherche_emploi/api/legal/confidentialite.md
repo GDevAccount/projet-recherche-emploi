@@ -34,6 +34,8 @@ OpenAI, Tavily et Google sont des sociétés établies aux États-Unis : ces tra
 
 Vos données sont conservées tant que votre compte existe. Si votre accès est retiré, vous ne pouvez plus vous connecter, mais vos données restent enregistrées jusqu'à ce que vous en demandiez la suppression.
 
+Avant certaines mises à jour de l'application, une copie de sauvegarde de la base de données est faite et conservée au même endroit. Une demande de suppression porte aussi sur ces copies.
+
 ## Vos droits
 
 Conformément au règlement général sur la protection des données (RGPD), vous pouvez demander l'accès à vos données, leur rectification ou leur suppression, en écrivant à l'adresse indiquée plus haut. La suppression porte sur l'ensemble de votre compte : adresse e-mail, CV, recherches, offres et pages écartées.

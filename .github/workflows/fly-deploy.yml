@@ -1,11 +1,25 @@
-name: Déploiement Fly.io
+name: Tests et déploiement Fly.io
 
 on:
   push:
     branches: [main]
+  pull_request:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      # Les tests n'appellent ni Tavily ni OpenAI : aucune clé n'est nécessaire
+      - run: uv run pytest
+
   deploy:
+    # Rien n'est mis en ligne si un test échoue, et une pull request n'est jamais déployée
+    needs: test
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     # Un seul déploiement à la fois : l'application tourne sur une seule machine.
     concurrency: deploy-fly

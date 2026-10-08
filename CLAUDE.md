@@ -1,71 +1,102 @@
 # CLAUDE.md
 
-Agent de recherche d'emploi : un graph LangGraph cherche des offres avec Tavily, les filtre avec un modèle OpenAI selon le CV, et les stocke en SQLite. Une interface Streamlit pilote le tout. Le README décrit l'usage ; ce fichier ne couvre que ce qu'il faut savoir pour modifier le code.
+Agent de recherche d'emploi : un graph LangGraph cherche des offres avec Tavily, les filtre avec un modèle OpenAI selon le CV, et les stocke en SQLite. Une interface Streamlit pilote le tout, et une API FastAPI expose les mêmes services pour le futur front Angular. Le README décrit l'usage ; ce fichier ne couvre que ce qu'il faut savoir pour modifier le code.
 
 ## Commandes
 
-Toutes se lancent depuis la racine du projet, car `jobs.db`, `cv.pdf` et `graph.png` sont des chemins relatifs au dossier courant.
+Toutes se lancent depuis la racine du projet, car `jobs.db` et `cv.pdf` sont des chemins relatifs au dossier courant.
 
 ```bash
 uv sync                                                   # installer les dépendances
-uv run streamlit run src/projet_recherche_emploi/server.py   # interface
+uv run streamlit run src/projet_recherche_emploi/ui/server.py   # interface
 uv run projet-recherche-emploi                            # recherche seule, sans interface
+uv run projet-recherche-emploi api                        # API sur http://127.0.0.1:8000 (documentation : /docs)
+uv run projet-recherche-emploi graph                      # régénérer graph.png (service en ligne mermaid.ink)
+uv run projet-recherche-emploi migrate                    # créer la base ou l'amener au dernier schéma
 uv add <paquet>                                           # ajouter une dépendance
 ```
 
 ```bash
-uv run pytest                                             # tests des dépôts, sur une base temporaire
+uv run pytest                                             # tests, sur une base temporaire
+uv run ruff check .                                       # linter
+uv run alembic revision --autogenerate -m "..." --rev-id 0002   # écrire une migration (voir Pièges)
 ```
 
-Les tests (`tests/`) couvrent le schéma d'une base neuve, le cloisonnement des dépôts entre utilisateurs et le graph avec de faux Tavily et OpenAI, pas l'interface. Il n'y a pas de linter configuré.
+Les tests (`tests/`) couvrent le schéma et les migrations, le cloisonnement entre utilisateurs, les services, le graph avec de faux Tavily et OpenAI, l'API, le sens des imports entre couches (`test_architecture.py`), et le chargement de l'interface (`test_ui.py`, sans le détail des écrans). Ils construisent leur application avec `build_container()` (fixtures de `tests/conftest.py`).
 
-Les clés `TAVILY_API_KEY` et `OPENAI_API_KEY` sont lues dans `.env` (modèle : `.env.example`), chargé par `load_dotenv()` dans `node.py` et `app.py`. Ne jamais afficher ni committer le contenu de `.env`.
+Les clés `TAVILY_API_KEY` et `OPENAI_API_KEY` sont lues dans `.env` (modèle : `.env.example`), chargé par `load_dotenv()` dans les points d'entrée (`cli.py`, `ui/app.py`, `ui/server.py`, `ui/auth_secrets.py`, `create_app()` de `api/main.py`). Ne jamais afficher ni committer le contenu de `.env`.
 
-D'autres variables sont facultatives : `DATA_DIR` déplace `jobs.db` et `cv.pdf` vers un volume (voir `Dockerfile`), `APP_PASSWORD` active la demande de mot de passe dans `app.py`. Comme `.env.example` contient `APP_PASSWORD`, l'interface locale demande aussi le mot de passe, sauf si la ligne est vide ou absente. `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_COOKIE_SECRET`, `AUTH_REDIRECT_URI` et `OWNER_EMAIL` activent ensemble la connexion Google, `ALLOWED_EMAILS` liste les invités, ou vaut `*` pour accepter tout compte Google (voir le README).
+Les autres variables sont les champs de `Settings` (`config.py`), tous facultatifs : `DATA_DIR` déplace `jobs.db` et `cv.pdf` vers un volume (voir `Dockerfile`), `APP_PASSWORD` active la demande de mot de passe. Comme `.env.example` contient `APP_PASSWORD`, l'interface locale demande aussi le mot de passe, sauf si la ligne est vide ou absente. `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_COOKIE_SECRET`, `AUTH_REDIRECT_URI` et `OWNER_EMAIL` activent ensemble la connexion Google, `ALLOWED_EMAILS` liste les invités, ou vaut `*` pour accepter tout compte Google (voir le README). `CORS_ORIGINS` liste les sites autorisés à appeler l'API depuis un navigateur.
 
-L'instance en ligne tourne sur Fly.io (`fly.toml`). Elle est publiée automatiquement à chaque push sur `main` par `.github/workflows/fly-deploy.yml` ; `fly deploy` reste possible à la main. Les clés API et `APP_PASSWORD` y sont des secrets Fly, pas un `.env`. Le jeton utilisé par le workflow est le secret GitHub `FLY_API_TOKEN`.
+L'instance en ligne tourne sur Fly.io (`fly.toml`) et ne sert que l'interface Streamlit : l'API n'est pas déployée. Elle est publiée automatiquement à chaque push sur `main` par `.github/workflows/fly-deploy.yml`, après le linter et les tests ; `fly deploy` reste possible à la main, sans ce contrôle. Les clés API et `APP_PASSWORD` y sont des secrets Fly, pas un `.env`. Le jeton utilisé par le workflow est le secret GitHub `FLY_API_TOKEN`.
 
 ## Architecture
 
-Tout le code est dans `src/projet_recherche_emploi/`.
+Tout le code est dans `src/projet_recherche_emploi/`. Les dépendances ne vont que vers le bas, et `tests/test_architecture.py` le vérifie :
 
-- `main.py` construit le graph : `searchJobs` → `FilterDuplicates` → `FilterJobs` → `InsertJobs`. Les quatre nœuds sont dans `node.py`, l'état partagé dans `state.py`.
-- `job_repository.py`, `rejected_job_repository.py`, `query_repository.py`, `user_repository.py` et `search_run_repository.py` sont les seuls accès à SQLite, respectivement pour les tables `jobs`, `rejected_jobs`, `search_queries`, `users` et `search_runs`.
-- `server.py` est le point d'entrée lancé par `streamlit run` : il enveloppe `app.py` dans un `st.App` et y ajoute les routes de `public_pages.py`. Ces pages sont en HTML simple parce que les robots de Google ne lisent pas une page Streamlit. Lancer `app.py` directement fonctionne encore, mais sans ces routes.
-- `auth.py` décide quel utilisateur correspond à une adresse Google. `auth_secrets.py` écrit `.streamlit/secrets.toml` à partir des variables d'environnement ; il est lancé avant Streamlit par le `Dockerfile`.
-- `cv_reader.py` lit et enregistre le CV.
-- `app.py` est l'interface Streamlit. Elle ne contient pas de logique métier : elle appelle les dépôts, `CV_reader` et le graph.
-- `config.py` regroupe les constantes (chemins, modèle, recherches par défaut).
+```
+ui/   api/   cli.py        interfaces : aucune règle métier
+        │
+   container.py            assemblage : relie réglages, base, graph et services
+        │
+   services/   agent/      règles métier ; recherche LangGraph
+        │
+      data/                seuls accès à SQLite et aux fichiers
+```
+
+`config.py`, `errors.py` et `schemas.py` sont importables partout.
+
+- `container.py` est le seul endroit où les objets sont reliés. `Container` crée la base, le stockage des CV, le graph et les services ; `get_container()` renvoie celui du processus, `build_container()` en construit un autre (tests). Un service ou un nœud reçoit ce dont il a besoin à sa construction : il n'importe ni chemin de base ni client.
+- `ui/` est l'interface Streamlit, seule couche autorisée à importer `streamlit`. Elle est provisoire : le front Angular la remplacera, branché sur `api/`.
+  - `server.py` est le point d'entrée lancé par `streamlit run` : il enveloppe `app.py` dans un `st.App` et y ajoute les routes de `api/public_pages.py`. Lancer `app.py` directement fonctionne encore, mais sans ces routes.
+  - `auth.py` identifie l'utilisateur de la session, `views.py` contient les écrans.
+  - `auth_secrets.py` écrit `.streamlit/secrets.toml` à partir des réglages ; il est lancé avant Streamlit par le `Dockerfile`.
+- `api/` est l'API FastAPI, seule couche autorisée à importer `fastapi`. `main.py` construit l'application (`create_app`) et traduit les erreurs en codes HTTP, `security.py` identifie l'appelant, `routers/` contient les routes, toutes sous `/api`. `public_pages.py` sert les pages légales en HTML simple, parce que les robots de Google ne lisent pas une page qui demande du JavaScript.
+- `services/` porte les règles métier, dans une classe par domaine : `AuthService` (quel utilisateur pour une adresse Google, mot de passe de l'instance), `SearchService` (conditions préalables, quota, lancement du graph), `CvService` (enregistre un CV et oublie les rejets de l'ancien), `JobService` et `QueryService` (offres, pages rejetées, postes recherchés). Les interfaces ne passent que par eux.
+- `agent/` est la recherche LangGraph. `graph.py` construit le graph : `searchJobs` → `FilterDuplicates` → `FilterJobs` → `InsertJobs`. Les quatre nœuds sont les méthodes de `SearchNodes` (`nodes.py`), l'état partagé est dans `state.py`, le prompt du filtre dans `prompts.py`. `ports.py` décrit ce que le graph attend de l'extérieur (un moteur de recherche, un évaluateur) et `adapters.py` en donne les versions réelles, Tavily et OpenAI.
+- `data/` regroupe les seuls accès à SQLite et aux fichiers, avec SQLAlchemy. `models.py` décrit les tables, `database.py` ouvre les sessions et applique les migrations de `migrations/` (Alembic). `job_repository.py`, `rejected_job_repository.py`, `query_repository.py`, `user_repository.py` et `search_run_repository.py` servent respectivement les tables `jobs`, `rejected_jobs`, `search_queries`, `users` et `search_runs`. `cv_storage.py` lit et enregistre les CV.
+- `schemas.py` définit les objets que les services renvoient (Pydantic) : l'API les sert tels quels en JSON.
+- `errors.py` définit les erreurs destinées à l'utilisateur.
+- `config.py` regroupe les réglages : `Settings` pour les variables d'environnement, des constantes pour le reste (modèle, sites, quota, recherches par défaut).
+- `cli.py` est la commande `projet-recherche-emploi`.
 
 ## Pièges
 
-- **Importer `main.py` a des effets de bord.** Le module construit le graph et régénère `graph.png` via le service en ligne mermaid.ink. C'est pourquoi `__init__.py` et `app.py` l'importent localement, dans la fonction qui lance la recherche. Ne pas remonter cet import en tête de fichier.
-- **Une vraie recherche coûte de l'argent.** Chaque exécution du graph consomme des crédits Tavily et OpenAI. Ne pas la lancer pour vérifier un changement sans l'accord de l'utilisateur ; tester les dépôts et l'interface sur une base temporaire.
-- **Changer le schéma demande une migration.** Les tables sont créées par `CREATE TABLE IF NOT EXISTS` (ou équivalent) : modifier la requête de création n'a aucun effet sur un `jobs.db` existant. Il faut un `ALTER TABLE` dans le `_create_table` du dépôt, après un `PRAGMA table_info` qui vérifie si la colonne existe déjà, ou supprimer la base avec l'accord de l'utilisateur. Changer une clé primaire ou une contrainte d'unicité demande de recréer la table et de recopier ses lignes, dans une transaction ouverte par un `BEGIN` explicite : Python n'en ouvre pas pour un `ALTER` ou un `CREATE`. La base en ligne (volume Fly.io) ne se migre que par ce biais. Il n'y a plus de migration dans le code : les deux précédentes (colonnes `deleted` et `user_id`) ont été retirées une fois toutes les bases à jour, et se retrouvent dans l'historique Git (`migration.py`). Une base antérieure à ces colonnes n'est plus lisible.
-- **Toute requête SQL doit filtrer sur `user_id`.** Chaque dépôt reçoit l'utilisateur à sa création (`JobRepository(DB_PATH, user_id)`) et ne lit ni ne modifie que ses lignes. Une requête écrite sans `user_id` montrerait les données d'un utilisateur à un autre : `tests/test_user_isolation.py` couvre chaque méthode publique, ajouter un cas pour toute nouvelle méthode. L'utilisateur vient de `current_user_id()` dans `app.py`, qui le passe aux fonctions d'affichage et au graph (`user_id` dans l'état, lu par `get_user_id` dans `node.py`). Tant qu'il n'y a pas de connexion, `current_user_id()` renvoie `DEFAULT_USER_ID` (1) : l'application reste mono-utilisateur.
-- **Le CV de l'utilisateur 1 n'est pas rangé comme les autres.** `cv_path(user_id)` de `config.py` renvoie `cv.pdf` pour l'utilisateur 1, son emplacement d'avant les comptes, et `cv/<identifiant>.pdf` pour les autres. Toujours passer par cette fonction.
-- **Les recherches par défaut ne vont qu'à l'utilisateur 1.** `DEFAULT_QUERIES` est calé sur le profil de l'auteur : un autre utilisateur part d'une liste vide.
-- **Supprimer une offre ne supprime pas sa ligne.** `delete_jobs` passe `deleted` à 1 et `list_jobs` masque ces lignes. C'est voulu : l'URL reste en base, donc `INSERT OR IGNORE` empêche l'offre de revenir à la recherche suivante. Toute lecture de `jobs` destinée à l'affichage doit filtrer sur `deleted = 0` ; `list_known_urls` ne filtre pas, exprès, pour que le nœud `FilterDuplicates` écarte aussi les offres supprimées avant l'appel au modèle.
-- **Un rejet du modèle est mémorisé.** `InsertJobs` écrit les pages rejetées dans `rejected_jobs`, et `FilterDuplicates` écarte leurs URL pour ne pas payer une seconde évaluation. La table n'est vidée que par `render_cv` de `app.py`, à l'enregistrement d'un nouveau CV. Après un changement de `FILTER_PROMPT`, les anciens rejets restent : il faut vider la table à la main pour les faire réévaluer.
-- **La région parisienne est écrite en dur dans `FILTER_PROMPT`.** Le filtre de `node.py` rejette toute offre hors Île-de-France, quelle que soit la recherche enregistrée. Une recherche « à Lyon » ajoutée dans l'interface ne donnera donc rien tant que le prompt n'est pas modifié.
-- **`cv.pdf` à la racine est versionné.** C'est le CV de l'auteur. Déposer un autre CV dans l'interface en local l'écrase : ne pas committer ce changement par mégarde. Il est exclu de l'image par `.dockerignore` ; en ligne, le CV vient du volume.
-- **Les recherches par défaut ne sont insérées qu'une fois.** `DEFAULT_QUERIES` est écrit en base à la création de la table `search_queries`, pas quand elle est vide. C'est voulu : une recherche supprimée par l'utilisateur ne doit pas revenir.
-- **SQLite enregistre les dates en UTC.** `created_at` et `applied_at` viennent de `CURRENT_TIMESTAMP`. La conversion en heure de Paris se fait à l'affichage, dans `to_local_time` de `app.py`.
-- **Le tableau des offres n'a pas de `key`.** Le `st.data_editor` de `app.py` repart ainsi d'un état vierge dès que les données changent. Avec une clé, une coche en attente pourrait s'appliquer à la mauvaise ligne après un filtrage.
-- **Pousser sur `main` met en ligne.** Le workflow ne lance pas les tests et n'a aucune étape de validation : tout commit poussé sur `main` est déployé et redémarre l'instance, ce qui interrompt une recherche en cours. Ne pas pousser sans l'accord de l'utilisateur.
+- **Un import ne doit rien déclencher.** Le conteneur est construit au premier appel de `get_container()`, le graph à la première recherche, les clients Tavily et OpenAI à leur premier usage, et les logs sont réglés par `configure_logging()` dans chaque point d'entrée. Ne pas remettre d'appel réseau, d'accès à la base, de `load_dotenv()` ni de `basicConfig` au niveau d'un module. Pour l'API, c'est `create_app()` qui fait tout : le serveur la lance en mode « factory ».
+- **Les réglages sont lus une fois.** `Settings()` lit les variables d'environnement à la construction du conteneur : en changer une demande de redémarrer. Un test ne modifie pas l'environnement, il passe ses réglages à `Settings(...)` ; la fixture `clean_environment` efface ceux de la machine.
+- **Une vraie recherche coûte de l'argent.** Chaque exécution du graph consomme des crédits Tavily et OpenAI. Ne pas la lancer pour vérifier un changement sans l'accord de l'utilisateur ; tester avec `FakeSearchEngine` et `FakeEvaluator` de `tests/conftest.py`.
+- **Changer le schéma demande une migration.** Modifier `data/models.py` n'a aucun effet sur un `jobs.db` existant. Il faut une migration Alembic dans `data/migrations/versions/`, écrite avec `alembic revision --autogenerate` puis relue. `test_schema.py` échoue si les modèles et les migrations ne décrivent plus le même schéma. L'application applique les migrations en attente à la construction du conteneur, et l'image Docker le fait avant de lancer Streamlit (`projet-recherche-emploi migrate` dans le `Dockerfile`) : une migration qui échoue arrête le déploiement au lieu de casser la première visite. La base du volume Fly.io ne se migre que par ce biais.
+- **Une migration est copiée d'abord, et tient en une transaction.** Avant d'en appliquer une à une base existante, `Database.migrate()` copie la base dans `jobs.avant-migration-<version>.db`, à côté d'elle. `database.py` fait émettre le `BEGIN` par SQLAlchemy, parce que le pilote `sqlite3` n'en ouvre pas pour un `CREATE` ou un `ALTER` : ne pas retirer `_use_explicit_transactions`. Ces copies contiennent les données de tous les utilisateurs : les supprimer une fois la migration vérifiée, et lors d'une demande de suppression de compte.
+- **La première migration ne crée que les tables manquantes.** Avant Alembic, chaque dépôt créait sa table à son premier usage : une base ancienne peut ne pas avoir `users` ni `search_runs`. `0001_schema_initial.py` teste donc chaque table. Les migrations suivantes n'ont pas à le faire.
+- **Les colonnes gardent les types d'avant SQLAlchemy.** Les dates sont du texte UTC au format de `CURRENT_TIMESTAMP`, les booléens des entiers : `UtcDateTime` et `IntBool` de `models.py` font la conversion. Utiliser ces deux types pour toute nouvelle colonne de date ou de booléen, sinon les comparaisons de dates en texte ne tiennent plus.
+- **Toute requête SQL doit filtrer sur `user_id`.** Chaque dépôt reçoit la session et l'utilisateur à sa création (`JobRepository(session, user_id)`) et ne lit ni ne modifie que ses lignes. Une requête écrite sans `user_id` montrerait les données d'un utilisateur à un autre : `tests/test_user_isolation.py` couvre chaque méthode publique, ajouter un cas pour toute nouvelle méthode. Seul `UserRepository` n'a pas d'utilisateur. Sans connexion Google, l'utilisateur est `DEFAULT_USER_ID` (1) : l'application reste mono-utilisateur.
+- **Toute route de l'API passe par `UserId`.** C'est la dépendance de `api/security.py` qui identifie l'appelant ; une route sans elle serait ouverte à tous. `test_api.py` liste les routes protégées et échoue si une route n'y figure pas. Sans connexion Google ni `APP_PASSWORD`, l'API refuse tout (503) : ne pas lui donner d'accès par défaut à l'utilisateur 1.
+- **Rien ne s'affiche avant `authenticate()`.** Dans `main()` de `ui/app.py`, tout rendu vient après ce contrôle, qui renvoie l'utilisateur de la session (connexion Google, ou mot de passe unique et utilisateur 1). Un nouvel élément d'interface placé avant serait visible sans connexion sur l'instance en ligne. Les seules pages publiques sont les routes HTML de `api/public_pages.py` (`/confidentialite`, `/conditions`, fichier de validation Google), qui ne touchent pas aux dépôts.
+- **Un objet lu en base ne sort pas de sa session.** Un service convertit les lignes en schémas Pydantic (`JobRead.model_validate(...)`) avant de fermer la session. Les interfaces ne voient jamais un modèle SQLAlchemy.
+- **Le CV de l'utilisateur 1 n'est pas rangé comme les autres.** `CvStorage.path_for(user_id)` renvoie `cv.pdf` pour l'utilisateur 1, son emplacement d'avant les comptes, et `cv/<identifiant>.pdf` pour les autres. Toujours passer par `CvStorage`.
+- **Les recherches par défaut ne vont qu'à l'utilisateur 1, une seule fois.** `DEFAULT_QUERIES`, calé sur le profil de l'auteur, est écrit en base par la première migration, à la création de la table `search_queries`. C'est voulu : une recherche supprimée par l'utilisateur ne doit pas revenir, et un autre utilisateur part d'une liste vide.
+- **Supprimer une offre ne supprime pas sa ligne.** `delete_jobs` passe `deleted` à 1 et `list_jobs` masque ces lignes. C'est voulu : l'URL reste en base, donc l'insertion ignore l'offre à la recherche suivante. Toute lecture de `jobs` destinée à l'affichage doit filtrer sur `deleted` ; `list_known_urls` ne filtre pas, exprès, pour que le nœud `FilterDuplicates` écarte aussi les offres supprimées avant l'appel au modèle.
+- **Un rejet du modèle est mémorisé.** `InsertJobs` écrit les pages rejetées dans `rejected_jobs`, et `FilterDuplicates` écarte leurs URL pour ne pas payer une seconde évaluation. La table n'est vidée que par `CvService.save_cv`, à l'enregistrement d'un nouveau CV. Après un changement de `FILTER_PROMPT`, les anciens rejets restent : il faut vider la table à la main pour les faire réévaluer.
+- **La région parisienne est écrite en dur dans `FILTER_PROMPT`.** Le prompt de `agent/prompts.py` fait rejeter toute offre hors Île-de-France, quelle que soit la recherche enregistrée. Une recherche « à Lyon » ajoutée dans l'interface ne donnera donc rien tant que le prompt n'est pas modifié.
+- **Le quota est compté avant la recherche, après les conditions préalables.** `SearchService.stream_search` refuse d'abord une recherche sans CV ou sans poste recherché, puis enregistre le lancement, puis lance le graph : une recherche qui échoue en route a pu consommer des crédits, donc compte. Le refus est levé à l'appel, avant le premier élément du déroulement, pour que l'API puisse encore répondre par une erreur. Le quota (`MAX_SEARCHES_PER_DAY`) ne s'applique pas à l'utilisateur 1, dont les lancements sont enregistrés sans limite.
+- **Une recherche lancée par l'API va au bout.** `api/routers/searches.py` la fait tourner dans son propre fil : si le navigateur ferme la connexion, les pages déjà payées sont quand même enregistrées. Un redémarrage du serveur, lui, l'interrompt.
+- **`CvStorage.save` valide avant d'écrire.** Le CV en place n'est écrasé que si le nouveau PDF est lisible et contient du texte. Garder cet ordre.
+- **`cv.pdf` à la racine est versionné.** C'est le CV de l'auteur, et les tests s'en servent comme PDF valide. Déposer un autre CV dans l'interface en local l'écrase : ne pas committer ce changement par mégarde. Il est exclu de l'image par `.dockerignore` ; en ligne, le CV vient du volume.
+- **Les dates sont en UTC, avec leur fuseau.** `created_at` et `applied_at` viennent de `CURRENT_TIMESTAMP` ; les services les renvoient en `datetime` UTC. La conversion en heure de Paris se fait à l'affichage (`to_local_time` de `ui/views.py`), et sera à la charge du front Angular.
+- **Le tableau des offres n'a pas de `key`.** Le `st.data_editor` de `ui/views.py` repart ainsi d'un état vierge dès que les données changent. Avec une clé, une coche en attente pourrait s'appliquer à la mauvaise ligne après un filtrage.
+- **Pousser sur `main` met en ligne.** Le workflow lance le linter et les tests, puis déploie et redémarre l'instance, ce qui interrompt une recherche en cours et applique les migrations en attente à la base en ligne. Ne pas pousser sans l'accord de l'utilisateur.
 - **Sur Fly.io, seul `/data` survit à un redémarrage.** Le reste du disque est remis à zéro, et le volume monté sur `/data` (section `[mounts]` de `fly.toml`) n'est pas partagé entre machines. Tout fichier à conserver doit passer par `DATA_DIR`, et l'application doit rester sur une seule machine.
-- **Rien ne s'affiche avant `authenticate()`.** Dans `main()` de `app.py`, tout rendu et tout accès aux dépôts viennent après ce contrôle, qui renvoie l'utilisateur de la session (connexion Google, ou mot de passe unique et utilisateur 1). Un nouvel élément d'interface placé avant serait visible sans connexion sur l'instance en ligne. Les seules pages publiques sont les routes HTML de `public_pages.py` (`/confidentialite`, `/conditions`, fichier de validation Google), qui ne touchent pas aux dépôts.
-- **Les textes de `legal/` décrivent le comportement réel.** Données enregistrées, envoi du CV à OpenAI, quota, absence de suppression de compte en libre-service : les mettre à jour quand l'un de ces points change.
-- **Sans `.streamlit/secrets.toml`, tout le monde est l'utilisateur 1.** La connexion Google n'est active que si ce fichier contient une section `[auth]`. S'il n'est pas généré en ligne, l'application retombe sur `APP_PASSWORD` et donne les données du propriétaire à qui le connaît : garder `APP_PASSWORD` défini sur Fly.io, et ne pas retirer l'appel à `auth_secrets` du `Dockerfile`.
-- **L'identifiant 1 est réservé au propriétaire.** `UserRepository` insère la ligne 1 sans adresse à la création de la table, pour qu'aucun invité ne reçoive cet identifiant et les données d'avant les comptes. Le propriétaire est reconnu par `OWNER_EMAIL`, pas par la table.
-- **Le quota ne s'applique pas à l'utilisateur 1.** `MAX_SEARCHES_PER_DAY` limite les invités ; le lancement est compté avant la recherche, dans `run_search`, et la commande sans interface n'est pas comptée.
-- **`save_cv` valide avant d'écrire.** Le CV en place n'est écrasé que si le nouveau PDF est lisible et contient du texte. Garder cet ordre.
+- **Les textes de `api/legal/` décrivent le comportement réel.** Données enregistrées, envoi du CV à OpenAI, quota, copies de sauvegarde, absence de suppression de compte en libre-service : les mettre à jour quand l'un de ces points change.
+- **Sans `.streamlit/secrets.toml`, tout le monde est l'utilisateur 1 dans l'interface.** La connexion Google n'y est active que si ce fichier contient une section `[auth]`. S'il n'est pas généré en ligne, l'interface retombe sur `APP_PASSWORD` et donne les données du propriétaire à qui le connaît : garder `APP_PASSWORD` défini sur Fly.io, et ne pas retirer l'appel à `ui.auth_secrets` du `Dockerfile`.
+- **L'identifiant 1 est réservé au propriétaire.** La première migration insère la ligne 1 de `users` sans adresse, pour qu'aucun invité ne reçoive cet identifiant et les données d'avant les comptes. Le propriétaire est reconnu par `OWNER_EMAIL`, pas par la table.
 
 ## Conventions
 
 - Commentaires, docstrings, messages de log et textes de l'interface sont en français ; les noms de variables et de fonctions sont en anglais.
 - Les commentaires expliquent le pourquoi, pas le quoi, et restent rares.
-- Chaque méthode publique d'un dépôt ouvre sa connexion, travaille dans un `with connection` (transaction), puis la ferme dans un `finally`. Les méthodes privées reçoivent la connexion en paramètre.
-- Les dépôts renvoient des `list[dict]` en lecture, et un booléen ou un nombre de lignes en écriture.
-- Les erreurs destinées à l'utilisateur sont des `ValueError` avec un message en français, affichable tel quel par `st.error`.
-- Mettre à jour le README quand une commande, une table ou un réglage change.
+- Une transaction, c'est un `with self.database.session() as session` dans une méthode de service ou un nœud du graph : elle est validée en sortie, annulée en cas d'erreur. Un dépôt reçoit la session et ne valide jamais lui-même.
+- Les dépôts renvoient des modèles SQLAlchemy en lecture, et un booléen ou un nombre de lignes en écriture. Les services renvoient des schémas Pydantic.
+- Une règle métier (quota, validation, enchaînement de deux dépôts) s'écrit dans un service, jamais dans `ui/` ni `api/`. Les méthodes d'un service prennent `user_id` en premier paramètre.
+- Les erreurs destinées à l'utilisateur sont des sous-classes d'`AppError` (`errors.py`) avec un message en français, affichable tel quel par `st.error` et renvoyé tel quel par l'API. Une nouvelle sous-classe reçoit son code HTTP dans `STATUS_CODES` de `api/main.py`.
+- Une dépendance extérieure payante ou en réseau passe par un port de `agent/ports.py` (ou un équivalent), pour que les tests y branchent un faux.
+- Mettre à jour le README quand une commande, une route, une table ou un réglage change.

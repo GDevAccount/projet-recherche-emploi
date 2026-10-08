@@ -1,0 +1,72 @@
+"""Commande projet-recherche-emploi.
+
+Sans argument, lance une recherche pour le propriétaire, sans interface.
+"""
+
+import argparse
+import logging
+
+from dotenv import load_dotenv
+
+from projet_recherche_emploi.config import DEFAULT_USER_ID, configure_logging
+from projet_recherche_emploi.container import get_container
+from projet_recherche_emploi.errors import AppError
+from projet_recherche_emploi.schemas import SearchProgress
+
+logger = logging.getLogger(__name__)
+
+
+def run_search() -> None:
+    def log_progress(event: SearchProgress) -> None:
+        logger.info(event.message)
+
+    # Le propriétaire n'a pas de quota : le lancement est enregistré, jamais refusé
+    summary = get_container().search.run_search(DEFAULT_USER_ID, log_progress)
+    logger.info(
+        "%d page(s) trouvée(s), %d pas encore évaluée(s), %d retenue(s), %d rejetée(s), %d nouvelle(s) en base",
+        summary.found,
+        summary.new,
+        summary.kept,
+        summary.rejected,
+        summary.inserted,
+    )
+
+
+def draw_graph() -> None:
+    # Le rendu passe par le service en ligne mermaid.ink : il n'est fait qu'à la demande
+    get_container().graph.get_graph().draw_mermaid_png(output_file_path="graph.png")
+
+
+def migrate() -> None:
+    # Construire le conteneur met déjà la base à jour
+    get_container()
+
+
+def serve_api() -> None:
+    import uvicorn
+
+    uvicorn.run("projet_recherche_emploi.api.main:create_app", factory=True, host="127.0.0.1", port=8000)
+
+
+COMMANDS = {
+    "search": (run_search, "lance une recherche pour le propriétaire (par défaut)"),
+    "graph": (draw_graph, "génère le schéma du graph dans graph.png"),
+    "migrate": (migrate, "crée la base ou l'amène à la dernière version du schéma"),
+    "api": (serve_api, "sert l'API sur http://127.0.0.1:8000"),
+}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="projet-recherche-emploi", description=__doc__)
+    subparsers = parser.add_subparsers(dest="command")
+    for name, (_, description) in COMMANDS.items():
+        subparsers.add_parser(name, help=description)
+    arguments = parser.parse_args()
+
+    load_dotenv()
+    configure_logging()
+    command, _ = COMMANDS[arguments.command or "search"]
+    try:
+        command()
+    except AppError as error:
+        parser.exit(1, f"{error}\n")
