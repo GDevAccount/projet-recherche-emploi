@@ -1,6 +1,6 @@
 # Règles de confidentialité
 
-Cette application cherche des offres d'emploi sur le web et ne garde que celles qui correspondent à votre CV. Cette page explique quelles données elle utilise, pourquoi, et comment les faire supprimer.
+Tamis est une application qui cherche des offres d'emploi sur le web et ne garde que celles qui correspondent à votre CV. Cette page explique quelles données elle utilise, pourquoi, et comment les faire supprimer.
 
 ## Qui est responsable de vos données
 

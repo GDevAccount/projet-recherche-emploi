@@ -2,7 +2,7 @@
 
 ## Le service
 
-Cette application cherche des offres d'emploi sur le web, les compare à votre CV à l'aide d'un modèle d'intelligence artificielle, et vous permet de suivre vos candidatures. C'est un projet personnel, mis à disposition gratuitement.
+Tamis est une application qui cherche des offres d'emploi sur le web, les compare à votre CV à l'aide d'un modèle d'intelligence artificielle, et vous permet de suivre vos candidatures. C'est un projet personnel, mis à disposition gratuitement.
 
 ## Accès
 
