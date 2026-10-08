@@ -72,3 +72,28 @@ export interface RejectedJob {
   failed_criteria: string[];
   created_at: string;
 }
+
+/** Étapes d'une recherche, dans l'ordre du graph. */
+export type SearchStep = 'search' | 'dedupe' | 'evaluate' | 'save';
+
+export interface SearchProgress {
+  message: string;
+  /** Étape qui signale cet avancement */
+  step: SearchStep | null;
+  done: number | null;
+  total: number | null;
+  /** Pages trouvées jusqu'ici, et celles qui restent à évaluer une fois les doublons écartés */
+  found: number | null;
+  new: number | null;
+  /** Page qui vient d'être évaluée, et son verdict */
+  title: string | null;
+  kept: boolean | null;
+}
+
+export interface SearchSummary {
+  found: number;
+  new: number;
+  kept: number;
+  rejected: number;
+  inserted: number;
+}

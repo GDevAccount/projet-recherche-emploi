@@ -1,0 +1,138 @@
+@let state = run.state();
+
+<section class="panel" [attr.data-state]="state" aria-live="polite">
+  <header>
+    <span class="signal"></span>
+    <h2>
+      @switch (state) {
+        @case ('running') {
+          Recherche en cours
+        }
+        @case ('done') {
+          Recherche terminée
+        }
+        @case ('lost') {
+          Connexion interrompue
+        }
+        @default {
+          Recherche refusée
+        }
+      }
+    </h2>
+    <span class="clock">{{ clock(run.elapsed()) }}</span>
+    @if (state !== 'running') {
+      <button type="button" class="close" aria-label="Fermer le suivi" (click)="run.dismiss()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+    }
+  </header>
+
+  @if (state === 'failed' && run.error()) {
+    <p class="alert">{{ run.error() }}</p>
+  }
+  @if (state === 'lost') {
+    <p class="alert soft">
+      Le suivi s'est arrêté, mais la recherche va au bout sur le serveur. Rechargez vos offres dans quelques minutes.
+    </p>
+  }
+
+  @if (run.log().length) {
+    <ol class="pipeline">
+      @for (item of steps(); track item.step) {
+        <li [attr.data-status]="item.status">
+          <span class="node">
+            @if (item.status === 'done') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m5 12.5 4.5 4.5L19 7.5" />
+              </svg>
+            } @else {
+              {{ $index + 1 }}
+            }
+          </span>
+          <div>
+            <strong>{{ item.label }}</strong>
+            <code>{{ item.node }}</code>
+            <small>{{ item.detail || item.what }}</small>
+          </div>
+        </li>
+      }
+    </ol>
+
+    <dl class="telemetry">
+      <div>
+        <dt>Pages trouvées</dt>
+        <dd>{{ run.found() ?? '—' }}</dd>
+      </div>
+      <div>
+        <dt>À évaluer</dt>
+        <dd>{{ run.fresh() ?? '—' }}</dd>
+      </div>
+      <div>
+        <dt>Évaluées</dt>
+        <dd>
+          @if (evaluation(); as progress) {
+            {{ progress.done }}<small> / {{ progress.total }}</small>
+          } @else {
+            —
+          }
+        </dd>
+      </div>
+      <div class="kept">
+        <dt>Retenues</dt>
+        <dd>{{ run.summary()?.kept ?? run.keptSoFar() }}</dd>
+      </div>
+      <div>
+        <dt>Écartées</dt>
+        <dd>{{ run.summary()?.rejected ?? run.rejectedSoFar() }}</dd>
+      </div>
+    </dl>
+
+    @if (evaluation(); as progress) {
+      <div
+        class="gauge"
+        role="progressbar"
+        aria-label="Avancement de l'évaluation"
+        [attr.aria-valuenow]="progress.percent"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      >
+        <span [style.width.%]="progress.percent"></span>
+      </div>
+    }
+
+    <div #console class="console" tabindex="0" aria-label="Journal de la recherche">
+      @for (line of run.log(); track $index) {
+        <p [class.kept]="line.kept === true" [class.rejected]="line.kept === false">
+          <time>{{ clock(line.at) }}</time>
+          <span class="tag">{{ line.step ?? 'info' }}</span>
+          @if (line.kept !== null) {
+            <span class="verdict">{{ line.kept ? 'retenue' : 'écartée' }}</span>
+          }
+          <span class="text">{{ line.text }}</span>
+        </p>
+      }
+      @if (state === 'running') {
+        <p class="cursor"><span></span></p>
+      }
+    </div>
+  }
+
+  @if (run.summary(); as summary) {
+    <footer>
+      <p>
+        <strong>{{ summary.inserted }}</strong>
+        {{ summary.inserted > 1 ? 'nouvelles offres vous attendent' : 'nouvelle offre vous attend' }}
+        <small>
+          {{ summary.found }} {{ summary.found > 1 ? 'pages trouvées' : 'page trouvée' }}, {{ summary.new }} pas
+          encore {{ summary.new > 1 ? 'évaluées' : 'évaluée' }}, {{ summary.kept }}
+          {{ summary.kept > 1 ? 'retenues' : 'retenue' }}, {{ summary.rejected }}
+          {{ summary.rejected > 1 ? 'écartées' : 'écartée' }}.
+        </small>
+      </p>
+      <a class="cta" [routerLink]="jobsPath" (click)="run.dismiss()">Voir mes offres</a>
+      <a class="link" [routerLink]="rejectedPath" (click)="run.dismiss()">Voir les rejets</a>
+    </footer>
+  }
+</section>

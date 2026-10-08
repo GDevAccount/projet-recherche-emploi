@@ -21,6 +21,7 @@ from projet_recherche_emploi.data.job_repository import JobRepository
 from projet_recherche_emploi.data.query_repository import QueryRepository
 from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.errors import InvalidInputError
+from projet_recherche_emploi.schemas import SearchProgress
 
 ALICE = 1
 BOB = 2
@@ -50,6 +51,22 @@ def test_search_uses_the_queries_and_cv_of_its_user(graph, container, evaluator)
         }
         assert JobRepository(session, ALICE).list_jobs() == []
         assert RejectedJobRepository(session, ALICE).list_known_urls() == set()
+
+
+def test_progress_names_each_step_and_gives_the_verdict_page_by_page(graph, container):
+    with container.database.session() as session:
+        QueryRepository(session, BOB).add_query("CDI", "recherche de bob")
+
+    progress = [SearchProgress(**event) for event in graph.stream({"user_id": BOB}, stream_mode="custom")]
+
+    # Une interface suit le graph par l'étape annoncée, sans lire le message
+    assert [event.step for event in progress] == ["search", "dedupe", "evaluate", "evaluate", "evaluate", "save"]
+    search, dedupe, start, first, second, _ = progress
+    assert (search.done, search.total, search.found) == (0, 1, 0)
+    assert (dedupe.found, dedupe.new) == (2, 2)
+    assert (start.done, start.total, start.title, start.kept) == (0, 2, None, None)
+    assert (first.done, first.title, first.kept) == (1, "offre d'emploi recherche de bob CDI 0", True)
+    assert (second.done, second.title, second.kept) == (2, "offre d'emploi recherche de bob CDI 1", False)
 
 
 def test_a_page_evaluated_for_one_user_is_still_evaluated_for_another(graph, container, evaluator):

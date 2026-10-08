@@ -186,11 +186,25 @@ main {
   }
 }
 
+.launch {
+  display: grid;
+  justify-items: end;
+  gap: 0.4rem;
+
+  small {
+    font-size: 0.8125rem;
+    color: var(--app-muted);
+  }
+}
+
 .cta {
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
   padding: 0.8rem 1.3rem;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
   border-radius: 999px;
   background: var(--app-accent);
   color: var(--app-accent-ink);
@@ -201,33 +215,19 @@ main {
     transform 0.15s,
     box-shadow 0.15s;
 
-  &:hover {
+  &:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: 0 14px 32px -10px rgba(132, 204, 22, 0.9);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    box-shadow: none;
+    cursor: default;
   }
 
   svg {
     width: 1rem;
     height: 1rem;
   }
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 1rem;
-  border: 1px solid var(--app-border);
-  border-radius: 999px;
-  background: var(--app-surface);
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: var(--app-accent-strong);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent), transparent 72%);
 }

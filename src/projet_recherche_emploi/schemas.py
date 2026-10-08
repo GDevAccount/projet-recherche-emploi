@@ -89,11 +89,23 @@ class CvStatus(BaseModel):
     updated_at: datetime | None
 
 
+# Étapes d'une recherche, dans l'ordre du graph : searchJobs, FilterDuplicates, FilterJobs, InsertJobs
+SearchStep = Literal["search", "dedupe", "evaluate", "save"]
+
+
 class SearchProgress(BaseModel):
     message: str
-    # Renseignés quand l'avancement se mesure
+    # Étape du graph qui signale cet avancement : une interface n'a pas à la deviner dans le message
+    step: SearchStep | None = None
+    # Renseignés quand l'avancement de l'étape se mesure
     done: int | None = None
     total: int | None = None
+    # Pages trouvées jusqu'ici, et, une fois les doublons écartés, celles qui restent à évaluer
+    found: int | None = None
+    new: int | None = None
+    # Page qui vient d'être évaluée, et son verdict
+    title: str | None = None
+    kept: bool | None = None
 
 
 class SearchSummary(BaseModel):

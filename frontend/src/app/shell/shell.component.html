@@ -62,7 +62,22 @@
         }
       </div>
       @if (account.can_search) {
-        <span class="status ready"><span class="dot"></span>Prêt à chercher</span>
+        <div class="launch">
+          <button
+            type="button"
+            class="cta"
+            [disabled]="run.state() === 'running' || account.remaining_searches === 0"
+            (click)="run.launch()"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z" />
+            </svg>
+            {{ run.state() === 'running' ? 'Recherche en cours…' : 'Lancer une recherche' }}
+          </button>
+          @if (account.remaining_searches === 0) {
+            <small>Quota atteint pour aujourd'hui.</small>
+          }
+        </div>
       } @else {
         <a class="cta" [routerLink]="profilePath">
           Compléter mon profil
@@ -72,6 +87,10 @@
         </a>
       }
     </section>
+  }
+
+  @if (run.state() !== 'idle') {
+    <app-run-panel />
   }
 
   <router-outlet />
