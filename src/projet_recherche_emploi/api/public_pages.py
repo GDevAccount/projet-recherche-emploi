@@ -26,7 +26,7 @@ PAGE_TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title} · Recherche d'emploi</title>
+<title>{title} · Tamis</title>
 <style>
   body {{ max-width: 46rem; margin: 2rem auto; padding: 0 1rem; font: 1rem/1.6 system-ui, sans-serif; color: #222; }}
   h1 {{ font-size: 1.8rem; }}

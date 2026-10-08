@@ -21,6 +21,7 @@ def test_home_page_describes_the_application_without_javascript():
     # Lu par les robots de Google pour valider l'écran de connexion : ils n'exécutent pas le JavaScript
     page = (Path(__file__).parent.parent / "frontend" / "src" / "index.html").read_text(encoding="utf-8")
 
+    assert "<h1>Tamis</h1>" in page
     assert '<meta name="description"' in page
     assert "offres d'emploi" in page
     assert 'href="/confidentialite"' in page

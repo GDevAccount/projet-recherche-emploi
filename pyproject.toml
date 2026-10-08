@@ -1,7 +1,7 @@
 [project]
 name = "projet-recherche-emploi"
 version = "0.1.0"
-description = "Agent de recherche d'emploi : cherche des offres, les filtre selon le CV et suit les candidatures"
+description = "Tamis, agent de recherche d'emploi : cherche des offres, les filtre selon le CV et suit les candidatures"
 readme = "README.md"
 authors = [
     { name = "Guillaume", email = "legall.guilla@gmail.com" }

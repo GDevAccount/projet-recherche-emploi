@@ -52,7 +52,7 @@ def create_app(
 
     # La documentation décrit toutes les routes : elle n'est servie qu'en développement
     documentation = {} if docs else {"docs_url": None, "redoc_url": None, "openapi_url": None}
-    app = FastAPI(title="Recherche d'emploi", version="0.1.0", **documentation)
+    app = FastAPI(title="Tamis", version="0.1.0", **documentation)
     app.state.container = container
     app.state.identity_verifier = identity_verifier or GoogleIdentityVerifier(settings.google_client_id)
 

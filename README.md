@@ -1,6 +1,6 @@
-# Projet recherche emploi
+# Tamis
 
-Un agent qui cherche des offres d'emploi sur le web, ne garde que celles qui correspondent à votre CV, et les enregistre dans une base SQLite. Une application web permet de déposer son CV, de choisir les postes recherchés, de lancer la recherche en la suivant en direct, et de suivre ses candidatures.
+Tamis est un agent qui cherche des offres d'emploi sur le web, ne garde que celles qui correspondent à votre CV, et les enregistre dans une base SQLite. Une application web permet de déposer son CV, de choisir les postes recherchés, de lancer la recherche en la suivant en direct, et de suivre ses candidatures.
 
 À chaque recherche, seules les nouvelles pages sont évaluées : une offre déjà en base (même URL) n'est pas réinsérée, et une page déjà rejetée n'est pas soumise à nouveau au modèle.
 
