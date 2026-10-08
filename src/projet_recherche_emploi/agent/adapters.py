@@ -14,24 +14,34 @@ from langchain_tavily import TavilySearch
 from projet_recherche_emploi.agent.ports import JobEvaluation, SearchCriteria
 from projet_recherche_emploi.agent.prompts import FILTER_PROMPT, describe_area_rule, describe_sought_jobs
 from projet_recherche_emploi.agent.state import FoundPage
-from projet_recherche_emploi.config import FILTER_MODEL, JOB_SITES, MAX_PAGE_CHARS
+from projet_recherche_emploi.config import FILTER_MODEL, JOB_SITES, MAX_PAGE_CHARS, REMOTE_JOB_SITES
 
 logger = logging.getLogger(__name__)
 
 
 class TavilyJobSearch:
+    # Les sites se fixent à la création du client Tavily : il en faut un par liste
     @cached_property
     def _client(self) -> TavilySearch:
+        return self._build_client(JOB_SITES)
+
+    @cached_property
+    def _international_client(self) -> TavilySearch:
+        return self._build_client([*JOB_SITES, *REMOTE_JOB_SITES])
+
+    @staticmethod
+    def _build_client(sites: list[str]) -> TavilySearch:
         return TavilySearch(
             max_results=20,
             search_depth="advanced",
             time_range="week",
-            include_domains=JOB_SITES,
+            include_domains=sites,
             include_raw_content=True,
         )
 
-    def search(self, query: str) -> list[dict]:
-        response = self._client.invoke({"query": query})
+    def search(self, query: str, international: bool = False) -> list[dict]:
+        client = self._international_client if international else self._client
+        response = client.invoke({"query": query})
 
         # Sans résultat, l'outil Tavily renvoie un message texte au lieu du dict habituel
         if isinstance(response, str):

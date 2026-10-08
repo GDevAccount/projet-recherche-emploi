@@ -51,8 +51,11 @@ class JobEvaluation(BaseModel):
 
 
 class JobSearchEngine(Protocol):
-    def search(self, query: str) -> list[dict]:
-        """Renvoie les pages trouvées pour cette recherche : title, url, content, raw_content, score."""
+    def search(self, query: str, international: bool = False) -> list[dict]:
+        """Renvoie les pages trouvées pour cette recherche : title, url, content, raw_content, score.
+
+        Une recherche internationale porte aussi sur les sites d'offres en télétravail, hors de France.
+        """
         ...
 
 

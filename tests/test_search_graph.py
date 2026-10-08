@@ -7,6 +7,7 @@ from projet_recherche_emploi.agent.nodes import (
     ANYWHERE_IN_FRANCE,
     accepts_full_remote,
     build_criteria,
+    build_international_search_text,
     build_search_text,
     contract_is_accepted,
     describe_accepted_areas,
@@ -41,8 +42,12 @@ def test_search_uses_the_queries_and_cv_of_its_user(graph, container, evaluator)
     assert {job["query"] for job in result["jobs"]} == {"recherche de bob"}
     assert [cv for cv, _ in evaluator.evaluated] == ["CV:2.pdf", "CV:2.pdf"]
     with container.database.session() as session:
-        assert [job.url for job in JobRepository(session, BOB).list_jobs()] == ["https://x/recherche de bob CDI/0"]
-        assert RejectedJobRepository(session, BOB).list_known_urls() == {"https://x/recherche de bob CDI/1"}
+        assert [job.url for job in JobRepository(session, BOB).list_jobs()] == [
+            "https://x/offre d'emploi recherche de bob CDI/0"
+        ]
+        assert RejectedJobRepository(session, BOB).list_known_urls() == {
+            "https://x/offre d'emploi recherche de bob CDI/1"
+        }
         assert JobRepository(session, ALICE).list_jobs() == []
         assert RejectedJobRepository(session, ALICE).list_known_urls() == set()
 
@@ -164,7 +169,7 @@ def test_reading_a_missing_cv_is_a_user_error(tmp_path):
 @pytest.mark.parametrize(
     ("contract_type", "query", "sent"),
     [
-        ("CDI", "data engineer à Paris", "data engineer à Paris CDI"),
+        ("CDI", "data engineer à Paris", "offre d'emploi data engineer à Paris CDI"),
         ("CDI", "offre d'emploi ingénieur IA en cdi", "offre d'emploi ingénieur IA en cdi"),
         ("freelance", "mission Freelance AI engineer", "mission Freelance AI engineer"),
     ],
@@ -202,13 +207,16 @@ def test_a_page_that_does_not_state_its_contract_is_saved_without_one(graph, con
 @pytest.mark.parametrize(
     ("query", "location", "remote", "sent"),
     [
-        ("data engineer", "Lyon", False, "data engineer CDI Lyon"),
-        ("data engineer", "", False, "data engineer CDI"),
+        ("data engineer", "Lyon", False, "offre d'emploi data engineer CDI Lyon"),
+        ("data engineer", "", False, "offre d'emploi data engineer CDI"),
+        # Une phrase qui vise déjà des annonces ne reçoit pas « offre d'emploi »
+        ("mission data engineer", "Lyon", False, "mission data engineer CDI Lyon"),
+        ("AI engineer job", "", False, "AI engineer job CDI"),
         # Le lieu déjà écrit dans la recherche n'est pas répété, avec ou sans accent
-        ("data engineer en Ile-de-France", "Île-de-France", False, "data engineer en Ile-de-France CDI"),
-        ("data engineer", "", True, "data engineer CDI télétravail complet"),
-        ("data engineer full remote", "", True, "data engineer full remote CDI"),
-        ("data engineer en teletravail", "", True, "data engineer en teletravail CDI"),
+        ("emploi data engineer en Ile-de-France", "Île-de-France", False, "emploi data engineer en Ile-de-France CDI"),
+        ("data engineer", "", True, "offre d'emploi data engineer CDI télétravail complet"),
+        ("data engineer full remote", "", True, "offre d'emploi data engineer full remote CDI"),
+        ("data engineer en teletravail", "", True, "offre d'emploi data engineer en teletravail CDI"),
     ],
 )
 def test_location_is_added_to_the_search_unless_already_there(query, location, remote, sent):
@@ -323,9 +331,13 @@ def test_full_remote_offer_abroad_is_kept_for_a_remote_search(graph, container, 
     # Aucune zone géographique : le filtre le lit, et seul le télétravail complet passe
     assert (evaluator.criteria.accepted_areas, evaluator.criteria.accepts_full_remote) == ("", True)
     with container.database.session() as session:
-        [saved] = JobRepository(session, BOB).list_jobs()
-        assert saved.work_location == "Remote (Los Angeles, États-Unis)"
-        assert saved.url == "https://x/recherche de bob CDI télétravail complet/0"
+        saved = JobRepository(session, BOB).list_jobs()
+        assert {job.work_location for job in saved} == {"Remote (Los Angeles, États-Unis)"}
+        # La recherche est partie deux fois : en français, puis en anglais sur les sites internationaux
+        assert {job.url for job in saved} == {
+            "https://x/offre d'emploi recherche de bob CDI télétravail complet/0",
+            "https://x/recherche de bob remote job/0",
+        }
 
 
 def test_remote_offer_reserved_to_another_country_is_rejected(graph, container, evaluator):
@@ -411,3 +423,30 @@ def test_internship_found_by_a_search_for_a_permanent_job_is_rejected(graph, con
         rejected = RejectedJobRepository(session, BOB).list_rejected_jobs()
         assert {page.matches_contract for page in rejected} == {False}
         assert "Contrat non recherché (stage). ok" in {page.reject_reason for page in rejected}
+
+
+@pytest.mark.parametrize(
+    ("contract_type", "query", "sent"),
+    [
+        ("CDI", "AI engineer", "AI engineer remote job"),
+        ("freelance", "AI engineer", "AI engineer remote freelance"),
+        ("CDI", "remote AI engineer job", "remote AI engineer job"),
+    ],
+)
+def test_international_search_is_written_for_foreign_job_boards(contract_type, query, sent):
+    assert build_international_search_text(contract_type, query) == sent
+
+
+def test_only_a_remote_search_is_also_sent_to_international_job_boards(graph, container, search_engine):
+    with container.database.session() as session:
+        queries = QueryRepository(session, BOB)
+        queries.add_query("CDI", "AI engineer", "Lyon")
+        queries.add_query("CDI", "AI engineer", remote=True)
+
+    graph.invoke({"user_id": BOB})
+
+    assert search_engine.searches == [
+        ("offre d'emploi AI engineer CDI Lyon", False),
+        ("offre d'emploi AI engineer CDI télétravail complet", False),
+        ("AI engineer remote job", True),
+    ]

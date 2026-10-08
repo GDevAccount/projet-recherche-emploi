@@ -56,6 +56,17 @@ JOB_SITES = [
     "jobs.stationf.co",
 ]
 
+# Sites ajoutés pour la variante en anglais d'une recherche en télétravail complet
+REMOTE_JOB_SITES = [
+    "weworkremotely.com",
+    "remoteok.com",
+    "remotive.com",
+    "himalayas.app",
+    "workingnomads.com",
+    "euremotejobs.com",
+    "jobgether.com",
+]
+
 FILTER_MODEL = "gpt-5-mini"
 MAX_PAGE_CHARS = 8000
 

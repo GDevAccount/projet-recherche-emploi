@@ -9,9 +9,13 @@ from projet_recherche_emploi.data.database import Database
 
 
 class FakeSearchEngine:
-    """Renvoie deux pages par recherche, sans appeler Tavily."""
+    """Renvoie deux pages par recherche, sans appeler Tavily, et garde les recherches reçues."""
 
-    def search(self, query):
+    def __init__(self):
+        self.searches = []
+
+    def search(self, query, international=False):
+        self.searches.append((query, international))
         return [
             {"title": f"{query} {index}", "url": f"https://x/{query}/{index}", "content": "c", "score": 1.0}
             for index in range(2)
@@ -93,8 +97,13 @@ def evaluator():
 
 
 @pytest.fixture
-def container(settings, evaluator):
-    return build_container(settings, FakeSearchEngine(), evaluator)
+def search_engine():
+    return FakeSearchEngine()
+
+
+@pytest.fixture
+def container(settings, search_engine, evaluator):
+    return build_container(settings, search_engine, evaluator)
 
 
 @pytest.fixture
