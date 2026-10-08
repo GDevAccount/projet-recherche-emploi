@@ -223,8 +223,10 @@ class SearchNodes:
             write_progress(
                 {
                     "message": f"Recherche Tavily {index + 1}/{len(queries)} : {search_text}",
+                    "step": "search",
                     "done": index,
                     "total": len(queries),
+                    "found": len(jobs_by_url),
                 }
             )
             for result in self.search_engine.search(search_text, international):
@@ -255,7 +257,14 @@ class SearchNodes:
         jobs = state["jobs"]
         new_jobs = [job for job in jobs if job["url"] not in known_urls]
         logger.info("%d page(s) nouvelle(s) sur %d trouvée(s)", len(new_jobs), len(jobs))
-        get_stream_writer()({"message": f"{len(new_jobs)} page(s) nouvelle(s) sur {len(jobs)} trouvée(s)"})
+        get_stream_writer()(
+            {
+                "message": f"{len(new_jobs)} page(s) nouvelle(s) sur {len(jobs)} trouvée(s)",
+                "step": "dedupe",
+                "found": len(jobs),
+                "new": len(new_jobs),
+            }
+        )
         return {"new_jobs": new_jobs}
 
     def filter_jobs(self, state: JobSearchState) -> dict:
@@ -266,22 +275,35 @@ class SearchNodes:
         cv_content = self.cv_storage.read_text(get_user_id(state))
 
         write_progress = get_stream_writer()
-        write_progress({"message": f"Évaluation par OpenAI 0/{len(jobs)}", "done": 0, "total": len(jobs)})
+        write_progress(
+            {"message": f"Évaluation par OpenAI 0/{len(jobs)}", "step": "evaluate", "done": 0, "total": len(jobs)}
+        )
 
         # Les réponses arrivent dans le désordre : l'indice les remet en face de leur offre
         evaluations: list[JobEvaluation | None] = [None] * len(jobs)
+        verdicts: list[dict[str, bool] | None] = [None] * len(jobs)
         criteria = state["criteria"]
         for done, (index, evaluation) in enumerate(self.evaluator.evaluate(cv_content, criteria, jobs), start=1):
             evaluations[index] = evaluation
-            write_progress({"message": f"Évaluation par OpenAI {done}/{len(jobs)}", "done": done, "total": len(jobs)})
+            # Jugée dès sa réponse, pour que l'avancement donne le verdict page par page
+            verdicts[index] = judge(evaluation, criteria)
+            write_progress(
+                {
+                    "message": f"Évaluation par OpenAI {done}/{len(jobs)}",
+                    "step": "evaluate",
+                    "done": done,
+                    "total": len(jobs),
+                    "title": jobs[index]["title"],
+                    "kept": all(verdicts[index].values()),
+                }
+            )
 
         filtered_jobs = []
         rejected_jobs = []
-        for job, evaluation in zip(jobs, evaluations, strict=True):
+        for job, evaluation, verdict in zip(jobs, evaluations, verdicts, strict=True):
             # Le contrat et le lieu enregistrés sont ceux de la page : une recherche de CDI ramène aussi des missions
             work_location = format_work_location(evaluation)
             job = {**job, "contract_type": evaluation.contract_type, "work_location": work_location}
-            verdict = judge(evaluation, criteria)
             if all(verdict.values()):
                 filtered_jobs.append({**job, "match_reason": evaluation.reason})
                 continue
@@ -299,6 +321,8 @@ class SearchNodes:
         user_id = get_user_id(state)
         filtered_jobs = state["filtered_jobs"]
         rejected_jobs = state["rejected_jobs"]
+        message = f"Enregistrement de {len(filtered_jobs)} offre(s) et de {len(rejected_jobs)} page(s) rejetée(s)"
+        get_stream_writer()({"message": message, "step": "save"})
         # Une seule transaction : une page évaluée finit dans l'une des deux tables, ou dans aucune
         with self.database.session() as session:
             inserted_count = JobRepository(session, user_id).insert_jobs(filtered_jobs)

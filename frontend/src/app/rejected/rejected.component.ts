@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Message } from 'primeng/message';
 
@@ -6,6 +6,7 @@ import { apiErrorMessage } from '../core/api-error';
 import { RejectedJob } from '../core/api.models';
 import { JobService } from '../core/job.service';
 import { ParisDatePipe } from '../core/paris-date.pipe';
+import { SearchRunService } from '../core/search-run.service';
 import { normalize, siteOf } from '../core/text';
 
 /** Nombre de pages affichées d'un coup : une recherche peut en écarter des dizaines. */
@@ -87,12 +88,16 @@ export class RejectedComponent {
   protected readonly filtered = computed(() => this.visible().length !== this.total());
 
   constructor() {
-    inject(JobService)
-      .listRejected()
-      .subscribe({
+    const jobService = inject(JobService);
+    const run = inject(SearchRunService);
+    // À l'ouverture, puis après chaque recherche : elle a pu écarter de nouvelles pages
+    effect(() => {
+      run.completed();
+      jobService.listRejected().subscribe({
         next: (pages) => this.pages.set(pages),
         error: (error: unknown) => this.error.set(apiErrorMessage(error)),
       });
+    });
   }
 
   protected toggleMotive(motive: string): void {

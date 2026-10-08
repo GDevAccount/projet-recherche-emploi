@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Message } from 'primeng/message';
 
 import { apiErrorMessage } from '../core/api-error';
 import { Job } from '../core/api.models';
 import { JobService } from '../core/job.service';
+import { SearchRunService } from '../core/search-run.service';
 import { normalize } from '../core/text';
 import { JobCardComponent } from './job-card.component';
 
@@ -67,7 +68,12 @@ export class JobsComponent {
   protected readonly filtered = computed(() => this.visible().length !== this.total());
 
   constructor() {
-    this.load();
+    const run = inject(SearchRunService);
+    // À l'ouverture, puis après chaque recherche : elle a pu ajouter des offres
+    effect(() => {
+      run.completed();
+      this.load();
+    });
   }
 
   protected toggleContract(contract: string): void {

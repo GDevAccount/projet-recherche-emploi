@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 
 import { Account } from '../core/api.models';
+import { FETCH } from '../core/search-run.service';
 import { SessionService } from '../core/session.service';
 import { DARK_CLASS } from '../core/theme';
 import { ShellComponent } from './shell.component';
@@ -19,13 +20,20 @@ const GUEST: Account = {
 describe('ShellComponent', () => {
   let fixture: ComponentFixture<ShellComponent>;
   let http: HttpTestingController;
+  // Un flux qui ne se termine pas : la recherche reste « en cours »
+  const fetchMock = vi.fn(() => Promise.resolve(new Response(new ReadableStream(), { status: 200 })));
 
   beforeEach(async () => {
     localStorage.clear();
     document.documentElement.classList.remove(DARK_CLASS);
     await TestBed.configureTestingModule({
       imports: [ShellComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: FETCH, useValue: fetchMock },
+      ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
   });
@@ -43,8 +51,12 @@ describe('ShellComponent', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  function text(): string {
-    return (element().textContent ?? '').replace(/\s+/g, ' ');
+  function text(root: Element = element()): string {
+    return (root.textContent ?? '').replace(/\s+/g, ' ').trim();
+  }
+
+  function launchButton(): HTMLButtonElement {
+    return element().querySelector<HTMLButtonElement>('button.cta')!;
   }
 
   it('should show a guest the searches left today, as the API counts them', async () => {
@@ -63,14 +75,35 @@ describe('ShellComponent', () => {
     await openSession(GUEST);
 
     expect(element().querySelector('a.cta')?.getAttribute('href')).toBe('/profil');
-    expect(text()).not.toContain('Prêt à chercher');
+    expect(text()).not.toContain('Lancer une recherche');
   });
 
-  it('should say when the API finds the profile ready', async () => {
+  it('should offer to launch a search when the API finds the profile ready', async () => {
     await openSession({ ...GUEST, can_search: true });
 
-    expect(text()).toContain('Prêt à chercher');
+    expect(launchButton().disabled).toBe(false);
     expect(element().querySelector('a.cta')).toBeNull();
+    expect(element().querySelector('app-run-panel')).toBeNull();
+  });
+
+  it('should not offer a search once the daily quota is used up', async () => {
+    await openSession({ ...GUEST, can_search: true, remaining_searches: 0 });
+
+    expect(launchButton().disabled).toBe(true);
+    expect(text()).toContain("Quota atteint pour aujourd'hui.");
+  });
+
+  it('should launch the search and follow it on the page', async () => {
+    await openSession({ ...GUEST, can_search: true });
+
+    launchButton().click();
+    await fixture.whenStable();
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/searches', expect.objectContaining({ method: 'POST' }));
+    expect(element().querySelector('app-run-panel')).toBeTruthy();
+    // Pas de second lancement pendant que la première recherche tourne
+    expect(launchButton().disabled).toBe(true);
+    expect(text(launchButton())).toBe('Recherche en cours…');
   });
 
   it('should link to every section', async () => {

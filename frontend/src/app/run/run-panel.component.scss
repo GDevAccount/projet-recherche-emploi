@@ -1,0 +1,419 @@
+:host {
+  display: block;
+  margin-bottom: 2.5rem;
+}
+
+// Salle des machines : toujours à l'encre, quel que soit le thème, comme le panneau de connexion
+.panel {
+  --ink: #0a0b0d;
+  --line: rgba(255, 255, 255, 0.1);
+  --dim: rgba(242, 243, 245, 0.56);
+  --mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, 'Liberation Mono', monospace;
+
+  display: grid;
+  gap: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  color: #f2f3f5;
+  background:
+    radial-gradient(34rem 18rem at 100% 0%, rgba(163, 230, 53, 0.2), transparent 62%),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px) 0 0 / 100% 2rem,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px) 0 0 / 2rem 100%,
+    var(--ink);
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.6);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+
+  h2 {
+    flex: 1;
+    margin: 0;
+    font-size: 1.25rem;
+  }
+}
+
+.signal {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--app-accent);
+
+  [data-state='running'] & {
+    animation: pulse 1.4s ease-out infinite;
+  }
+
+  [data-state='failed'] & {
+    background: #f87171;
+  }
+
+  [data-state='lost'] & {
+    background: #fbbf24;
+  }
+}
+
+.clock {
+  font-family: var(--mono);
+  font-size: 0.9375rem;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+
+  &:hover {
+    color: #fff;
+    border-color: var(--dim);
+  }
+
+  svg {
+    width: 0.9rem;
+    height: 0.9rem;
+  }
+}
+
+.alert {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  border-radius: var(--app-radius-sm);
+  background: rgba(248, 113, 113, 0.12);
+
+  &.soft {
+    border-color: rgba(251, 191, 36, 0.4);
+    background: rgba(251, 191, 36, 0.1);
+  }
+}
+
+// Les quatre nœuds du graph, reliés par un fil
+.pipeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @media (max-width: 52rem) {
+    grid-template-columns: 1fr;
+  }
+
+  li {
+    position: relative;
+    display: flex;
+    gap: 0.85rem;
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    transition:
+      border-color 0.3s,
+      background-color 0.3s,
+      opacity 0.3s;
+
+    // Fil vers le nœud suivant
+    &:not(:last-child)::after {
+      position: absolute;
+      top: 1.85rem;
+      right: -0.8rem;
+      width: 0.8rem;
+      height: 2px;
+      background: var(--line);
+      content: '';
+
+      @media (max-width: 52rem) {
+        top: auto;
+        right: auto;
+        bottom: -0.8rem;
+        left: 1.85rem;
+        width: 2px;
+        height: 0.8rem;
+      }
+    }
+
+    &[data-status='pending'] {
+      opacity: 0.5;
+    }
+
+    &[data-status='active'] {
+      border-color: rgba(163, 230, 53, 0.6);
+      background: rgba(163, 230, 53, 0.08);
+      box-shadow: 0 0 0 4px rgba(163, 230, 53, 0.08);
+
+      .node {
+        background: var(--app-accent);
+        color: var(--app-accent-ink);
+        animation: pulse 1.4s ease-out infinite;
+      }
+    }
+
+    &[data-status='done'] {
+      .node {
+        background: rgba(163, 230, 53, 0.18);
+        color: var(--app-accent);
+      }
+
+      &::after {
+        background: var(--app-accent);
+      }
+    }
+  }
+
+  div {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  strong {
+    font-family: var(--app-display);
+    font-size: 1rem;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--app-accent);
+  }
+
+  small {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--dim);
+  }
+}
+
+.node {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+
+  svg {
+    width: 0.9rem;
+    height: 0.9rem;
+  }
+}
+
+// Compteurs en direct
+.telemetry {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--line);
+
+  @media (max-width: 52rem) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    // Cinq compteurs sur deux colonnes : le dernier prend la ligne entière
+    div:last-child {
+      grid-column: 1 / -1;
+    }
+  }
+
+  div {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.9rem 1rem;
+    background: var(--ink);
+  }
+
+  dt {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  dd {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+
+    small {
+      font-size: 0.9375rem;
+      font-weight: 400;
+      color: var(--dim);
+    }
+  }
+
+  .kept dd {
+    color: var(--app-accent);
+  }
+}
+
+.gauge {
+  height: 0.5rem;
+  margin-top: -0.5rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+
+  span {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--app-accent-strong), var(--app-accent));
+    transition: width 0.4s ease;
+  }
+}
+
+// Journal : chaque événement reçu de l'API, à la seconde près
+.console {
+  display: grid;
+  align-content: start;
+  gap: 0.2rem;
+  height: 15rem;
+  padding: 1rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.45);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+
+  p {
+    display: flex;
+    gap: 0.75rem;
+    margin: 0;
+    color: rgba(242, 243, 245, 0.82);
+  }
+
+  time {
+    flex: none;
+    color: rgba(242, 243, 245, 0.36);
+  }
+
+  .tag {
+    flex: none;
+    width: 4.5rem;
+    color: var(--dim);
+  }
+
+  .verdict {
+    flex: none;
+    width: 4rem;
+    font-weight: 700;
+  }
+
+  .text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .kept .verdict {
+    color: var(--app-accent);
+  }
+
+  .rejected {
+    color: var(--dim);
+
+    .verdict {
+      color: #f87171;
+    }
+  }
+
+  .cursor span {
+    width: 0.5rem;
+    height: 1rem;
+    background: var(--app-accent);
+    animation: blink 1s steps(2) infinite;
+  }
+}
+
+footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.25rem;
+
+  p {
+    flex: 1 1 20rem;
+    margin: 0;
+    font-family: var(--app-display);
+    font-size: 1.25rem;
+    font-weight: 600;
+
+    strong {
+      font-size: 2.25rem;
+      letter-spacing: -0.04em;
+      color: var(--app-accent);
+    }
+
+    small {
+      display: block;
+      margin-top: 0.25rem;
+      font-family: var(--app-font);
+      font-size: 0.8125rem;
+      font-weight: 400;
+      color: var(--dim);
+    }
+  }
+}
+
+.cta {
+  padding: 0.75rem 1.3rem;
+  border-radius: 999px;
+  background: var(--app-accent);
+  color: var(--app-accent-ink);
+  font-weight: 650;
+  text-decoration: none;
+
+  &:hover {
+    background: #bef264;
+  }
+}
+
+.link {
+  color: var(--dim);
+  font-size: 0.875rem;
+
+  &:hover {
+    color: #fff;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(163, 230, 53, 0.55);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0.75rem rgba(163, 230, 53, 0);
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
