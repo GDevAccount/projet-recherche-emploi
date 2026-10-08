@@ -5,8 +5,11 @@ import pytest
 from conftest import FakeEvaluator, FakeSearchEngine
 from fastapi.testclient import TestClient
 from helpers import blank_pdf, job
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
 
-from projet_recherche_emploi.api.main import create_app
+from projet_recherche_emploi.api.main import ApiRoute, create_app
 from projet_recherche_emploi.api.security import Identity
 from projet_recherche_emploi.config import (
     DEFAULT_QUERIES,
@@ -377,3 +380,20 @@ def test_cors_lets_the_listed_front_send_the_session_cookie(tmp_path):
 
     assert headers["access-control-allow-credentials"] == "true"
     assert headers["access-control-allow-origin"] == "http://localhost:4200"
+
+
+def test_api_route_serves_only_the_api_inside_another_server(client):
+    # Ce que fait ui/server.py : l'API est servie par le serveur de l'interface, à la même adresse
+    async def interface(request):
+        return PlainTextResponse("interface")
+
+    routes = [ApiRoute(client.app), Route("/{path:path}", interface)]
+    server = TestClient(Starlette(routes=routes), base_url="http://localhost")
+
+    assert server.get("/api/health").json() == {"status": "ok"}
+    assert server.get("/api/me").status_code == 401
+    assert server.get("/api/me", headers=ALICE).json()["is_owner"] is False
+    assert server.get("/api/inconnu").status_code == 404
+    # Ni la documentation de l'API ni ses pages publiques ne passent par cette route
+    for path in ("/", "/apix", "/docs", "/openapi.json", "/confidentialite"):
+        assert server.get(path).text == "interface"

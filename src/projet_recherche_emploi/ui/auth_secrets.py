@@ -29,7 +29,8 @@ AUTH_SETTINGS = {
 def build_secrets(settings: Settings) -> str | None:
     """Renvoie le contenu de secrets.toml, ou None si la connexion Google n'est pas demandée."""
     values = {name: getattr(settings, name) for name in AUTH_SETTINGS}
-    if not any(values.values()):
+    # AUTH_COOKIE_SECRET seul ne demande rien : il signe aussi les sessions de l'API, avec ou sans Google
+    if not any(value for name, value in values.items() if name != "auth_cookie_secret"):
         return None
 
     # Un réglage porte le nom de sa variable d'environnement, en minuscules
