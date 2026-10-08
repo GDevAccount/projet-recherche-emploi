@@ -45,6 +45,18 @@ class AuthService:
             return "google"
         return "password" if self.password_required else None
 
+    def check_configuration(self) -> None:
+        """Refuse une instance dont la connexion est à moitié réglée, avant qu'elle ne serve une requête."""
+        missing = []
+        if self.settings.google_client_id and not _normalize(self.settings.owner_email):
+            # Sans propriétaire, personne ne pourrait retrouver les données de l'utilisateur par défaut
+            missing.append("OWNER_EMAIL")
+        if self.login_mode is not None and not self.settings.auth_cookie_secret:
+            # Sans lui, aucune session ne s'ouvre : la connexion serait refusée à tout le monde
+            missing.append("AUTH_COOKIE_SECRET")
+        if missing:
+            raise ConfigurationError(f"Connexion incomplète, variable(s) manquante(s) : {', '.join(missing)}")
+
     def password_matches(self, password: str) -> bool:
         """Dit si ce mot de passe est celui de l'instance (APP_PASSWORD)."""
         expected = self.settings.app_password
@@ -105,8 +117,8 @@ class AuthService:
         secret = self.settings.auth_cookie_secret
         if not secret:
             return None
-        # Clé propre aux sessions de l'API, distincte de celle du cookie de Streamlit. Le mot de passe
-        # en fait partie : le changer ferme les sessions ouvertes avec l'ancien.
+        # Clé dérivée du secret, propre aux sessions. Le mot de passe en fait partie : le changer ferme
+        # les sessions ouvertes avec l'ancien. Changer le préfixe fermerait toutes les sessions.
         message = b"session-api-v1:" + self.settings.app_password.encode()
         return hmac.new(secret.encode(), message, hashlib.sha256).digest()
 

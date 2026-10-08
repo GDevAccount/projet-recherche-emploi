@@ -15,7 +15,7 @@ L'application est un projet personnel, exploité par un particulier. Pour toute 
 - **Les pages écartées** : titre, lien et raison du rejet, pour ne pas les évaluer une seconde fois.
 - **La date de chaque recherche lancée**, pour appliquer la limite quotidienne.
 
-L'application n'utilise aucun outil de mesure d'audience ni de publicité. Elle ne dépose que les cookies nécessaires pour maintenir votre connexion. L'écran de connexion affiche le bouton « Se connecter avec Google », chargé depuis les serveurs de Google, qui peut déposer ses propres cookies.
+L'application n'utilise aucun outil de mesure d'audience ni de publicité. Elle dépose un seul cookie, nécessaire pour maintenir votre connexion. L'écran de connexion affiche le bouton « Se connecter avec Google », chargé depuis les serveurs de Google, qui peut déposer ses propres cookies.
 
 ## À quoi servent ces données
 

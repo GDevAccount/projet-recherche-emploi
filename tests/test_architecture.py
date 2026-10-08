@@ -20,12 +20,10 @@ ALLOWED = {
     "services": {"data", "schemas", "config", "errors"},
     "container": {"services", "agent", "data", "config"},
     "api": {"container", "services", "schemas", "config", "errors"},
-    # L'interface reprend les pages publiques de l'API, le temps que Streamlit soit remplacé
-    "ui": {"container", "services", "schemas", "config", "errors", "api"},
     "cli": {"container", "schemas", "config", "errors"},
 }
 # Bibliothèques réservées à une couche : les services ne doivent dépendre d'aucune interface
-RESERVED_LIBRARIES = {"streamlit": {"ui"}, "fastapi": {"api"}, "sqlalchemy": {"data"}, "alembic": {"data"}}
+RESERVED_LIBRARIES = {"fastapi": {"api"}, "sqlalchemy": {"data"}, "alembic": {"data"}}
 
 
 def layer_of(path: Path) -> str:

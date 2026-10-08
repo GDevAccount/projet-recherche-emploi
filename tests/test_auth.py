@@ -1,5 +1,3 @@
-import tomllib
-
 import pytest
 from helpers import job
 
@@ -8,15 +6,6 @@ from projet_recherche_emploi.data.job_repository import JobRepository
 from projet_recherche_emploi.data.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConfigurationError
 from projet_recherche_emploi.services.auth_service import AuthService
-from projet_recherche_emploi.ui.auth_secrets import build_secrets
-
-GOOGLE_SETTINGS = {
-    "auth_redirect_uri": "https://exemple.fly.dev/oauth2callback",
-    "auth_cookie_secret": 'secret avec "guillemets" et \\ barre',
-    "google_client_id": "id.apps.googleusercontent.com",
-    "google_client_secret": "secret",
-    "owner_email": "proprietaire@exemple.fr",
-}
 
 
 def auth_service(database, **settings) -> AuthService:
@@ -126,33 +115,26 @@ def test_settings_are_read_from_the_environment(monkeypatch, tmp_path):
     assert "sésame" not in repr(Settings(app_password="sésame"))
 
 
-def test_secrets_are_not_written_without_google_variables():
-    assert build_secrets(Settings(owner_email="proprietaire@exemple.fr", google_client_id="  ")) is None
+def test_complete_configurations_are_accepted(database):
+    for settings in (
+        # Instance locale sans protection : l'API refuse alors tout d'elle-même
+        {"owner_email": ""},
+        {"app_password": "sesame", "auth_cookie_secret": "secret"},
+        {"google_client_id": "id.apps.googleusercontent.com", "auth_cookie_secret": "secret"},
+    ):
+        auth_service(database, **settings).check_configuration()
 
 
-def test_secrets_hold_the_streamlit_auth_section():
-    secrets = tomllib.loads(build_secrets(Settings(**GOOGLE_SETTINGS)))
-
-    assert secrets == {
-        "auth": {
-            "redirect_uri": GOOGLE_SETTINGS["auth_redirect_uri"],
-            "cookie_secret": GOOGLE_SETTINGS["auth_cookie_secret"],
-            "client_id": GOOGLE_SETTINGS["google_client_id"],
-            "client_secret": GOOGLE_SETTINGS["google_client_secret"],
-            "server_metadata_url": "https://accounts.google.com/.well-known/openid-configuration",
-        }
-    }
-
-
-def test_cookie_secret_alone_does_not_ask_for_google_login():
-    # Une instance protégée par mot de passe le définit pour les sessions de l'API
-    assert build_secrets(Settings(auth_cookie_secret="secret", app_password="sesame")) is None
-
-
-@pytest.mark.parametrize("missing", list(GOOGLE_SETTINGS))
-def test_incomplete_google_configuration_is_an_error(missing):
-    settings = Settings(**{name: value for name, value in GOOGLE_SETTINGS.items() if name != missing})
-
+@pytest.mark.parametrize(
+    ("settings", "missing"),
+    [
+        ({"google_client_id": "id", "auth_cookie_secret": "secret", "owner_email": " "}, "OWNER_EMAIL"),
+        ({"google_client_id": "id"}, "AUTH_COOKIE_SECRET"),
+        # Sans secret, aucune session ne s'ouvrirait : le mot de passe serait refusé à tout le monde
+        ({"app_password": "sesame"}, "AUTH_COOKIE_SECRET"),
+    ],
+)
+def test_half_configured_login_stops_the_server(database, settings, missing):
     # Le message nomme la variable d'environnement à définir
-    with pytest.raises(ConfigurationError, match=missing.upper()):
-        build_secrets(settings)
+    with pytest.raises(ConfigurationError, match=missing):
+        auth_service(database, **settings).check_configuration()

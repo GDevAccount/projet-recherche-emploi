@@ -99,10 +99,10 @@ class Settings(BaseSettings):
 
     app_password: str = Field(default="", repr=False)
 
+    # Identifiant public de l'application chez Google : le définir active la connexion Google
     google_client_id: str = ""
-    google_client_secret: str = Field(default="", repr=False)
+    # Signe le cookie de session
     auth_cookie_secret: str = Field(default="", repr=False)
-    auth_redirect_uri: str = ""
     owner_email: str = ""
     # Adresses des invités séparées par des virgules, ou « * » pour accepter tout compte Google
     allowed_emails: str = ""

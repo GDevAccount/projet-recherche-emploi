@@ -22,7 +22,7 @@ dependencies = [
     "python-multipart>=0.0.32",
     "requests>=2.34.2",
     "sqlalchemy>=2.0",
-    "streamlit[auth]>=1.65.0",
+    "tzdata>=2026.5",
     "uvicorn>=0.54.0",
 ]
 
