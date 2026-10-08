@@ -1,0 +1,142 @@
+@if (error()) {
+  <p-message severity="error" class="error">{{ error() }}</p-message>
+}
+
+@if (pages(); as all) {
+  @if (!all.length) {
+    <section class="blank">
+      <h2>Aucune page écartée</h2>
+      <p>Après une recherche, les annonces qui ne vous correspondent pas apparaîtront ici, avec la raison.</p>
+    </section>
+  } @else {
+    <section class="app-card insight">
+      <header>
+        <div>
+          <span class="app-eyebrow">Pourquoi des pages sont écartées</span>
+          <h2>
+            <strong>{{ total() }}</strong> {{ total() > 1 ? 'pages écartées' : 'page écartée' }}
+          </h2>
+        </div>
+        <p>
+          Le motif est le premier critère en défaut. Une page écartée pour son métier, son contrat ou son lieu est
+          réévaluée quand vous ajoutez un poste recherché.
+        </p>
+      </header>
+
+      <ul class="bars">
+        @for (row of breakdown(); track row.motive) {
+          <li>
+            <button
+              type="button"
+              [class.on]="motives().has(row.motive)"
+              [class.dimmed]="motives().size && !motives().has(row.motive)"
+              [attr.aria-pressed]="motives().has(row.motive)"
+              [title]="row.count + ' sur ' + total() + ' (' + row.share + ' %)'"
+              (click)="toggleMotive(row.motive)"
+            >
+              <span class="label">{{ row.motive }}</span>
+              <span class="track"><span class="bar" [style.width.%]="row.width"></span></span>
+              <span class="value">
+                <strong>{{ row.count }}</strong>
+                <small>{{ row.share }} %</small>
+              </span>
+            </button>
+          </li>
+        }
+      </ul>
+      <small class="legend">
+        Cliquez sur un motif pour ne voir que ses pages. « Pas une offre valable » regroupe les listes d'offres, les
+        articles et les offres expirées.
+      </small>
+    </section>
+
+    <section class="filters">
+      <label class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="11" cy="11" r="6.5" />
+          <path d="m16 16 4.5 4.5" />
+        </svg>
+        <input
+          type="search"
+          name="search"
+          aria-label="Rechercher dans les pages écartées"
+          placeholder="Un site, un mot de la raison…"
+          [ngModel]="search()"
+          (ngModelChange)="searchFor($event)"
+        />
+      </label>
+      @if (queryOptions().length > 1) {
+        <div class="chips" role="group" aria-label="Filtrer par recherche d'origine">
+          <span>Trouvées par</span>
+          @for (query of queryOptions(); track query) {
+            <button
+              type="button"
+              [class.on]="queries().has(query)"
+              [attr.aria-pressed]="queries().has(query)"
+              (click)="toggleQuery(query)"
+            >
+              {{ query }}
+            </button>
+          }
+        </div>
+      }
+      @if (filtered()) {
+        <p class="result">
+          {{ visible().length }} sur {{ total() }}
+          <button type="button" (click)="clearFilters()">Tout afficher</button>
+        </p>
+      }
+    </section>
+
+    @if (listed().length) {
+      <ol class="pages">
+        @for (page of listed(); track page.url) {
+          <li>
+            <div class="head">
+              <span class="motive">{{ page.motive }}</span>
+              <time [attr.datetime]="page.created_at">{{ page.created_at | parisDate: 'day' }}</time>
+            </div>
+            <h3>
+              <a [href]="page.url" target="_blank" rel="noopener noreferrer">{{ page.title }}</a>
+            </h3>
+            @if (page.reject_reason) {
+              <button
+                type="button"
+                class="reason"
+                [class.expanded]="expanded().has(page.url)"
+                [attr.aria-expanded]="expanded().has(page.url)"
+                (click)="toggleReason(page.url)"
+              >
+                {{ page.reject_reason }}
+              </button>
+            }
+            <ul class="facts">
+              <li>{{ siteOf(page.url) }}</li>
+              @if (page.contract_type) {
+                <li>{{ page.contract_type }}</li>
+              }
+              @if (page.work_location) {
+                <li>{{ page.work_location }}</li>
+              }
+              @if (page.query) {
+                <li>via « {{ page.query }} »</li>
+              }
+              @for (criterion of page.failed_criteria.slice(1); track criterion) {
+                <li class="also">aussi : {{ criterion }}</li>
+              }
+            </ul>
+          </li>
+        }
+      </ol>
+      @if (remaining()) {
+        <button type="button" class="more" (click)="showMore()">
+          Afficher la suite <span>{{ remaining() }} {{ remaining() > 1 ? 'pages restantes' : 'page restante' }}</span>
+        </button>
+      }
+    } @else {
+      <p class="hint">Aucune page ne correspond à ces filtres.</p>
+    }
+  }
+} @else if (!error()) {
+  <p class="loading">Chargement des pages écartées…</p>
+}

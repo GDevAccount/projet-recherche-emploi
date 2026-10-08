@@ -2,15 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
 
 import { Job } from '../core/api.models';
 import { ParisDatePipe } from '../core/paris-date.pipe';
-
-/** Site d'une annonce, pour l'en-tête de sa carte : « welcometothejungle.com ». */
-function siteOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return '';
-  }
-}
+import { siteOf } from '../core/text';
 
 /** Teinte stable par site, pour reconnaître d'un coup d'œil d'où vient une annonce. */
 function hueOf(text: string): number {
