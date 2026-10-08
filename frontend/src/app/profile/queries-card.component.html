@@ -1,0 +1,165 @@
+<ng-template #placeIcon let-place>
+  @switch (place) {
+    @case ('remote') {
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="5" width="16" height="11" rx="2" />
+        <path d="M2 20h20" />
+      </svg>
+    }
+    @case ('location') {
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+        <path d="M12 21s7-6.1 7-11.5a7 7 0 0 0-14 0C5 14.9 12 21 12 21Z" />
+        <circle cx="12" cy="9.5" r="2.5" />
+      </svg>
+    }
+    @default {
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3c2.7 2.6 4 5.6 4 9s-1.3 6.4-4 9c-2.7-2.6-4-5.6-4-9s1.3-6.4 4-9Z" />
+      </svg>
+    }
+  }
+</ng-template>
+
+<article class="app-card">
+  <header>
+    <div>
+      <span class="app-eyebrow">Postes recherchés</span>
+      <h2>Ce que vous cherchez</h2>
+    </div>
+    @if (queries(); as saved) {
+      @if (saved.length) {
+        <span class="count">{{ saved.length }}</span>
+      }
+    }
+  </header>
+
+  @if (queries(); as saved) {
+    @if (saved.length) {
+      <ul>
+        @for (query of saved; track query.id) {
+          @let place = placeOf(query);
+          <li [class.leaving]="deleting() === query.id">
+            <span class="contract">{{ query.contract_type }}</span>
+            <div class="what">
+              <strong>{{ query.query }}</strong>
+              <span class="where" [class.remote]="place === 'remote'">
+                <ng-container [ngTemplateOutlet]="placeIcon" [ngTemplateOutletContext]="{ $implicit: place }" />
+                @switch (place) {
+                  @case ('remote') {
+                    Télétravail complet
+                  }
+                  @case ('location') {
+                    {{ query.location }}
+                  }
+                  @default {
+                    Toute la France
+                  }
+                }
+              </span>
+            </div>
+            <button
+              type="button"
+              class="remove"
+              [attr.aria-label]="'Supprimer la recherche « ' + query.query + ' »'"
+              [disabled]="deleting() !== null"
+              (click)="remove(query)"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="empty">
+        Aucun poste pour l'instant. Décrivez le premier ci-dessous : c'est lui qui dit à l'agent quoi chercher, et
+        quelles annonces garder.
+      </p>
+    }
+  } @else if (!error()) {
+    <p class="empty">Chargement…</p>
+  }
+
+  <form (ngSubmit)="add()">
+    <h3>Ajouter un poste</h3>
+
+    <label class="field">
+      <span>Métier et spécialités</span>
+      <input
+        pInputText
+        name="query"
+        autocomplete="off"
+        placeholder="ingénieur IA générative LLM RAG"
+        [ngModel]="text()"
+        (ngModelChange)="text.set($event)"
+      />
+      <small>
+        Le métier visé, suivi de ses spécialités : seules les offres de ce métier sont retenues. Inutile d'écrire le
+        contrat ou le lieu.
+      </small>
+    </label>
+
+    <div class="field">
+      <span id="contract-label">Contrat</span>
+      <div class="pills" role="radiogroup" aria-labelledby="contract-label">
+        @for (type of contractTypes(); track type) {
+          <button
+            type="button"
+            role="radio"
+            [attr.aria-checked]="contract() === type"
+            [class.on]="contract() === type"
+            (click)="chooseContract(type)"
+          >
+            {{ type }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="field">
+      <span id="place-label">Où</span>
+      <div class="pills" role="radiogroup" aria-labelledby="place-label">
+        @for (option of places; track option.value) {
+          <button
+            type="button"
+            role="radio"
+            [attr.aria-checked]="place() === option.value"
+            [class.on]="place() === option.value"
+            (click)="place.set(option.value)"
+          >
+            <ng-container [ngTemplateOutlet]="placeIcon" [ngTemplateOutletContext]="{ $implicit: option.value }" />
+            {{ option.label }}
+          </button>
+        }
+      </div>
+      @switch (place()) {
+        @case ('location') {
+          <input
+            pInputText
+            name="location"
+            autocomplete="off"
+            aria-label="Lieu"
+            placeholder="Lyon, Bretagne, Île-de-France…"
+            [ngModel]="location()"
+            (ngModelChange)="location.set($event)"
+          />
+          <small>Une ville, un département ou une région.</small>
+        }
+        @case ('remote') {
+          <small>
+            Uniquement les postes 100 % à distance, en France comme à l'étranger. La recherche part aussi en anglais,
+            sur les sites d'offres à distance.
+          </small>
+        }
+      }
+    </div>
+
+    @if (error()) {
+      <p-message severity="error">{{ error() }}</p-message>
+    }
+
+    <p-button type="submit" label="Ajouter ce poste" [loading]="adding()" [disabled]="incomplete()" />
+  </form>
+</article>

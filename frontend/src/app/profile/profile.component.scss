@@ -1,27 +1,10 @@
 :host {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
   align-items: start;
   gap: 1.5rem;
 
   @media (max-width: 56rem) {
     grid-template-columns: 1fr;
-  }
-}
-
-.upcoming {
-  border-style: dashed;
-  background: color-mix(in srgb, var(--app-surface), transparent 40%);
-  box-shadow: none;
-
-  h2 {
-    margin: 0.6rem 0 0.4rem;
-    font-size: 1.5rem;
-  }
-
-  p {
-    max-width: 30rem;
-    margin: 0;
-    color: var(--app-muted);
   }
 }
