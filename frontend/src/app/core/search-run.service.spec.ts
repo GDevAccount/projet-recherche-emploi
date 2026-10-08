@@ -4,9 +4,10 @@ import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 
 import { SearchProgress } from './api.models';
-import { FETCH, SearchRunService } from './search-run.service';
+import { BACKGROUND_POLL_MS, FETCH, SearchRunService } from './search-run.service';
+import { SessionService } from './session.service';
 
-const ACCOUNT = { user_id: 2, is_owner: false, email: null, name: null, picture: null, can_search: true, remaining_searches: 1, max_searches_per_day: 2 };
+const ACCOUNT = { user_id: 2, is_owner: false, email: null, name: null, picture: null, can_search: true, search_running: false, remaining_searches: 1, max_searches_per_day: 2 };
 
 function progress(values: Partial<SearchProgress>): string {
   const event: SearchProgress = {
@@ -174,6 +175,36 @@ describe('SearchRunService', () => {
 
     expect(run.state()).toBe('idle');
     expect(navigate).toHaveBeenCalledWith(['connexion']);
+  });
+
+  it('should wait for a search it does not follow, then tell the screens to reload', async () => {
+    vi.useFakeTimers();
+    try {
+      // Page rechargée pendant une recherche : c'est l'API qui dit qu'elle tourne encore
+      TestBed.inject(SessionService).refresh().subscribe();
+      http.expectOne('/api/me').flush({ ...ACCOUNT, search_running: true });
+      TestBed.tick();
+
+      expect([run.background(), run.busy()]).toEqual([true, true]);
+      await run.launch();
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(BACKGROUND_POLL_MS);
+      http.expectOne('/api/me').flush({ ...ACCOUNT, search_running: true });
+      TestBed.tick();
+      expect(run.completed()).toBe(0);
+
+      vi.advanceTimersByTime(BACKGROUND_POLL_MS);
+      http.expectOne('/api/me').flush(ACCOUNT);
+      TestBed.tick();
+      expect([run.background(), run.busy()]).toEqual([false, false]);
+      expect(run.completed()).toBe(1);
+
+      // Plus rien à attendre : l'API n'est plus interrogée
+      vi.advanceTimersByTime(BACKGROUND_POLL_MS * 3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('should close the follow-up of a finished search only', async () => {

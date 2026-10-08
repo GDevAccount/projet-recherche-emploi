@@ -165,6 +165,7 @@ def test_account_tells_who_is_calling(client):
         "picture": "https://lh3.googleusercontent.com/proprietaire",
         # Le propriétaire a les recherches par défaut, mais pas encore de CV
         "can_search": False,
+        "search_running": False,
         "remaining_searches": None,
         "max_searches_per_day": MAX_SEARCHES_PER_DAY,
     }

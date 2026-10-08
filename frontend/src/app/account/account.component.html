@@ -59,7 +59,7 @@
       }
     </p>
 
-    @if (run.state() === 'running') {
+    @if (run.busy()) {
       <p class="note">Une recherche est en cours : attendez qu'elle se termine pour supprimer votre compte.</p>
     } @else if (confirming()) {
       <div class="confirm" role="alertdialog" aria-labelledby="confirm-title">

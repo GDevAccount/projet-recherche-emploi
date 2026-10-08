@@ -1,3 +1,4 @@
+import gc
 import sqlite3
 from contextlib import closing
 
@@ -102,6 +103,45 @@ def test_failed_search_still_counts(container, ready_users):
         search.run_search(BOB)
 
     assert search.remaining_searches(BOB) == MAX_SEARCHES_PER_DAY - 1
+
+
+def test_second_search_is_refused_while_the_first_runs_without_using_the_quota(search, graph, ready_users):
+    events = search.stream_search(BOB)
+    next(events)
+
+    assert search.is_running(BOB)
+    with pytest.raises(ConflictError):
+        search.stream_search(BOB)
+    # Le refus n'a rien coûté, et ne gêne pas un autre utilisateur
+    assert search.remaining_searches(BOB) == MAX_SEARCHES_PER_DAY - 1
+    assert not search.is_running(CAROL)
+    search.run_search(CAROL)
+
+    list(events)
+    assert not search.is_running(BOB)
+    search.run_search(BOB)
+    assert len(graph.inputs) == 3
+
+
+def test_search_that_fails_or_is_never_read_does_not_block_the_next_one(container, search, ready_users):
+    broken = SearchService(container.database, container.cv_storage, BrokenGraph)
+    with pytest.raises(RuntimeError):
+        broken.run_search(DEFAULT_USER_ID)
+    assert not broken.is_running(DEFAULT_USER_ID)
+
+    # Un déroulement abandonné avant sa première lecture : la connexion s'est fermée trop tôt
+    abandoned = search.stream_search(DEFAULT_USER_ID)
+    assert search.is_running(DEFAULT_USER_ID)
+    del abandoned
+    gc.collect()
+    assert not search.is_running(DEFAULT_USER_ID)
+
+    # Un quota atteint ne laisse pas non plus de recherche fantôme
+    for _ in range(MAX_SEARCHES_PER_DAY):
+        search.run_search(BOB)
+    with pytest.raises(QuotaExceededError):
+        search.stream_search(BOB)
+    assert not search.is_running(BOB)
 
 
 def test_owner_has_no_quota(search, graph, ready_users):

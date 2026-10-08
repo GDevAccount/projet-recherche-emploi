@@ -60,6 +60,7 @@ def _account(caller: Caller, services: Container) -> Account:
         name=caller.name,
         picture=caller.picture,
         can_search=services.search.can_search(user_id),
+        search_running=services.search.is_running(user_id),
         remaining_searches=services.search.remaining_searches(user_id),
         max_searches_per_day=MAX_SEARCHES_PER_DAY,
     )

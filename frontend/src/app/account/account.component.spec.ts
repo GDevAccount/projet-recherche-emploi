@@ -15,6 +15,7 @@ const ALICE: Account = {
   name: 'Alice Martin',
   picture: null,
   can_search: true,
+  search_running: false,
   remaining_searches: 2,
   max_searches_per_day: 2,
 };

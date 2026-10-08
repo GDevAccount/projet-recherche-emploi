@@ -146,6 +146,34 @@ nav {
   }
 }
 
+.ongoing {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1.5rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+  color: var(--app-muted);
+}
+
+.pulse {
+  flex: none;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--app-accent-strong);
+  animation: ongoing-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ongoing-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
 // Sur un téléphone, l'en-tête n'a pas la place : la déconnexion reste sur la page du compte
 .logout {
   @media (max-width: 30rem) {

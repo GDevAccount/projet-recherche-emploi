@@ -135,6 +135,8 @@ class Account(BaseModel):
     picture: str | None
     # Un CV et au moins un poste recherché sont enregistrés
     can_search: bool
+    # Une recherche de cet utilisateur tourne sur le serveur : il ne peut pas en lancer une autre
+    search_running: bool
     # None pour le propriétaire, qui n'a pas de quota
     remaining_searches: int | None
     max_searches_per_day: int

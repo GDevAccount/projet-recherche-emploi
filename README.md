@@ -92,7 +92,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 |---|---|
 | `GET /api/health` | État du serveur (sans connexion) |
 | `GET /api/config` | Ce qu'un front lit avant la connexion (sans connexion) : mode de connexion (`google` ou `password`), identifiant client Google, types de contrat |
-| `GET /api/me` | Utilisateur de la requête (avec l'adresse, le nom et la photo de son compte Google), recherches restantes aujourd'hui, et s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché) |
+| `GET /api/me` | Utilisateur de la requête (avec l'adresse, le nom et la photo de son compte Google), recherches restantes aujourd'hui, s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché), et si l'une des siennes tourne déjà (`search_running`) |
 | `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements et adresse sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
 | `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer |
 | `GET /api/jobs` | Offres retenues |
@@ -101,7 +101,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/rejected-jobs` | Pages rejetées, avec leur motif (`motive`) et tous les critères en défaut (`failed_criteria`) |
 | `GET /api/queries`, `POST /api/queries`, `DELETE /api/queries/{id}` | Postes recherchés |
 | `GET /api/cv`, `PUT /api/cv` | Date du CV en place, dépôt d'un CV (fichier PDF, champ `file`) |
-| `POST /api/searches` | Lancer une recherche, suivie en direct (Server-Sent Events : `progress`, puis `result` ou `error`). Chaque `progress` nomme son étape (`step` : `search`, `dedupe`, `evaluate` ou `save`) et porte, selon l'étape, un décompte (`done`, `total`), le nombre de pages trouvées et à évaluer (`found`, `new`), ou la page qui vient d'être évaluée et son verdict (`title`, `kept`) |
+| `POST /api/searches` | Lancer une recherche, suivie en direct (Server-Sent Events : `progress`, puis `result` ou `error`). Chaque `progress` nomme son étape (`step` : `search`, `dedupe`, `evaluate` ou `save`) et porte, selon l'étape, un décompte (`done`, `total`), le nombre de pages trouvées et à évaluer (`found`, `new`), ou la page qui vient d'être évaluée et son verdict (`title`, `kept`). Refusé (409) si une recherche de l'utilisateur tourne déjà |
 
 L'appelant prouve son identité par un en-tête `Authorization: Bearer <jeton>`. La règle :
 
