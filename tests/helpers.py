@@ -10,6 +10,7 @@ def job(url: str) -> dict:
         "content": "c",
         "score": 1.0,
         "contract_type": "CDI",
+        "work_location": "Paris",
         "query": "q",
         "match_reason": "r",
     }
@@ -23,6 +24,7 @@ def rejected_job(url: str) -> dict:
         "query": "q",
         "is_real_offer": True,
         "matches_cv": False,
+        "matches_location": True,
         "reject_reason": "Hors profil",
     }
 

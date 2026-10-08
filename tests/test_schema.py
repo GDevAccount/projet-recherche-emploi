@@ -65,6 +65,8 @@ def test_new_database_gets_every_table_and_the_owner_defaults(tmp_path):
     with database.session() as session:
         queries = QueryRepository(session, DEFAULT_USER_ID).list_queries()
         assert [(query.contract_type, query.query) for query in queries] == DEFAULT_QUERIES
+        # Elles visent l'Île-de-France, comme leur texte le dit
+        assert {(query.location, query.remote) for query in queries} == {("Île-de-France", False)}
         # L'identifiant du propriétaire est réservé, sans adresse
         assert [(user.id, user.email) for user in UserRepository(session).list_users()] == [(DEFAULT_USER_ID, None)]
     # Rien à sauvegarder avant de créer une base
@@ -113,6 +115,8 @@ def test_database_from_before_alembic_keeps_its_rows(tmp_path):
         # La table existait : les recherches par défaut ne sont pas ajoutées à celles de l'utilisateur
         queries = QueryRepository(session, DEFAULT_USER_ID).list_queries()
         assert [query.query for query in queries] == ["la seule recherche gardée"]
+        # Avant le choix du lieu, le filtre imposait l'Île-de-France : la recherche la garde
+        assert [(query.id, query.location, query.remote) for query in queries] == [(1, "Île-de-France", False)]
         assert [user.id for user in UserRepository(session).list_users()] == [DEFAULT_USER_ID]
 
 

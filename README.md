@@ -44,12 +44,12 @@ La commande doit être lancée depuis la racine : `cv.pdf` et `jobs.db` sont che
 ## Utiliser l'interface
 
 1. **Déposer son CV.** Dans la barre latérale, choisir un PDF puis cliquer sur « Enregistrer ce CV ». Il est enregistré à la racine sous le nom `cv.pdf` et remplace le précédent. Les pages rejetées avec l'ancien CV sont alors oubliées : elles seront réévaluées à la prochaine recherche.
-2. **Choisir les postes recherchés.** La barre latérale liste les recherches enregistrées. Chacune associe un type de contrat à une phrase de recherche, par exemple « offre d'emploi data engineer en Île-de-France ». Le type de contrat est ajouté à la phrase envoyée au moteur de recherche, sauf si elle le mentionne déjà. Le formulaire en ajoute une, le bouton ✕ en supprime une. Elles sont conservées en base d'une session à l'autre.
+2. **Choisir les postes recherchés.** La barre latérale liste les recherches enregistrées. Chacune associe un type de contrat à une phrase de recherche, par exemple « ingénieur IA générative LLM RAG », et à un lieu : une ville, un département ou une région, « télétravail complet », ou rien pour toute la France. Le type de contrat et le lieu sont ajoutés à la phrase envoyée au moteur de recherche, sauf si elle les mentionne déjà. La phrase nomme le métier visé, suivi de ses spécialités : le filtre ne retient que les offres de l'un des métiers recherchés, même si le CV en couvre d'autres. Une phrase qui ne cite qu'une technologie (« langchain langgraph ») ne dit pas quel métier retenir : préférer « développeur d'agents IA LangChain LangGraph ». Pour trouver aussi les annonces rédigées en anglais, enregistrer une seconde recherche avec l'intitulé anglais. Une offre est retenue si son lieu de travail convient à l'une au moins des recherches enregistrées : une recherche sans lieu ouvre donc toute la France, et « télétravail complet » ne retient que les postes 100 % à distance, que l'employeur soit en France ou à l'étranger, sauf si l'annonce réserve le poste aux résidents d'un autre pays. Sans recherche « télétravail complet », un poste à distance n'est retenu que si l'employeur se trouve dans l'un des lieux recherchés. Le formulaire en ajoute une, le bouton ✕ en supprime une. Elles sont conservées en base d'une session à l'autre.
 3. **Lancer une recherche.** Le bouton « Lancer une recherche » est actif dès qu'un CV et au moins une recherche sont enregistrés. Une barre de progression suit les recherches Tavily puis les évaluations par OpenAI, ce qui peut prendre quelques minutes. La page indique ensuite le nombre de pages trouvées, de pages pas encore évaluées, d'offres retenues, de pages rejetées et de nouvelles offres en base.
-4. **Suivre ses candidatures.** L'onglet « Offres retenues » liste les offres, de la plus récente à la plus ancienne, avec un lien vers l'annonce et la raison pour laquelle elle a été retenue. Cocher « Postulé » enregistre la candidature et sa date. La colonne « Contrat » donne le contrat que le modèle a lu sur l'annonce, qui peut différer de celui de la recherche, ou « non précisé » si l'annonce ne le dit pas. Au-dessus du tableau, un filtre par type de contrat, un champ de recherche (sur le titre de l'offre et la raison donnée par le modèle, par exemple pour retrouver une entreprise) et un interrupteur masquant les offres déjà postulées sont disponibles.
+4. **Suivre ses candidatures.** L'onglet « Offres retenues » liste les offres, de la plus récente à la plus ancienne, avec un lien vers l'annonce et la raison pour laquelle elle a été retenue. Cocher « Postulé » enregistre la candidature et sa date. La colonne « Contrat » donne le contrat que le modèle a lu sur l'annonce, qui peut différer de celui de la recherche, ou « non précisé » si l'annonce ne le dit pas. La colonne « Lieu de travail » donne de même la ville lue sur l'annonce, ou « Remote » pour un poste en télétravail complet, par exemple « Remote (Los Angeles, États-Unis) ». Au-dessus du tableau, un filtre par type de contrat, un champ de recherche (sur le titre de l'offre, son lieu et la raison donnée par le modèle, par exemple pour retrouver une entreprise ou une ville) et un interrupteur masquant les offres déjà postulées sont disponibles.
 5. **Supprimer une offre.** Cocher « Supprimer » sur une ou plusieurs lignes, puis cliquer sur le bouton « Supprimer N offre(s) » qui apparaît sous le tableau. Une offre supprimée ne revient pas aux recherches suivantes.
 
-6. **Comprendre les rejets.** L'onglet « Pages rejetées » liste les pages écartées par le modèle, avec la raison donnée. Chaque page est classée « Pas une offre valable » (liste d'offres, article, offre expirée ou hors région parisienne) ou « Hors profil » (vraie offre, mais qui ne correspond pas au CV). Des filtres par motif et par recherche d'origine, et un champ de recherche, aident à repérer ce qui fait perdre des offres.
+6. **Comprendre les rejets.** L'onglet « Pages rejetées » liste les pages écartées, avec la raison donnée. Chaque page porte un motif, le premier critère en défaut : « Pas une offre valable » (liste d'offres, article, offre expirée), « Autre métier que ceux recherchés », « Contrat non recherché » (stage ou alternance qu'aucune recherche ne demande), « Compétences insuffisantes », « Niveau d'expérience incompatible » ou « Hors lieu recherché ». La colonne « Critères en défaut » les donne tous. Les pages rejetées avant ce détail gardent le motif « Hors profil ». Ajouter une recherche fait oublier les rejets dus au métier, au contrat ou au lieu : ces pages seront réévaluées si elles sont retrouvées. Des filtres par motif et par recherche d'origine, et un champ de recherche, aident à repérer ce qui fait perdre des offres.
 
 Chaque recherche consomme des crédits Tavily (une recherche avancée par poste recherché) et OpenAI (un appel par résultat qui n'a pas déjà été évalué, jusqu'à 20 par poste recherché).
 
@@ -255,7 +255,7 @@ La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/)
 |---|---|
 | `searchJobs` | Lance une recherche Tavily par poste recherché enregistré, limitée aux sites d'emploi et aux annonces de la dernière semaine, puis supprime les doublons. |
 | `FilterDuplicates` | Écarte les pages dont l'URL est déjà en base, offres supprimées et pages rejetées comprises, pour ne pas les faire évaluer à nouveau. |
-| `FilterJobs` | Lit le CV (PDF) et demande à un modèle OpenAI, pour chaque page restante, si la page est une vraie offre (et non une liste d'offres) et si elle correspond au profil. |
+| `FilterJobs` | Lit le CV (PDF) et demande à un modèle OpenAI, pour chaque page restante, ce qu'elle dit (vraie offre ou non, contrat, lieu, mode de travail) et trois avis : le métier est-il l'un de ceux des recherches enregistrées, le CV couvre-t-il les compétences principales, le niveau d'expérience est-il compatible. Le graph applique ensuite les règles de contrat et de lieu : une offre n'est retenue que si tous les critères sont remplis. |
 | `InsertJobs` | Enregistre les offres retenues et les pages rejetées dans la base SQLite `jobs.db`. |
 
 ## Base de données
@@ -273,6 +273,7 @@ Table `jobs`, les offres retenues :
 | `content` | Extrait de l'annonce |
 | `score` | Pertinence estimée par Tavily, entre 0 et 1 |
 | `contract_type` | Type de contrat lu sur l'annonce par le modèle, vide si elle ne le dit pas. Pour les offres trouvées avant ce changement : celui de la recherche qui a trouvé l'offre |
+| `work_location` | Ville lue sur l'annonce par le modèle, suivie du pays hors de France. Pour un poste en télétravail complet : `Remote`, suivi entre parenthèses de la ville de l'employeur si l'annonce la donne. Vide si l'annonce ne le dit pas, et pour les offres trouvées avant l'ajout de la colonne |
 | `query` | Recherche qui a trouvé l'offre |
 | `match_reason` | Justification du modèle pour avoir retenu l'offre |
 | `applied` | `1` si vous avez postulé, `0` sinon |
@@ -288,9 +289,15 @@ Table `rejected_jobs`, les pages rejetées par le modèle. Elle sert à ne pas p
 | `url` | Lien de la page (unique par utilisateur) |
 | `title` | Titre de la page |
 | `contract_type` | Type de contrat lu sur la page par le modèle, souvent vide. Pour les pages rejetées avant ce changement : celui de la recherche qui a trouvé la page |
+| `work_location` | Ville lue sur la page par le modèle, ou `Remote`, souvent vide |
 | `query` | Recherche qui a trouvé la page |
 | `is_real_offer` | `1` si le modèle y a vu une vraie offre, `0` sinon |
-| `matches_cv` | `1` si le modèle a jugé que le poste correspond au CV, `0` sinon |
+| `matches_cv` | `1` si le modèle a jugé que le poste correspond au CV (compétences et niveau), `0` sinon |
+| `matches_search` | `0` si le métier du poste n'est aucun de ceux recherchés, `1` sinon |
+| `matches_contract` | `0` pour un stage ou une alternance qu'aucune recherche ne demande, `1` sinon |
+| `matches_skills` | `0` si le CV ne couvre pas les compétences principales du poste, `1` sinon |
+| `matches_level` | `0` si le niveau d'expérience est manifestement incompatible, `1` sinon |
+| `matches_location` | `0` si le lieu de travail ne fait partie d'aucun lieu recherché, `1` sinon. Ces cinq colonnes de détail sont vides pour les pages rejetées avant leur ajout, quand une offre hors Île-de-France était classée « pas une offre » |
 | `reject_reason` | Justification du modèle pour avoir rejeté la page |
 | `created_at` | Date du rejet (UTC) |
 
@@ -301,7 +308,9 @@ Table `search_queries`, les postes recherchés :
 | `id` | Identifiant de la recherche |
 | `user_id` | Utilisateur propriétaire de la ligne. Vaut `1` tant que l'application n'a qu'un utilisateur |
 | `contract_type` | Type de contrat (`CDI`, `freelance`, `CDD`, `alternance` ou `stage`) |
-| `query` | Phrase envoyée à Tavily (unique par utilisateur) |
+| `query` | Phrase envoyée à Tavily, complétée du type de contrat et du lieu. Le trio phrase, lieu et télétravail est unique par utilisateur |
+| `location` | Ville, département ou région visés. Vide : toute la France. Les recherches d'avant cette colonne ont reçu `Île-de-France`, que le filtre imposait alors |
+| `remote` | `1` pour ne retenir que le télétravail complet, sans condition de lieu, `0` sinon |
 | `created_at` | Date d'ajout (UTC) |
 
 Table `users`, les comptes (connexion Google) :
@@ -326,7 +335,7 @@ Les tables sont décrites dans `src/projet_recherche_emploi/data/models.py`. Mod
 
 ```bash
 uv run projet-recherche-emploi migrate                    # la base locale doit d'abord être à jour
-uv run alembic revision --autogenerate -m "ajout de la colonne note" --rev-id 0003
+uv run alembic revision --autogenerate -m "ajout de la colonne note" --rev-id 0004
 uv run pytest                                             # vérifie que modèles et migrations décrivent le même schéma
 ```
 

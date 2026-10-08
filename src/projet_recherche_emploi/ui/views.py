@@ -13,9 +13,19 @@ from projet_recherche_emploi.services.job_service import JobService
 from projet_recherche_emploi.services.query_service import QueryService
 from projet_recherche_emploi.services.search_service import SearchService
 
-UNKNOWN_CONTRACT = "non précisé"
+NOT_STATED = "non précisé"
 REJECT_NOT_AN_OFFER = "Pas une offre valable"
 REJECT_PROFILE_MISMATCH = "Hors profil"
+# Critères du verdict, dans l'ordre où ils donnent le motif affiché
+REJECT_CRITERIA = {
+    "matches_search": "Autre métier que ceux recherchés",
+    "matches_contract": "Contrat non recherché",
+    "matches_skills": "Compétences insuffisantes",
+    "matches_level": "Niveau d'expérience incompatible",
+    "matches_location": "Hors lieu recherché",
+}
+REMOTE_LABEL = "télétravail complet"
+ANYWHERE_LABEL = "toute la France"
 
 
 def render_cv(user_id: int, cv: CvService) -> None:
@@ -47,7 +57,8 @@ def render_queries(user_id: int, queries: QueryService) -> None:
 
     for query in saved_queries:
         text_column, button_column = st.columns([5, 1])
-        text_column.markdown(f"**{query.contract_type}** · {query.query}")
+        place = REMOTE_LABEL if query.remote else query.location or ANYWHERE_LABEL
+        text_column.markdown(f"**{query.contract_type}** · {query.query} · *{place}*")
         if button_column.button("✕", key=f"delete_query_{query.id}", help="Supprimer cette recherche"):
             try:
                 queries.delete_query(user_id, query.id)
@@ -60,12 +71,26 @@ def render_queries(user_id: int, queries: QueryService) -> None:
         contract_type = st.selectbox(
             "Type de contrat", CONTRACT_TYPES, help="Ajouté à la recherche s'il n'y figure pas déjà."
         )
-        text = st.text_input("Recherche", placeholder="offre d'emploi data engineer en Île-de-France")
+        text = st.text_input(
+            "Recherche",
+            placeholder="ingénieur IA générative LLM RAG",
+            help="Le métier visé, suivi de ses spécialités. Seules les offres de ce métier sont retenues, "
+            "même si votre CV en couvre d'autres. Inutile d'écrire le contrat ou le lieu : ils sont ajoutés.",
+        )
+        location = st.text_input(
+            "Lieu",
+            placeholder="Lyon, Bretagne, Île-de-France…",
+            help="Ville, département ou région. Vide : toute la France.",
+        )
+        remote = st.checkbox(
+            "Télétravail complet uniquement",
+            help="Ne retient que les postes 100 % à distance, en France comme à l'étranger. Le lieu est alors ignoré.",
+        )
         submitted = st.form_submit_button("Ajouter")
 
     if submitted:
         try:
-            queries.add_query(user_id, contract_type, text)
+            queries.add_query(user_id, contract_type, text, location, remote)
         except AppError as error:
             st.error(str(error))
         else:
@@ -116,7 +141,8 @@ def render_jobs(user_id: int, jobs: JobService) -> None:
     table["applied_at"] = to_local_time(table["applied_at"])
     table["to_delete"] = False
     # Sans cela, le filtre par contrat masquerait les offres dont la page ne dit pas le contrat
-    table["contract_type"] = table["contract_type"].fillna(UNKNOWN_CONTRACT)
+    table["contract_type"] = table["contract_type"].fillna(NOT_STATED)
+    table["work_location"] = table["work_location"].fillna(NOT_STATED)
 
     applied_count = int(table["applied"].sum())
     total_column, applied_column, remaining_column = st.columns(3)
@@ -127,18 +153,30 @@ def render_jobs(user_id: int, jobs: JobService) -> None:
     contract_column, toggle_column = st.columns([3, 2])
     contract_types = sorted(table["contract_type"].unique())
     selected_types = contract_column.multiselect("Type de contrat", contract_types, default=contract_types)
-    search_text = contract_column.text_input("Rechercher", placeholder="Nom d'entreprise, mot-clé…").strip()
+    search_text = contract_column.text_input("Rechercher", placeholder="Nom d'entreprise, ville, mot-clé…").strip()
     hide_applied = toggle_column.toggle("Masquer les offres déjà postulées")
 
     visible = table[table["contract_type"].isin(selected_types)]
     if hide_applied:
         visible = visible[~visible["applied"]]
     if search_text:
-        searched = visible["title"].fillna("") + " " + visible["match_reason"].fillna("")
+        searched = (
+            visible["title"].fillna("") + " " + visible["work_location"] + " " + visible["match_reason"].fillna("")
+        )
         visible = visible[searched.str.contains(search_text, case=False, regex=False)]
         st.caption(f"{len(visible)} offre(s) pour « {search_text} »")
 
-    columns = ["applied", "title", "contract_type", "url", "match_reason", "created_at", "applied_at", "to_delete"]
+    columns = [
+        "applied",
+        "title",
+        "contract_type",
+        "work_location",
+        "url",
+        "match_reason",
+        "created_at",
+        "applied_at",
+        "to_delete",
+    ]
     # Sans clé, le tableau repart d'un état vierge dès que les données changent
     edited = st.data_editor(
         visible[columns],
@@ -146,6 +184,7 @@ def render_jobs(user_id: int, jobs: JobService) -> None:
             "applied": st.column_config.CheckboxColumn("Postulé"),
             "title": st.column_config.TextColumn("Offre", width="large"),
             "contract_type": st.column_config.TextColumn("Contrat"),
+            "work_location": st.column_config.TextColumn("Lieu de travail"),
             "url": st.column_config.LinkColumn("Lien", display_text="Ouvrir"),
             "match_reason": st.column_config.TextColumn("Pourquoi ça correspond", width="large"),
             "created_at": st.column_config.DatetimeColumn("Trouvée le", format="DD/MM/YYYY HH:mm"),
@@ -174,6 +213,16 @@ def render_jobs(user_id: int, jobs: JobService) -> None:
         st.rerun()
 
 
+def list_failed_criteria(page: pd.Series) -> list[str]:
+    """Renvoie les motifs de rejet d'une page, le principal en premier."""
+    # Une page qui n'est pas une offre n'a ni métier ni profil à comparer
+    if not page["is_real_offer"]:
+        return [REJECT_NOT_AN_OFFER]
+    # Un critère vide n'a pas été évalué : la page a été rejetée avant le verdict détaillé
+    failed = [label for criterion, label in REJECT_CRITERIA.items() if page[criterion] == False]  # noqa: E712
+    return failed or [REJECT_PROFILE_MISMATCH]
+
+
 def render_rejected_jobs(user_id: int, jobs: JobService) -> None:
     rejected_jobs = jobs.list_rejected_jobs(user_id)
     if not rejected_jobs:
@@ -182,18 +231,20 @@ def render_rejected_jobs(user_id: int, jobs: JobService) -> None:
 
     table = pd.DataFrame([job.model_dump() for job in rejected_jobs])
     table["created_at"] = to_local_time(table["created_at"])
-    # Une page qui n'est pas une offre n'a pas de profil à comparer : ce motif passe en premier
-    table["motive"] = REJECT_NOT_AN_OFFER
-    table.loc[table["is_real_offer"], "motive"] = REJECT_PROFILE_MISMATCH
+    failed_criteria = table.apply(list_failed_criteria, axis=1)
+    table["motive"] = failed_criteria.str[0]
+    table["failed_criteria"] = failed_criteria.str.join(", ")
 
-    not_an_offer_count = int((table["motive"] == REJECT_NOT_AN_OFFER).sum())
-    total_column, offer_column, profile_column = st.columns(3)
+    counts = table["motive"].value_counts()
+    total_column, *motive_columns = st.columns(len(counts) + 1)
     total_column.metric("Pages rejetées", len(table))
-    offer_column.metric(REJECT_NOT_AN_OFFER, not_an_offer_count)
-    profile_column.metric(REJECT_PROFILE_MISMATCH, len(table) - not_an_offer_count)
+    for column, (label, count) in zip(motive_columns, counts.items(), strict=True):
+        column.metric(label, int(count))
     st.caption(
-        f"« {REJECT_NOT_AN_OFFER} » regroupe les listes d'offres, les articles, les offres expirées "
-        "et les offres hors région parisienne : la colonne « Raison du rejet » précise le cas."
+        f"« {REJECT_NOT_AN_OFFER} » regroupe les listes d'offres, les articles et les offres expirées. "
+        "Le motif est le premier critère en défaut ; la colonne « Critères en défaut » les donne tous. "
+        "Les pages écartées pour leur métier, leur contrat ou leur lieu sont réévaluées quand vous ajoutez "
+        "une recherche."
     )
 
     motive_column, query_column = st.columns(2)
@@ -201,9 +252,7 @@ def render_rejected_jobs(user_id: int, jobs: JobService) -> None:
     selected_motives = motive_column.multiselect("Motif", motives, default=motives)
     queries = sorted(table["query"].dropna().unique())
     selected_queries = query_column.multiselect("Recherche d'origine", queries, default=queries)
-    search_text = st.text_input(
-        "Rechercher", placeholder="Site, mot-clé de la raison…", key="rejected_search"
-    ).strip()
+    search_text = st.text_input("Rechercher", placeholder="Site, mot-clé de la raison…", key="rejected_search").strip()
 
     visible = table[table["motive"].isin(selected_motives) & table["query"].isin(selected_queries)]
     if search_text:
@@ -212,13 +261,27 @@ def render_rejected_jobs(user_id: int, jobs: JobService) -> None:
         st.caption(f"{len(visible)} page(s) pour « {search_text} »")
 
     st.dataframe(
-        visible[["motive", "title", "url", "reject_reason", "contract_type", "query", "created_at"]],
+        visible[
+            [
+                "motive",
+                "title",
+                "url",
+                "reject_reason",
+                "failed_criteria",
+                "contract_type",
+                "work_location",
+                "query",
+                "created_at",
+            ]
+        ],
         column_config={
             "motive": st.column_config.TextColumn("Motif"),
             "title": st.column_config.TextColumn("Page", width="large"),
             "url": st.column_config.LinkColumn("Lien", display_text="Ouvrir"),
             "reject_reason": st.column_config.TextColumn("Raison du rejet", width="large"),
+            "failed_criteria": st.column_config.TextColumn("Critères en défaut"),
             "contract_type": st.column_config.TextColumn("Contrat"),
+            "work_location": st.column_config.TextColumn("Lieu de travail"),
             "query": st.column_config.TextColumn("Recherche d'origine"),
             "created_at": st.column_config.DatetimeColumn("Rejetée le", format="DD/MM/YYYY HH:mm"),
         },

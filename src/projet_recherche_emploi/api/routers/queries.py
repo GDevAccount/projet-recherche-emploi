@@ -10,6 +10,10 @@ router = APIRouter(tags=["postes recherchés"])
 class SearchQueryCreate(BaseModel):
     contract_type: str
     query: str
+    # Ville ou région ; vide pour toute la France
+    location: str = ""
+    # Télétravail complet : le lieu est alors ignoré
+    remote: bool = False
 
 
 @router.get("/queries")
@@ -19,7 +23,9 @@ def list_queries(user_id: UserId, services: Services) -> list[SearchQueryRead]:
 
 @router.post("/queries", status_code=status.HTTP_201_CREATED)
 def add_query(creation: SearchQueryCreate, user_id: UserId, services: Services) -> SearchQueryRead:
-    return services.queries.add_query(user_id, creation.contract_type, creation.query)
+    return services.queries.add_query(
+        user_id, creation.contract_type, creation.query, creation.location, creation.remote
+    )
 
 
 @router.delete("/queries/{query_id}", status_code=status.HTTP_204_NO_CONTENT)
