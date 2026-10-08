@@ -1,0 +1,131 @@
+@if (error()) {
+  <p-message severity="error" class="error">{{ error() }}</p-message>
+}
+
+@if (jobs(); as all) {
+  @if (!all.length) {
+    <section class="blank">
+      <span class="orb"></span>
+      <h2>Pas encore d'offre</h2>
+      <p>Lancez une recherche : les annonces qui correspondent à votre profil arriveront ici.</p>
+    </section>
+  } @else {
+    <section class="stats" aria-label="Avancement">
+      <div class="tile accent">
+        <strong>{{ todoCount() }}</strong>
+        <span>à traiter</span>
+      </div>
+      <div class="tile">
+        <strong>{{ appliedCount() }}</strong>
+        <span>{{ appliedCount() > 1 ? 'candidatures envoyées' : 'candidature envoyée' }}</span>
+      </div>
+      <div class="tile wide">
+        <div class="meter-head">
+          <span>{{ total() }} {{ total() > 1 ? 'offres retenues' : 'offre retenue' }}</span>
+          <strong>{{ progress() }} %</strong>
+        </div>
+        <div class="meter" role="progressbar" [attr.aria-valuenow]="progress()" aria-valuemin="0" aria-valuemax="100">
+          <span [style.width.%]="progress()"></span>
+        </div>
+        <small>de vos offres ont reçu une candidature</small>
+      </div>
+    </section>
+
+    <section class="filters">
+      <label class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="11" cy="11" r="6.5" />
+          <path d="m16 16 4.5 4.5" />
+        </svg>
+        <input
+          type="search"
+          name="search"
+          aria-label="Rechercher dans les offres"
+          placeholder="Une entreprise, une ville, un mot-clé…"
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+        />
+      </label>
+      @if (contractOptions().length > 1) {
+        <div class="chips" role="group" aria-label="Filtrer par contrat">
+          @for (contract of contractOptions(); track contract) {
+            <button
+              type="button"
+              [class.on]="contracts().has(contract)"
+              [attr.aria-pressed]="contracts().has(contract)"
+              (click)="toggleContract(contract)"
+            >
+              {{ contract }}
+            </button>
+          }
+        </div>
+      }
+      @if (filtered()) {
+        <p class="result">
+          {{ visible().length }} sur {{ total() }}
+          <button type="button" (click)="clearFilters()">Tout afficher</button>
+        </p>
+      }
+    </section>
+
+    <div class="board" [class.dragging]="dragged()">
+      <section
+        class="column todo"
+        [class.target]="dropTarget() === false"
+        (dragover)="dragOver($event, false)"
+        (dragleave)="dropTarget.set(null)"
+        (drop)="drop($event, false)"
+      >
+        <h2>À traiter <span>{{ todo().length }}</span></h2>
+        @if (todo().length) {
+          <div class="cards">
+            @for (job of todo(); track job.id) {
+              <app-job-card
+                draggable="true"
+                [job]="job"
+                [busy]="busy().has(job.id)"
+                (dragstart)="dragStart($event, job)"
+                (dragend)="dragEnd()"
+                (appliedChange)="setApplied(job, $event)"
+                (remove)="remove(job)"
+              />
+            }
+          </div>
+        } @else {
+          <p class="hint">{{ filtered() ? 'Aucune offre à traiter pour ces filtres.' : 'Tout est traité. Bien joué.' }}</p>
+        }
+      </section>
+
+      <section
+        class="column applied"
+        [class.target]="dropTarget() === true"
+        (dragover)="dragOver($event, true)"
+        (dragleave)="dropTarget.set(null)"
+        (drop)="drop($event, true)"
+      >
+        <h2>Postulées <span>{{ applied().length }}</span></h2>
+        @if (applied().length) {
+          <div class="cards">
+            @for (job of applied(); track job.id) {
+              <app-job-card
+                draggable="true"
+                [job]="job"
+                [busy]="busy().has(job.id)"
+                (dragstart)="dragStart($event, job)"
+                (dragend)="dragEnd()"
+                (appliedChange)="setApplied(job, $event)"
+                (remove)="remove(job)"
+              />
+            }
+          </div>
+        } @else {
+          <p class="hint">
+            {{ filtered() ? 'Aucune candidature pour ces filtres.' : 'Glissez une offre ici une fois votre candidature envoyée.' }}
+          </p>
+        }
+      </section>
+    </div>
+  }
+} @else if (!error()) {
+  <p class="loading">Chargement de vos offres…</p>
+}

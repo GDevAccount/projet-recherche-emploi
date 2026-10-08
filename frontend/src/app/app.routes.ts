@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 
 import { authGuard, loginGuard } from './core/auth.guard';
 import { JOBS_PATH, LOGIN_PATH, PROFILE_PATH, REJECTED_PATH } from './core/paths';
+import { JobsComponent } from './jobs/jobs.component';
 import { LoginComponent } from './login/login.component';
 import { ProfileComponent } from './profile/profile.component';
 import { ShellComponent } from './shell/shell.component';
@@ -16,14 +17,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       { path: '', pathMatch: 'full', redirectTo: JOBS_PATH },
-      {
-        path: JOBS_PATH,
-        component: UpcomingComponent,
-        data: {
-          title: 'Vos offres retenues',
-          text: 'Les annonces qui correspondent à votre profil, et le suivi de vos candidatures.',
-        },
-      },
+      { path: JOBS_PATH, component: JobsComponent },
       {
         path: REJECTED_PATH,
         component: UpcomingComponent,
