@@ -144,6 +144,11 @@ def test_secrets_hold_the_streamlit_auth_section():
     }
 
 
+def test_cookie_secret_alone_does_not_ask_for_google_login():
+    # Une instance protégée par mot de passe le définit pour les sessions de l'API
+    assert build_secrets(Settings(auth_cookie_secret="secret", app_password="sesame")) is None
+
+
 @pytest.mark.parametrize("missing", list(GOOGLE_SETTINGS))
 def test_incomplete_google_configuration_is_an_error(missing):
     settings = Settings(**{name: value for name, value in GOOGLE_SETTINGS.items() if name != missing})

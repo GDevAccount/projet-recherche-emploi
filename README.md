@@ -74,7 +74,12 @@ La même commande a d'autres usages :
 
 ## API
 
-Une API [FastAPI](https://fastapi.tiangolo.com/) expose les mêmes fonctions que l'interface. Elle est destinée au futur front Angular, qui remplacera Streamlit. Elle n'est pas encore déployée : l'instance en ligne ne sert que l'interface Streamlit.
+Une API [FastAPI](https://fastapi.tiangolo.com/) expose les mêmes fonctions que l'interface. Elle est destinée au futur front Angular, qui remplacera Streamlit.
+
+Elle est servie de deux façons :
+
+- **avec l'interface**, à la même adresse et sous `/api` : `streamlit run …/ui/server.py` lance les deux dans un seul processus. C'est le cas de l'instance en ligne (`https://<instance>/api/health`). Seules les routes sous `/api` sont alors exposées, pas la documentation interactive ;
+- **seule**, pour développer le front ou lire sa documentation, avec la commande ci-dessous.
 
 ```bash
 uv run projet-recherche-emploi api
@@ -384,7 +389,7 @@ src/projet_recherche_emploi/
 ├── container.py         # assemblage : relie réglages, base, graph et services
 ├── cli.py               # commande projet-recherche-emploi
 ├── ui/                  # interface Streamlit, seule couche qui importe streamlit
-│   ├── server.py        # point d'entrée : l'interface, plus les pages publiques
+│   ├── server.py        # point d'entrée : l'interface, l'API sous /api et les pages publiques
 │   ├── app.py           # page principale
 │   ├── auth.py          # connexion : Google, ou mot de passe unique
 │   ├── views.py         # écrans : CV, recherches, offres, pages rejetées

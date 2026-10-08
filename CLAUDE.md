@@ -8,9 +8,9 @@ Toutes se lancent depuis la racine du projet, car `jobs.db` et `cv.pdf` sont des
 
 ```bash
 uv sync                                                   # installer les dépendances
-uv run streamlit run src/projet_recherche_emploi/ui/server.py   # interface
+uv run streamlit run src/projet_recherche_emploi/ui/server.py   # interface, et API sous /api
 uv run projet-recherche-emploi                            # recherche seule, sans interface
-uv run projet-recherche-emploi api                        # API sur http://127.0.0.1:8000 (documentation : /docs)
+uv run projet-recherche-emploi api                        # API seule sur http://127.0.0.1:8000 (documentation : /docs)
 uv run projet-recherche-emploi graph                      # régénérer graph.png (service en ligne mermaid.ink)
 uv run projet-recherche-emploi migrate                    # créer la base ou l'amener au dernier schéma
 uv add <paquet>                                           # ajouter une dépendance
@@ -28,7 +28,7 @@ Les clés `TAVILY_API_KEY` et `OPENAI_API_KEY` sont lues dans `.env` (modèle : 
 
 Les autres variables sont les champs de `Settings` (`config.py`), tous facultatifs : `DATA_DIR` déplace `jobs.db` et `cv.pdf` vers un volume (voir `Dockerfile`), `APP_PASSWORD` active la demande de mot de passe. Comme `.env.example` contient `APP_PASSWORD`, l'interface locale demande aussi le mot de passe, sauf si la ligne est vide ou absente. `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_COOKIE_SECRET`, `AUTH_REDIRECT_URI` et `OWNER_EMAIL` activent ensemble la connexion Google, `ALLOWED_EMAILS` liste les invités, ou vaut `*` pour accepter tout compte Google (voir le README). `CORS_ORIGINS` liste les sites autorisés à appeler l'API depuis un navigateur. `AUTH_COOKIE_SECRET` signe aussi le cookie de session de l'API, même sans connexion Google.
 
-L'instance en ligne tourne sur Fly.io (`fly.toml`) et ne sert que l'interface Streamlit : l'API n'est pas déployée. Elle est publiée automatiquement à chaque push sur `main` par `.github/workflows/fly-deploy.yml`, après le linter et les tests ; `fly deploy` reste possible à la main, sans ce contrôle. Les clés API et `APP_PASSWORD` y sont des secrets Fly, pas un `.env`. Le jeton utilisé par le workflow est le secret GitHub `FLY_API_TOKEN`.
+L'instance en ligne tourne sur Fly.io (`fly.toml`) et sert, dans un seul processus et à une seule adresse, l'interface Streamlit et l'API sous `/api`. Elle est publiée automatiquement à chaque push sur `main` par `.github/workflows/fly-deploy.yml`, après le linter et les tests ; `fly deploy` reste possible à la main, sans ce contrôle. Les clés API et `APP_PASSWORD` y sont des secrets Fly, pas un `.env`. Le jeton utilisé par le workflow est le secret GitHub `FLY_API_TOKEN`.
 
 ## Architecture
 
@@ -48,7 +48,7 @@ ui/   api/   cli.py        interfaces : aucune règle métier
 
 - `container.py` est le seul endroit où les objets sont reliés. `Container` crée la base, le stockage des CV, le graph et les services ; `get_container()` renvoie celui du processus, `build_container()` en construit un autre (tests). Un service ou un nœud reçoit ce dont il a besoin à sa construction : il n'importe ni chemin de base ni client.
 - `ui/` est l'interface Streamlit, seule couche autorisée à importer `streamlit`. Elle est provisoire : le front Angular la remplacera, branché sur `api/`.
-  - `server.py` est le point d'entrée lancé par `streamlit run` : il enveloppe `app.py` dans un `st.App` et y ajoute les routes de `api/public_pages.py`. Lancer `app.py` directement fonctionne encore, mais sans ces routes.
+  - `server.py` est le point d'entrée lancé par `streamlit run` : il enveloppe `app.py` dans un `st.App` et y ajoute l'API (`ApiRoute` de `api/main.py`) et les routes de `api/public_pages.py`. Lancer `app.py` directement fonctionne encore, mais sans ces routes.
   - `auth.py` identifie l'utilisateur de la session, `views.py` contient les écrans.
   - `auth_secrets.py` écrit `.streamlit/secrets.toml` à partir des réglages ; il est lancé avant Streamlit par le `Dockerfile`.
 - `api/` est l'API FastAPI, seule couche autorisée à importer `fastapi`. `main.py` construit l'application (`create_app`) et traduit les erreurs en codes HTTP, `security.py` identifie l'appelant, `routers/` contient les routes, toutes sous `/api`. `public_pages.py` sert les pages légales en HTML simple, parce que les robots de Google ne lisent pas une page qui demande du JavaScript.
@@ -70,6 +70,7 @@ ui/   api/   cli.py        interfaces : aucune règle métier
 - **La première migration ne crée que les tables manquantes.** Avant Alembic, chaque dépôt créait sa table à son premier usage : une base ancienne peut ne pas avoir `users` ni `search_runs`. `0001_schema_initial.py` teste donc chaque table. Les migrations suivantes n'ont pas à le faire.
 - **Les colonnes gardent les types d'avant SQLAlchemy.** Les dates sont du texte UTC au format de `CURRENT_TIMESTAMP`, les booléens des entiers : `UtcDateTime` et `IntBool` de `models.py` font la conversion. Utiliser ces deux types pour toute nouvelle colonne de date ou de booléen, sinon les comparaisons de dates en texte ne tiennent plus.
 - **Toute requête SQL doit filtrer sur `user_id`.** Chaque dépôt reçoit la session et l'utilisateur à sa création (`JobRepository(session, user_id)`) et ne lit ni ne modifie que ses lignes. Une requête écrite sans `user_id` montrerait les données d'un utilisateur à un autre : `tests/test_user_isolation.py` couvre chaque méthode publique, ajouter un cas pour toute nouvelle méthode. Seul `UserRepository` n'a pas d'utilisateur. Sans connexion Google, l'utilisateur est `DEFAULT_USER_ID` (1) : l'application reste mono-utilisateur.
+- **L'API en ligne est servie par Streamlit.** `ui/server.py` construit l'API avec `create_app()` et la confie au serveur de Streamlit par `ApiRoute`, qui ne laisse passer que les chemins sous `/api` : la documentation (`/docs`) n'est donc pas exposée en ligne. L'interface et l'API partagent le même conteneur, donc les mêmes réglages et la même base. Ne pas les séparer en deux processus ou deux machines tant que la base est un fichier SQLite. Les middlewares de Streamlit s'appliquent aussi aux requêtes de l'API.
 - **Toute route de l'API passe par `UserId`.** C'est la dépendance de `api/security.py` qui identifie l'appelant ; une route sans elle serait ouverte à tous. `test_api.py` liste les routes protégées et échoue si une route n'y figure pas. Sans connexion Google ni `APP_PASSWORD`, l'API refuse tout (503) : ne pas lui donner d'accès par défaut à l'utilisateur 1.
 - **Le cookie de session de l'API porte une adresse, pas un utilisateur.** `POST /api/session` échange un jeton Google (ou `APP_PASSWORD`) contre un jeton signé par `AuthService` avec `AUTH_COOKIE_SECRET`, posé dans un cookie `HttpOnly`. Chaque requête repasse par `resolve_user_id` : ne pas y mettre l'identifiant de l'utilisateur, sinon un invité retiré de `ALLOWED_EMAILS` garderait son accès 30 jours. Une session ne s'ouvre qu'avec l'en-tête `Authorization`, jamais avec un cookie, pour qu'un cookie volé ne puisse pas se prolonger.
 - **Une route qui modifie des données n'utilise pas `GET`.** Avec le cookie, `_check_origin` de `api/security.py` refuse les requêtes venues d'un autre site, sauf pour `GET`, `HEAD` et `OPTIONS`, supposées sans effet.
