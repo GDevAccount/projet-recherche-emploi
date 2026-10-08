@@ -11,8 +11,8 @@ from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from langchain_tavily import TavilySearch
 
-from projet_recherche_emploi.agent.ports import JobEvaluation
-from projet_recherche_emploi.agent.prompts import FILTER_PROMPT
+from projet_recherche_emploi.agent.ports import JobEvaluation, SearchCriteria
+from projet_recherche_emploi.agent.prompts import FILTER_PROMPT, describe_area_rule, describe_sought_jobs
 from projet_recherche_emploi.agent.state import FoundPage
 from projet_recherche_emploi.config import FILTER_MODEL, JOB_SITES, MAX_PAGE_CHARS
 
@@ -52,12 +52,16 @@ class OpenAIJobEvaluator:
     def _chat_model(self) -> BaseChatModel:
         return self._injected_chat_model or ChatOpenAI(model=FILTER_MODEL)
 
-    def evaluate(self, cv: str, pages: Sequence[FoundPage]) -> Iterator[tuple[int, JobEvaluation]]:
+    def evaluate(
+        self, cv: str, criteria: SearchCriteria, pages: Sequence[FoundPage]
+    ) -> Iterator[tuple[int, JobEvaluation]]:
         evaluator = FILTER_PROMPT | self._chat_model.with_structured_output(JobEvaluation)
         yield from evaluator.batch_as_completed(
             [
                 {
                     "cv": cv,
+                    "sought_jobs": describe_sought_jobs(criteria.sought_jobs),
+                    "area_rule": describe_area_rule(criteria.accepted_areas),
                     "title": page["title"],
                     "url": page["url"],
                     "page": (page.get("raw_content") or page["content"])[:MAX_PAGE_CHARS],

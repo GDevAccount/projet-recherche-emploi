@@ -64,6 +64,7 @@ class Job(Base):
     content: Mapped[str | None] = mapped_column(Text)
     score: Mapped[float | None] = mapped_column(REAL)
     contract_type: Mapped[str | None] = mapped_column(Text)
+    work_location: Mapped[str | None] = mapped_column(Text)
     query: Mapped[str | None] = mapped_column(Text)
     match_reason: Mapped[str | None] = mapped_column(Text)
     applied: Mapped[bool] = mapped_column(IntBool, server_default=text("0"))
@@ -84,6 +85,14 @@ class RejectedJob(Base):
     query: Mapped[str | None] = mapped_column(Text)
     is_real_offer: Mapped[bool] = mapped_column(IntBool)
     matches_cv: Mapped[bool] = mapped_column(IntBool)
+    # Détail du verdict, vide pour les pages rejetées avant qu'il soit enregistré critère par critère.
+    # matches_cv réunit les compétences et le niveau.
+    matches_search: Mapped[bool | None] = mapped_column(IntBool)
+    matches_contract: Mapped[bool | None] = mapped_column(IntBool)
+    matches_skills: Mapped[bool | None] = mapped_column(IntBool)
+    matches_level: Mapped[bool | None] = mapped_column(IntBool)
+    matches_location: Mapped[bool | None] = mapped_column(IntBool)
+    work_location: Mapped[str | None] = mapped_column(Text)
     reject_reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
 
@@ -92,12 +101,16 @@ class SearchQuery(Base):
     """Poste recherché. Une recherche est unique par utilisateur : deux utilisateurs peuvent enregistrer la même."""
 
     __tablename__ = "search_queries"
-    __table_args__ = (UniqueConstraint("user_id", "query"),)
+    __table_args__ = (UniqueConstraint("user_id", "query", "location", "remote"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, server_default=text(str(DEFAULT_USER_ID)))
     contract_type: Mapped[str] = mapped_column(Text)
     query: Mapped[str] = mapped_column(Text)
+    # Vide : toute la France
+    location: Mapped[str] = mapped_column(Text, server_default=text("''"))
+    # Télétravail complet : le lieu ne compte plus
+    remote: Mapped[bool] = mapped_column(IntBool, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
 
 

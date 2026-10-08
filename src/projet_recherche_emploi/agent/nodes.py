@@ -1,13 +1,16 @@
 import logging
+import unicodedata
+from collections.abc import Iterable
 
 from langgraph.config import get_stream_writer
 
-from projet_recherche_emploi.agent.ports import JobEvaluation, JobEvaluator, JobSearchEngine
+from projet_recherche_emploi.agent.ports import JobEvaluation, JobEvaluator, JobSearchEngine, SearchCriteria
 from projet_recherche_emploi.agent.state import JobSearchState
-from projet_recherche_emploi.config import DEFAULT_USER_ID
+from projet_recherche_emploi.config import DEFAULT_USER_ID, FULL_REMOTE_MODE, TRAINING_CONTRACTS
 from projet_recherche_emploi.data.cv_storage import CvStorage
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.job_repository import JobRepository
+from projet_recherche_emploi.data.models import SearchQuery
 from projet_recherche_emploi.data.query_repository import QueryRepository
 from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
 
@@ -19,11 +22,139 @@ def get_user_id(state: JobSearchState) -> int:
     return state.get("user_id", DEFAULT_USER_ID)
 
 
-def build_search_text(contract_type: str, query: str) -> str:
-    """Renvoie le texte envoyé au moteur de recherche : la recherche, avec son type de contrat s'il n'y est pas."""
-    if contract_type.casefold() in query.casefold():
-        return query
-    return f"{query} {contract_type}"
+REMOTE_SEARCH_WORDS = "télétravail complet"
+# Une recherche qui contient l'un de ces mots parle déjà de télétravail
+REMOTE_MARKERS = ("remote", "télétravail")
+ANYWHERE_IN_FRANCE = "toute la France"
+REMOTE_LABEL = "Remote"
+LOCATION_REJECT_REASON = "Lieu de travail hors des lieux recherchés"
+UNKNOWN_PLACE = "lieu non précisé"
+CONTRACT_REJECT_REASON = "Contrat non recherché"
+RESTRICTED_REMOTE_REASON = "Télétravail réservé aux candidats d'un pays ou d'une zone sans la France"
+
+
+def _fold(text: str) -> str:
+    # « Ile-de-France » et « Île-de-France » sont le même lieu
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(char for char in decomposed if not unicodedata.combining(char)).casefold()
+
+
+def build_search_text(contract_type: str, query: str, location: str = "", remote: bool = False) -> str:
+    """Renvoie le texte envoyé au moteur de recherche.
+
+    C'est la recherche, suivie de son type de contrat et de son lieu (ou du télétravail) s'ils n'y sont pas déjà.
+    """
+    folded_query = _fold(query)
+    parts = [query]
+    if _fold(contract_type) not in folded_query:
+        parts.append(contract_type)
+    if remote:
+        if not any(_fold(marker) in folded_query for marker in REMOTE_MARKERS):
+            parts.append(REMOTE_SEARCH_WORDS)
+    elif location and _fold(location) not in folded_query:
+        parts.append(location)
+    return " ".join(parts)
+
+
+def describe_accepted_areas(queries: Iterable[SearchQuery]) -> str:
+    """Renvoie les zones géographiques acceptées par l'ensemble des recherches, ou un texte vide s'il n'y en a pas.
+
+    Un verdict est mémorisé par URL, pas par recherche : une page est donc jugée sur toutes les zones à la fois.
+    Les recherches en télétravail complet n'en donnent aucune : voir accepts_full_remote.
+    """
+    areas = []
+    for query in queries:
+        if query.remote:
+            continue
+        if not query.location:
+            # Une seule recherche sans lieu couvre les villes de toutes les autres
+            return ANYWHERE_IN_FRANCE
+        if query.location not in areas:
+            areas.append(query.location)
+    return " ; ".join(areas)
+
+
+def accepts_full_remote(queries: Iterable[SearchQuery]) -> bool:
+    """Dit si l'une des recherches accepte le télétravail complet, sans condition de pays."""
+    return any(query.remote for query in queries)
+
+
+def build_criteria(queries: Iterable[SearchQuery]) -> SearchCriteria:
+    """Réunit ce que cherchent toutes les recherches enregistrées : métiers, contrats et lieux."""
+    queries = list(queries)
+    return SearchCriteria(
+        sought_jobs=tuple(query.query for query in queries),
+        contract_types=frozenset(query.contract_type for query in queries),
+        accepted_areas=describe_accepted_areas(queries),
+        accepts_full_remote=accepts_full_remote(queries),
+    )
+
+
+def contract_is_accepted(contract_type: str | None, searched_contract_types: Iterable[str]) -> bool:
+    """Écarte un stage ou une alternance que personne n'a demandé. Tout autre contrat passe.
+
+    Une recherche de CDI ramène aussi des missions, et l'inverse : seuls les contrats de formation sont tranchés.
+    """
+    return contract_type not in TRAINING_CONTRACTS or contract_type in searched_contract_types
+
+
+def judge(evaluation: JobEvaluation, criteria: SearchCriteria) -> dict[str, bool]:
+    """Renvoie le verdict critère par critère : l'offre est retenue si tous sont vrais.
+
+    Le modèle donne son avis sur le métier, les compétences et le niveau ; le contrat et le lieu sont des règles.
+    """
+    return {
+        "is_real_offer": evaluation.is_real_offer,
+        "matches_search": evaluation.matches_search,
+        "matches_contract": contract_is_accepted(evaluation.contract_type, criteria.contract_types),
+        "matches_skills": evaluation.matches_skills,
+        "matches_level": evaluation.matches_level,
+        "matches_location": location_is_accepted(evaluation, criteria.accepted_areas, criteria.accepts_full_remote),
+    }
+
+
+def describe_rejection(evaluation: JobEvaluation, verdict: dict[str, bool], criteria: SearchCriteria) -> str:
+    """Renvoie la raison du rejet : celle du modèle, précédée des règles du graph qui écartent l'offre."""
+    reasons = []
+    if evaluation.is_real_offer and not verdict["matches_contract"]:
+        reasons.append(f"{CONTRACT_REJECT_REASON} ({evaluation.contract_type})")
+    if evaluation.is_real_offer and not verdict["matches_location"]:
+        reasons.append(describe_location_rejection(evaluation, criteria.accepts_full_remote))
+    return ". ".join([*reasons, evaluation.reason])
+
+
+def location_is_accepted(evaluation: JobEvaluation, accepted_areas: str, accepts_remote: bool) -> bool:
+    """Applique les règles de lieu aux faits lus sur la page : le modèle les rapporte, il ne décide pas."""
+    if accepts_remote and is_open_remote(evaluation):
+        # Le télétravail complet n'a pas de frontière : l'employeur peut être à l'étranger
+        return True
+    # Sans recherche en télétravail, un poste à distance reste accepté si l'employeur est dans une zone.
+    # Sans zone acceptée, l'avis du modèle sur la géographie ne vaut rien.
+    return bool(accepted_areas) and evaluation.in_accepted_area
+
+
+def is_open_remote(evaluation: JobEvaluation) -> bool:
+    """Dit si le poste est en télétravail complet et ouvert à un candidat qui vit en France."""
+    return evaluation.work_mode == FULL_REMOTE_MODE and evaluation.open_to_candidates_in_france
+
+
+def describe_location_rejection(evaluation: JobEvaluation, accepts_remote: bool) -> str:
+    """Renvoie la raison affichée quand c'est le lieu qui écarte une offre."""
+    restricted = evaluation.work_mode == FULL_REMOTE_MODE and not evaluation.open_to_candidates_in_france
+    if accepts_remote and restricted:
+        return RESTRICTED_REMOTE_REASON
+    return f"{LOCATION_REJECT_REASON} ({format_work_location(evaluation) or UNKNOWN_PLACE})"
+
+
+def format_work_location(evaluation: JobEvaluation) -> str | None:
+    """Renvoie le lieu affiché pour une offre : sa ville, ou « Remote » pour un poste en télétravail complet."""
+    place = [evaluation.work_city] if evaluation.work_city else []
+    if evaluation.work_country and _fold(evaluation.work_country) != "france":
+        place.append(evaluation.work_country)
+    place_text = ", ".join(place)
+    if evaluation.work_mode == FULL_REMOTE_MODE:
+        return f"{REMOTE_LABEL} ({place_text})" if place_text else REMOTE_LABEL
+    return place_text or None
 
 
 class SearchNodes:
@@ -43,9 +174,11 @@ class SearchNodes:
 
     def search_jobs(self, state: JobSearchState) -> dict:
         with self.database.session() as session:
+            saved_queries = QueryRepository(session, get_user_id(state)).list_queries()
+            criteria = build_criteria(saved_queries)
             queries = [
-                (query.contract_type, query.query)
-                for query in QueryRepository(session, get_user_id(state)).list_queries()
+                (query.query, build_search_text(query.contract_type, query.query, query.location, query.remote))
+                for query in saved_queries
             ]
         if not queries:
             logger.warning("Aucune recherche enregistrée en base : rien à chercher")
@@ -53,8 +186,7 @@ class SearchNodes:
         write_progress = get_stream_writer()
 
         jobs_by_url = {}
-        for index, (contract_type, query) in enumerate(queries):
-            search_text = build_search_text(contract_type, query)
+        for index, (query, search_text) in enumerate(queries):
             write_progress(
                 {
                     "message": f"Recherche Tavily {index + 1}/{len(queries)} : {search_text}",
@@ -75,7 +207,7 @@ class SearchNodes:
                     },
                 )
 
-        return {"jobs": list(jobs_by_url.values())}
+        return {"jobs": list(jobs_by_url.values()), "criteria": criteria}
 
     def filter_duplicates(self, state: JobSearchState) -> dict:
         # Écarter les pages déjà évaluées avant le filtre évite de payer un appel au modèle pour rien.
@@ -105,28 +237,29 @@ class SearchNodes:
 
         # Les réponses arrivent dans le désordre : l'indice les remet en face de leur offre
         evaluations: list[JobEvaluation | None] = [None] * len(jobs)
-        for done, (index, evaluation) in enumerate(self.evaluator.evaluate(cv_content, jobs), start=1):
+        criteria = state["criteria"]
+        for done, (index, evaluation) in enumerate(self.evaluator.evaluate(cv_content, criteria, jobs), start=1):
             evaluations[index] = evaluation
-            write_progress(
-                {"message": f"Évaluation par OpenAI {done}/{len(jobs)}", "done": done, "total": len(jobs)}
-            )
+            write_progress({"message": f"Évaluation par OpenAI {done}/{len(jobs)}", "done": done, "total": len(jobs)})
 
         filtered_jobs = []
         rejected_jobs = []
         for job, evaluation in zip(jobs, evaluations, strict=True):
-            # Le contrat enregistré est celui de la page : une recherche de CDI ramène aussi des missions
-            job = {**job, "contract_type": evaluation.contract_type}
-            if evaluation.is_real_offer and evaluation.matches_cv:
+            # Le contrat et le lieu enregistrés sont ceux de la page : une recherche de CDI ramène aussi des missions
+            work_location = format_work_location(evaluation)
+            job = {**job, "contract_type": evaluation.contract_type, "work_location": work_location}
+            verdict = judge(evaluation, criteria)
+            if all(verdict.values()):
                 filtered_jobs.append({**job, "match_reason": evaluation.reason})
-            else:
-                rejected_jobs.append(
-                    {
-                        **job,
-                        "is_real_offer": evaluation.is_real_offer,
-                        "matches_cv": evaluation.matches_cv,
-                        "reject_reason": evaluation.reason,
-                    }
-                )
+                continue
+            rejected_jobs.append(
+                {
+                    **job,
+                    **verdict,
+                    "matches_cv": verdict["matches_skills"] and verdict["matches_level"],
+                    "reject_reason": describe_rejection(evaluation, verdict, criteria),
+                }
+            )
         return {"filtered_jobs": filtered_jobs, "rejected_jobs": rejected_jobs}
 
     def insert_jobs(self, state: JobSearchState) -> dict:

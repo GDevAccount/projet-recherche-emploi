@@ -16,6 +16,8 @@ class JobRead(_FromRow):
     content: str | None
     score: float | None
     contract_type: str | None
+    # Ville lue sur l'annonce, ou « Remote » pour un poste en télétravail complet
+    work_location: str | None
     query: str | None
     match_reason: str | None
     applied: bool
@@ -30,6 +32,13 @@ class RejectedJobRead(_FromRow):
     query: str | None
     is_real_offer: bool
     matches_cv: bool
+    # Détail du verdict : None pour les pages rejetées avant qu'il soit enregistré critère par critère
+    matches_search: bool | None
+    matches_contract: bool | None
+    matches_skills: bool | None
+    matches_level: bool | None
+    matches_location: bool | None
+    work_location: str | None
     reject_reason: str | None
     created_at: datetime
 
@@ -38,6 +47,10 @@ class SearchQueryRead(_FromRow):
     id: int
     contract_type: str
     query: str
+    # Vide : toute la France
+    location: str
+    # Télétravail complet, sans condition de lieu
+    remote: bool
     created_at: datetime
 
 

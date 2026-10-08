@@ -22,6 +22,12 @@ SESSION_DAYS = 30
 ContractType = Literal["CDI", "freelance", "CDD", "alternance", "stage"]
 CONTRACT_TYPES = list(get_args(ContractType))
 
+WorkMode = Literal["sur site", "hybride", "télétravail complet"]
+FULL_REMOTE_MODE = "télétravail complet"
+
+# Contrats de formation : une offre de ce type n'est retenue que si une recherche le demande
+TRAINING_CONTRACTS = ("stage", "alternance")
+
 # Sites auxquels la recherche Tavily est limitée
 JOB_SITES = [
     "welcometothejungle.com",
@@ -53,12 +59,15 @@ JOB_SITES = [
 FILTER_MODEL = "gpt-5-mini"
 MAX_PAGE_CHARS = 8000
 
-# Recherches enregistrées en base à sa création, modifiables ensuite
+# Recherches enregistrées en base à sa création, modifiables ensuite.
+# Une phrase nomme un métier et ses spécialités : le filtre ne retient que les offres de ce métier.
+# Ni contrat ni lieu, qui sont ajoutés au texte envoyé au moteur de recherche. Ces recherches reçoivent
+# l'Île-de-France pour lieu (migration 0003). L'intitulé anglais ramène les annonces rédigées en anglais.
 DEFAULT_QUERIES = [
-    ("CDI", "offre d'emploi ingénieur IA en CDI en Ile-de-France"),
-    ("CDI", "offre d'emploi AI engineer LLM en CDI en Ile-de-France"),
-    ("freelance", "mission freelance AI engineer en Ile-de-France"),
-    ("freelance", "mission freelance ingénieur intelligence artificielle"),
+    ("CDI", "ingénieur IA générative LLM RAG"),
+    ("CDI", "AI engineer LLM agents"),
+    ("freelance", "mission ingénieur IA générative LLM RAG"),
+    ("freelance", "mission AI engineer LLM agents"),
 ]
 
 

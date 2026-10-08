@@ -93,6 +93,17 @@ def test_each_user_has_their_own_rejections(session):
     assert alice.list_known_urls() == {"https://r/1", "https://r/2"}
 
 
+def test_search_dependent_rejections_are_forgotten_per_user(session):
+    alice, bob = RejectedJobRepository(session, ALICE), RejectedJobRepository(session, BOB)
+    out_of_area = {**rejected_job("https://r/1"), "matches_cv": True, "matches_location": False}
+    alice.insert_rejected_jobs([out_of_area])
+    bob.insert_rejected_jobs([out_of_area, rejected_job("https://r/2")])
+
+    assert bob.clear_search_dependent_rejections() == 1
+    assert bob.list_known_urls() == {"https://r/2"}
+    assert alice.list_known_urls() == {"https://r/1"}
+
+
 def test_default_queries_go_to_the_first_user_only(session):
     assert QueryRepository(session, BOB).list_queries() == []
 
@@ -108,6 +119,8 @@ def test_each_user_has_their_own_queries(session):
     created = bob.add_query(alice_query.contract_type, alice_query.query)
     assert created.id != alice_query.id
     assert bob.add_query(alice_query.contract_type, alice_query.query) is None
+    # La même phrase pour un autre lieu est une autre recherche
+    assert bob.delete_query(bob.add_query(alice_query.contract_type, alice_query.query, "Lyon").id) is True
     assert len(bob.list_queries()) == 1
 
     # Bob ne peut pas supprimer une recherche d'Alice en devinant son identifiant

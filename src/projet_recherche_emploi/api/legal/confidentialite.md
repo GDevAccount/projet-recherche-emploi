@@ -10,7 +10,7 @@ L'application est un projet personnel, exploité par un particulier. Pour toute 
 
 - **Votre adresse e-mail Google**, pour vous reconnaître d'une connexion à l'autre. Votre nom et votre photo de profil, transmis par Google à la connexion, ne sont pas enregistrés.
 - **Votre CV**, au format PDF, tel que vous l'avez déposé.
-- **Vos recherches** : les phrases de recherche et les types de contrat que vous enregistrez.
+- **Vos recherches** : les phrases de recherche, les types de contrat et les lieux que vous enregistrez.
 - **Les offres trouvées pour vous** : titre, lien, extrait, raison pour laquelle l'offre a été retenue, et le suivi que vous en faites (offre postulée, date, offre supprimée).
 - **Les pages écartées** : titre, lien et raison du rejet, pour ne pas les évaluer une seconde fois.
 - **La date de chaque recherche lancée**, pour appliquer la limite quotidienne.
@@ -24,8 +24,8 @@ Uniquement à faire fonctionner le service : vous connecter, chercher des offres
 ## À qui elles sont transmises
 
 - **Google**, pour la connexion. L'application reçoit de Google votre adresse e-mail et les informations de base de votre profil.
-- **OpenAI**, pour évaluer les offres. À chaque recherche, le texte de votre CV est envoyé à OpenAI avec le contenu de chaque page d'offre à évaluer.
-- **Tavily**, pour la recherche web. Seules vos phrases de recherche lui sont envoyées, pas votre CV.
+- **OpenAI**, pour évaluer les offres. À chaque recherche, le texte de votre CV, vos phrases de recherche et leurs lieux sont envoyés à OpenAI avec le contenu de chaque page d'offre à évaluer.
+- **Tavily**, pour la recherche web. Seules vos phrases de recherche, avec leur type de contrat et leur lieu, lui sont envoyées, pas votre CV.
 - **Fly.io**, qui héberge l'application et sa base de données, dans la région de Paris.
 
 OpenAI, Tavily et Google sont des sociétés établies aux États-Unis : ces transmissions impliquent un transfert de données hors de l'Union européenne.

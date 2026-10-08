@@ -25,14 +25,40 @@ class FakeEvaluator:
         self.evaluated = []
         # Contrat que le modèle est censé lire sur chaque page
         self.contract_type = "freelance"
+        # Lieu et mode de travail que le modèle est censé lire sur chaque page
+        self.work_city = "Lyon"
+        self.work_country = "France"
+        self.work_mode = "sur site"
+        # Son avis sur la géographie : le lieu est-il dans une zone acceptée
+        self.in_accepted_area = True
+        self.open_to_candidates_in_france = True
+        # Son avis sur le métier et le niveau ; les compétences, elles, ne conviennent qu'une page sur deux
+        self.matches_search = True
+        self.matches_level = True
+        # Ce que le graph lui a transmis des recherches de l'utilisateur
+        self.criteria = None
 
-    def evaluate(self, cv, pages):
+    def evaluate(self, cv, criteria, pages):
+        self.criteria = criteria
         for index, page in enumerate(pages):
             self.evaluated.append((cv, page["url"]))
             matches = page["url"].endswith("/0")
             reason = "ok" if matches else "hors profil"
-            yield index, JobEvaluation(
-                is_real_offer=True, matches_cv=matches, reason=reason, contract_type=self.contract_type
+            yield (
+                index,
+                JobEvaluation(
+                    is_real_offer=True,
+                    contract_type=self.contract_type,
+                    work_city=self.work_city,
+                    work_country=self.work_country,
+                    work_mode=self.work_mode,
+                    in_accepted_area=self.in_accepted_area,
+                    open_to_candidates_in_france=self.open_to_candidates_in_france,
+                    matches_search=self.matches_search,
+                    matches_skills=matches,
+                    matches_level=self.matches_level,
+                    reason=reason,
+                ),
             )
 
 

@@ -133,6 +133,8 @@ def test_queries_are_private_and_validated(client):
     created = client.post("/api/queries", headers=ALICE, json={"contract_type": "CDI", "query": " data engineer "})
 
     assert created.status_code == 201 and created.json()["query"] == "data engineer"
+    # Sans lieu ni télétravail, la recherche vaut pour toute la France
+    assert (created.json()["location"], created.json()["remote"]) == ("", False)
     assert [query["id"] for query in client.get("/api/queries", headers=ALICE).json()] == [created.json()["id"]]
     assert client.get("/api/queries", headers=BOB).json() == []
     assert len(client.get("/api/queries", headers=OWNER).json()) == len(DEFAULT_QUERIES)
@@ -141,6 +143,11 @@ def test_queries_are_private_and_validated(client):
     assert duplicate.status_code == 409 and duplicate.json() == {"detail": "Cette recherche existe déjà."}
     assert client.post("/api/queries", headers=ALICE, json={"contract_type": "CDI", "query": " "}).status_code == 422
     assert client.post("/api/queries", headers=ALICE, json={"contract_type": "?", "query": "x"}).status_code == 422
+
+    # La même phrase s'enregistre pour un autre lieu
+    elsewhere = client.post("/api/queries", headers=ALICE, json={**QUERY, "location": " Lyon "})
+    assert elsewhere.status_code == 201 and elsewhere.json()["location"] == "Lyon"
+    assert client.delete(f"/api/queries/{elsewhere.json()['id']}", headers=ALICE).status_code == 204
 
     query_path = f"/api/queries/{created.json()['id']}"
     assert client.delete(query_path, headers=BOB).status_code == 404
@@ -206,7 +213,7 @@ def test_search_is_streamed_then_counted(client, valid_pdf):
 
 def test_failed_search_ends_the_stream_with_an_error_without_leaking_its_cause(tmp_path, valid_pdf):
     class BrokenEvaluator:
-        def evaluate(self, cv, pages):
+        def evaluate(self, cv, criteria, pages):
             raise RuntimeError("clé sk-secrete refusée")
             yield
 

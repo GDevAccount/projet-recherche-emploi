@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from projet_recherche_emploi.data.models import Job
 
-INSERTED_FIELDS = ("url", "title", "content", "score", "contract_type", "query", "match_reason")
+INSERTED_FIELDS = ("url", "title", "content", "score", "contract_type", "work_location", "query", "match_reason")
 
 
 class JobRepository:

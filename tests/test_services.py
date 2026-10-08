@@ -198,3 +198,36 @@ def test_jobs_are_tracked_and_private(container):
     assert (saved.url, saved.applied) == ("https://a/1", True)
     assert saved.applied_at.tzinfo is not None and saved.created_at.tzinfo is not None
     assert container.jobs.list_jobs(CAROL) == []
+
+
+def test_query_is_saved_for_a_location_or_for_full_remote(container):
+    in_lyon = container.queries.add_query(BOB, "CDI", "data engineer", " Lyon ")
+    remote = container.queries.add_query(BOB, "CDI", "data engineer", "Lyon", remote=True)
+    anywhere = container.queries.add_query(BOB, "CDI", "data engineer")
+
+    # En télétravail complet, le lieu saisi est ignoré
+    assert [(query.location, query.remote) for query in (in_lyon, remote, anywhere)] == [
+        ("Lyon", False),
+        ("", True),
+        ("", False),
+    ]
+    with pytest.raises(ConflictError):
+        container.queries.add_query(BOB, "CDI", "data engineer", "Lyon")
+    with pytest.raises(InvalidInputError):
+        container.queries.add_query(BOB, "CDI", "data engineer", "x" * 101)
+
+
+def test_adding_a_query_forgets_the_rejections_that_depend_on_the_searches(container):
+    out_of_area = {**rejected_job("https://r/lieu"), "matches_cv": True, "matches_location": False}
+    other_job = {**rejected_job("https://r/metier"), "matches_cv": True, "matches_search": False}
+    internship = {**rejected_job("https://r/stage"), "matches_cv": True, "matches_contract": False}
+    # Un rejet dû au CV reste, même si le métier n'était pas le bon non plus
+    unfit = {**rejected_job("https://r/profil"), "matches_search": False}
+    with container.database.session() as session:
+        RejectedJobRepository(session, BOB).insert_rejected_jobs([unfit, out_of_area, other_job, internship])
+        RejectedJobRepository(session, CAROL).insert_rejected_jobs([out_of_area])
+
+    container.queries.add_query(BOB, "CDI", "data engineer", "Lyon")
+
+    assert [page.url for page in container.jobs.list_rejected_jobs(BOB)] == ["https://r/profil"]
+    assert len(container.jobs.list_rejected_jobs(CAROL)) == 1

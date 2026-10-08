@@ -29,9 +29,10 @@ def test_application_shows_the_offers_of_the_owner(app, container, valid_pdf):
     container.cv.save_cv(DEFAULT_USER_ID, valid_pdf)
     with container.database.session() as session:
         # La seconde offre vient d'une page qui ne dit pas son contrat
-        jobs = [job("https://a/1"), {**job("https://a/2"), "contract_type": None}]
+        jobs = [job("https://a/1"), {**job("https://a/2"), "contract_type": None, "work_location": None}]
         JobRepository(session, DEFAULT_USER_ID).insert_jobs(jobs)
-        RejectedJobRepository(session, DEFAULT_USER_ID).insert_rejected_jobs([rejected_job("https://r/1")])
+        out_of_area = {**rejected_job("https://r/2"), "matches_cv": True, "matches_location": False}
+        RejectedJobRepository(session, DEFAULT_USER_ID).insert_rejected_jobs([rejected_job("https://r/1"), out_of_area])
     first_job = container.jobs.list_jobs(DEFAULT_USER_ID)[0]
     container.jobs.set_applied(DEFAULT_USER_ID, first_job.id, True)
 
@@ -48,6 +49,12 @@ def test_application_shows_the_offers_of_the_owner(app, container, valid_pdf):
     # Une offre sans contrat reste visible : elle a sa propre valeur dans le filtre
     [contract_filter] = [field for field in app.multiselect if field.label == "Type de contrat"]
     assert contract_filter.value == ["CDI", "non précisé"]
+    # Les rejets dus au seul lieu ont leur propre motif
+    rejected_metrics = {metric.label: metric.value for metric in app.metric[3:]}
+    # Une page rejetée avant le verdict détaillé garde le motif général
+    assert rejected_metrics == {"Pages rejetées": "2", "Hors profil": "1", "Hors lieu recherché": "1"}
+    # Chaque recherche affiche son lieu
+    assert any("Île-de-France" in text.value for text in app.markdown)
 
 
 def test_search_button_is_disabled_without_cv(app):
