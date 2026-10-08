@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from helpers import job
 
@@ -153,3 +155,26 @@ def test_session_token_carries_the_profile_for_display_only(database):
         "https://lh3.googleusercontent.com/alice",
     )
     assert (auth.read_session_token(bare).name, auth.read_session_token(bare).picture) == (None, None)
+
+
+def test_activity_is_dated_once_a_day_not_at_every_request(database):
+    now = [datetime(2026, 10, 9, 8, 0, tzinfo=UTC)]
+    settings = Settings(owner_email="proprietaire@exemple.fr", allowed_emails="alice@exemple.fr")
+    auth = AuthService(settings, database, clock=lambda: now[0].timestamp())
+
+    def last_seen(user_id: int) -> datetime:
+        with database.session() as session:
+            return next(user.last_seen_at for user in UserRepository(session).list_users() if user.id == user_id)
+
+    alice = auth.resolve_user_id("alice@exemple.fr", True)
+    first = last_seen(alice)
+    assert first is not None
+
+    # Dans la journée, la date n'est pas récrite
+    now[0] += timedelta(hours=5)
+    auth.resolve_user_id("alice@exemple.fr", True)
+    assert last_seen(alice) == first
+
+    now[0] += timedelta(days=40)
+    auth.resolve_user_id("alice@exemple.fr", True)
+    assert last_seen(alice) == now[0]

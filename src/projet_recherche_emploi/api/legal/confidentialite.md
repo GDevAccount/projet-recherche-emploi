@@ -14,6 +14,7 @@ L'application est un projet personnel, exploité par un particulier. Pour toute 
 - **Les offres trouvées pour vous** : titre, lien, extrait, type de contrat et lieu lus sur l'annonce, raison pour laquelle l'offre a été retenue, et le suivi que vous en faites (offre postulée, date, offre supprimée).
 - **Les pages écartées** : titre, lien, type de contrat et lieu lus sur la page, raison du rejet et critères en défaut, pour ne pas les évaluer une seconde fois.
 - **La date de chaque recherche lancée**, pour appliquer la limite quotidienne.
+- **La date de votre dernière utilisation**, au jour près, pour supprimer les comptes qui ne servent plus.
 
 L'application n'utilise aucun outil de mesure d'audience ni de publicité. Elle dépose un seul cookie, nécessaire pour maintenir votre connexion. Votre choix de thème, clair ou sombre, est gardé dans votre navigateur et n'est pas envoyé au serveur. L'écran de connexion affiche le bouton « Se connecter avec Google », chargé depuis les serveurs de Google, qui peut déposer ses propres cookies.
 
@@ -34,7 +35,9 @@ Ces quatre sociétés sont établies aux États-Unis. Les données hébergées p
 
 ## Durée de conservation
 
-Vos données sont conservées tant que votre compte existe. Si votre accès est retiré, vous ne pouvez plus vous connecter, mais vos données restent enregistrées jusqu'à ce que vous en demandiez la suppression. Tant que vous avez accès à l'application, vous pouvez supprimer votre compte vous-même.
+Vos données sont conservées tant que vous utilisez l'application. Un compte resté {inactive_months} mois sans utilisation est supprimé automatiquement, avec tout ce qu'il contient : adresse e-mail, CV, recherches, offres et pages écartées. Vous n'en êtes pas prévenu, l'application n'envoyant aucun e-mail.
+
+Si votre accès est retiré, vous ne pouvez plus vous connecter : votre compte est supprimé au terme de ce même délai, ou plus tôt si vous le demandez. Tant que vous avez accès à l'application, vous pouvez supprimer votre compte vous-même.
 
 Avant certaines mises à jour de l'application, une copie de sauvegarde de la base de données est faite et conservée au même endroit. La suppression d'un compte retire aussi ses données de ces copies.
 

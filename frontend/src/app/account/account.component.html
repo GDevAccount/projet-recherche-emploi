@@ -37,6 +37,9 @@
       <li>Les offres retenues pour vous, et le suivi de vos candidatures.</li>
       <li>Les pages écartées et la raison de leur rejet.</li>
       <li>La date de chacune de vos recherches.</li>
+      @if (account.email && !account.is_owner) {
+        <li>La date de votre dernière utilisation : un compte resté un an sans servir est supprimé.</li>
+      }
     </ul>
     <p class="note">
       Le détail, et ce qui est transmis à d'autres services, est dans les

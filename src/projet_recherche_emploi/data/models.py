@@ -122,6 +122,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str | None] = mapped_column(Text, unique=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+    # Dernière requête identifiée, au jour près : sert à supprimer les comptes inactifs
+    last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
 
 
 class SearchRun(Base):
