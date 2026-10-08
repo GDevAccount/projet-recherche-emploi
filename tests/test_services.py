@@ -232,3 +232,22 @@ def test_adding_a_query_forgets_the_rejections_that_depend_on_the_searches(conta
 
     assert [page.url for page in container.jobs.list_rejected_jobs(BOB)] == ["https://r/profil"]
     assert len(container.jobs.list_rejected_jobs(CAROL)) == 1
+
+
+def test_rejected_page_tells_why_it_was_rejected(container):
+    def motives(**verdict):
+        with container.database.session() as session:
+            RejectedJobRepository(session, BOB).clear()
+            RejectedJobRepository(session, BOB).insert_rejected_jobs([{**rejected_job("https://r/1"), **verdict}])
+        [page] = container.jobs.list_rejected_jobs(BOB)
+        return page.motive, page.failed_criteria
+
+    assert motives(is_real_offer=False, matches_search=False) == ("Pas une offre valable", ["Pas une offre valable"])
+    # Le motif est le premier critère en défaut, la liste les donne tous
+    assert motives(matches_search=False, matches_skills=False, matches_level=True) == (
+        "Autre métier que ceux recherchés",
+        ["Autre métier que ceux recherchés", "Compétences insuffisantes"],
+    )
+    assert motives(matches_cv=True, matches_location=False) == ("Hors lieu recherché", ["Hors lieu recherché"])
+    # Une page rejetée avant le verdict détaillé n'a que le motif général
+    assert motives(matches_location=None) == ("Hors profil", ["Hors profil"])

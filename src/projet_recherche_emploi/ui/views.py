@@ -7,23 +7,13 @@ import streamlit as st
 
 from projet_recherche_emploi.config import CONTRACT_TYPES, LOCAL_TIMEZONE
 from projet_recherche_emploi.errors import AppError
-from projet_recherche_emploi.schemas import SearchProgress
+from projet_recherche_emploi.schemas import REJECT_NOT_AN_OFFER, SearchProgress
 from projet_recherche_emploi.services.cv_service import CvService
 from projet_recherche_emploi.services.job_service import JobService
 from projet_recherche_emploi.services.query_service import QueryService
 from projet_recherche_emploi.services.search_service import SearchService
 
 NOT_STATED = "non précisé"
-REJECT_NOT_AN_OFFER = "Pas une offre valable"
-REJECT_PROFILE_MISMATCH = "Hors profil"
-# Critères du verdict, dans l'ordre où ils donnent le motif affiché
-REJECT_CRITERIA = {
-    "matches_search": "Autre métier que ceux recherchés",
-    "matches_contract": "Contrat non recherché",
-    "matches_skills": "Compétences insuffisantes",
-    "matches_level": "Niveau d'expérience incompatible",
-    "matches_location": "Hors lieu recherché",
-}
 REMOTE_LABEL = "télétravail complet"
 ANYWHERE_LABEL = "toute la France"
 
@@ -213,16 +203,6 @@ def render_jobs(user_id: int, jobs: JobService) -> None:
         st.rerun()
 
 
-def list_failed_criteria(page: pd.Series) -> list[str]:
-    """Renvoie les motifs de rejet d'une page, le principal en premier."""
-    # Une page qui n'est pas une offre n'a ni métier ni profil à comparer
-    if not page["is_real_offer"]:
-        return [REJECT_NOT_AN_OFFER]
-    # Un critère vide n'a pas été évalué : la page a été rejetée avant le verdict détaillé
-    failed = [label for criterion, label in REJECT_CRITERIA.items() if page[criterion] == False]  # noqa: E712
-    return failed or [REJECT_PROFILE_MISMATCH]
-
-
 def render_rejected_jobs(user_id: int, jobs: JobService) -> None:
     rejected_jobs = jobs.list_rejected_jobs(user_id)
     if not rejected_jobs:
@@ -231,9 +211,7 @@ def render_rejected_jobs(user_id: int, jobs: JobService) -> None:
 
     table = pd.DataFrame([job.model_dump() for job in rejected_jobs])
     table["created_at"] = to_local_time(table["created_at"])
-    failed_criteria = table.apply(list_failed_criteria, axis=1)
-    table["motive"] = failed_criteria.str[0]
-    table["failed_criteria"] = failed_criteria.str.join(", ")
+    table["failed_criteria"] = table["failed_criteria"].str.join(", ")
 
     counts = table["motive"].value_counts()
     total_column, *motive_columns = st.columns(len(counts) + 1)

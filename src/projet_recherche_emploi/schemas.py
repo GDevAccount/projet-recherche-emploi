@@ -2,7 +2,19 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
+
+REJECT_NOT_AN_OFFER = "Pas une offre valable"
+# Motif des pages rejetées avant que le verdict soit enregistré critère par critère
+REJECT_PROFILE_MISMATCH = "Hors profil"
+# Critères du verdict, dans l'ordre où ils donnent le motif d'un rejet
+REJECT_CRITERIA = {
+    "matches_search": "Autre métier que ceux recherchés",
+    "matches_contract": "Contrat non recherché",
+    "matches_skills": "Compétences insuffisantes",
+    "matches_level": "Niveau d'expérience incompatible",
+    "matches_location": "Hors lieu recherché",
+}
 
 
 class _FromRow(BaseModel):
@@ -41,6 +53,23 @@ class RejectedJobRead(_FromRow):
     work_location: str | None
     reject_reason: str | None
     created_at: datetime
+
+    @computed_field
+    @property
+    def failed_criteria(self) -> list[str]:
+        """Motifs du rejet, le principal en premier."""
+        # Une page qui n'est pas une offre n'a ni métier ni profil à comparer
+        if not self.is_real_offer:
+            return [REJECT_NOT_AN_OFFER]
+        # Un critère à None n'a pas été évalué : il n'est pas en défaut
+        failed = [label for criterion, label in REJECT_CRITERIA.items() if getattr(self, criterion) is False]
+        return failed or [REJECT_PROFILE_MISMATCH]
+
+    @computed_field
+    @property
+    def motive(self) -> str:
+        """Motif principal du rejet : le premier critère en défaut."""
+        return self.failed_criteria[0]
 
 
 class SearchQueryRead(_FromRow):
