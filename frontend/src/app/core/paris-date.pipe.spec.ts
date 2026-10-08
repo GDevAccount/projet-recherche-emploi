@@ -11,6 +11,10 @@ describe('ParisDatePipe', () => {
     expect(pipe.transform('2026-12-31T23:30:00Z')).toBe('1 janvier 2027 à 00:30');
   });
 
+  it('should show the Paris day in short form', () => {
+    expect(pipe.transform('2026-10-08T22:30:00Z', 'day')).toBe('9 oct.');
+  });
+
   it('should show nothing for a missing or unreadable date', () => {
     expect(pipe.transform(null)).toBe('');
     expect(pipe.transform('pas une date')).toBe('');

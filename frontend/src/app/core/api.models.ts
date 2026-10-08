@@ -40,3 +40,20 @@ export interface SearchQueryCreate {
   location: string;
   remote: boolean;
 }
+
+export interface Job {
+  id: number;
+  url: string;
+  title: string;
+  content: string | null;
+  score: number | null;
+  /** Contrat lu sur l'annonce ; null si elle ne le dit pas */
+  contract_type: string | null;
+  /** Ville lue sur l'annonce, ou « Remote » ; null si elle ne le dit pas */
+  work_location: string | null;
+  query: string | null;
+  match_reason: string | null;
+  applied: boolean;
+  applied_at: string | null;
+  created_at: string;
+}
