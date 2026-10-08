@@ -9,7 +9,7 @@ L'application est un projet personnel, exploité par un particulier. Pour toute 
 ## Données enregistrées
 
 - **Votre adresse e-mail Google**, pour vous reconnaître d'une connexion à l'autre. Votre nom et votre photo de profil, transmis par Google à la connexion, ne sont pas enregistrés sur le serveur : ils sont gardés dans le cookie de votre session, pour afficher votre vignette. La photo elle-même est chargée depuis les serveurs de Google.
-- **Votre CV**, au format PDF, tel que vous l'avez déposé.
+- **Votre CV**, au format PDF, tel que vous l'avez déposé, et **son texte, dont vos coordonnées sont retirées** : adresse e-mail, téléphone, liens, adresse postale, date de naissance et, quand il est connu, votre nom. Ce retrait est automatique : il reconnaît ces informations à leur forme, sans garantie d'en trouver toutes les mentions.
 - **Vos recherches** : les phrases de recherche, les types de contrat et les lieux que vous enregistrez.
 - **Les offres trouvées pour vous** : titre, lien, extrait, type de contrat et lieu lus sur l'annonce, raison pour laquelle l'offre a été retenue, et le suivi que vous en faites (offre postulée, date, offre supprimée).
 - **Les pages écartées** : titre, lien, type de contrat et lieu lus sur la page, raison du rejet et critères en défaut, pour ne pas les évaluer une seconde fois.
@@ -27,7 +27,7 @@ Ce traitement repose sur l'exécution du service que vous demandez en vous conne
 ## À qui elles sont transmises
 
 - **Google**, pour la connexion. L'application reçoit de Google votre adresse e-mail et les informations de base de votre profil.
-- **OpenAI**, pour évaluer les offres. À chaque recherche, le texte de votre CV, vos phrases de recherche et leurs lieux sont envoyés à OpenAI avec le contenu de chaque page d'offre à évaluer.
+- **OpenAI**, pour évaluer les offres. À chaque recherche, le texte de votre CV sans vos coordonnées, vos phrases de recherche et leurs lieux sont envoyés à OpenAI avec le contenu de chaque page d'offre à évaluer.
 - **Tavily**, pour la recherche web. Seules vos phrases de recherche, avec leur type de contrat et leur lieu, lui sont envoyées, pas votre CV.
 - **Fly.io** (Fly.io, Inc., 2261 Market Street #4990, San Francisco, CA 94114, États-Unis), qui héberge l'application et sa base de données, dans la région de Paris.
 

@@ -347,6 +347,14 @@ Table `users`, les comptes (connexion Google) :
 | `created_at` | Date de la première connexion (UTC) |
 | `last_seen_at` | Date de la dernière requête identifiée (UTC), au jour près. Un compte d'invité sans activité depuis `INACTIVE_ACCOUNT_DAYS` est supprimé |
 
+Table `cv_texts`, le texte du CV de chaque utilisateur, coordonnées retirées. C'est ce texte que le filtre envoie à OpenAI, pas le PDF. Il est remplacé à chaque dépôt d'un CV :
+
+| Colonne | Contenu |
+|---|---|
+| `user_id` | Compte auquel appartient ce texte |
+| `content` | Texte du CV, où e-mail, téléphone, liens, adresse postale, date de naissance et nom du compte sont remplacés par une étiquette (`[e-mail]`, `[téléphone]`…) |
+| `updated_at` | Date de l'enregistrement (UTC) |
+
 Table `search_runs`, les lancements de recherche, qui servent au quota journalier :
 
 | Colonne | Contenu |
@@ -440,7 +448,8 @@ src/projet_recherche_emploi/
 │   ├── account_service.py # suppression d'un compte et de tout ce qu'il contient
 │   ├── auth_service.py    # adresse Google -> utilisateur, mot de passe de l'instance, jeton de session
 │   ├── search_service.py  # conditions préalables, quota journalier et lancement d'une recherche
-│   ├── cv_service.py      # enregistrement du CV, oubli des rejets de l'ancien
+│   ├── cv_anonymizer.py   # retire d'un CV les coordonnées et le nom, avant que son texte soit enregistré
+│   ├── cv_service.py      # enregistrement du CV et de son texte sans coordonnées, oubli des rejets de l'ancien
 │   ├── job_service.py     # offres retenues et pages rejetées
 │   └── query_service.py   # postes recherchés
 ├── agent/               # recherche LangGraph
@@ -459,6 +468,7 @@ src/projet_recherche_emploi/
     ├── query_repository.py         # table des postes recherchés : lecture, ajout, suppression
     ├── search_run_repository.py    # table des lancements de recherche (quota journalier)
     ├── user_repository.py          # table des comptes
+    ├── cv_text_repository.py       # table du texte des CV, coordonnées retirées
     └── cv_storage.py               # lecture et enregistrement des CV en PDF
 
 frontend/src/

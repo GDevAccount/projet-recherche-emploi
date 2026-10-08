@@ -17,6 +17,7 @@ from projet_recherche_emploi.config import (
     Settings,
 )
 from projet_recherche_emploi.container import build_container
+from projet_recherche_emploi.data.cv_storage import CvStorage
 from projet_recherche_emploi.data.job_repository import JobRepository
 
 ALICE = {"Authorization": "Bearer jeton-alice"}
@@ -563,3 +564,14 @@ def test_account_cannot_be_deleted_from_another_site(tmp_path):
 
     assert client.delete("/api/me", headers={"Origin": "https://ailleurs.exemple"}).status_code == 403
     assert client.get("/api/me").status_code == 200
+
+
+def test_uploaded_cv_loses_the_name_of_the_google_account(client, valid_pdf, monkeypatch):
+    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: "Alice Durand, alice@exemple.fr, Python")
+
+    response = client.put("/api/cv", headers=ALICE, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+
+    assert response.status_code == 200
+    user_id = client.get("/api/me", headers=ALICE).json()["user_id"]
+    # Le faux Google de ces tests donne « Alice » pour nom de compte
+    assert client.app.state.container.cv.read_text(user_id) == "[nom] Durand, [e-mail], Python"

@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 from projet_recherche_emploi.config import INACTIVE_ACCOUNT_DAYS
 from projet_recherche_emploi.data.cv_storage import CvStorage
+from projet_recherche_emploi.data.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.job_repository import JobRepository
 from projet_recherche_emploi.data.query_repository import QueryRepository
@@ -34,6 +35,7 @@ class AccountService:
         # Le CV d'abord : si la suite échoue, il reste un compte sans CV plutôt qu'un CV sans compte
         self.cv_storage.delete(user_id)
         with self.database.session() as session:
+            CvTextRepository(session, user_id).delete()
             JobRepository(session, user_id).delete_all()
             RejectedJobRepository(session, user_id).clear()
             QueryRepository(session, user_id).delete_all()

@@ -126,6 +126,16 @@ class User(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
 
 
+class CvText(Base):
+    """Texte du CV d'un utilisateur, coordonnées retirées. C'est lui que le filtre envoie au modèle, pas le PDF."""
+
+    __tablename__ = "cv_texts"
+
+    user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    content: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+
 class SearchRun(Base):
     """Lancement d'une recherche, compté par le quota journalier."""
 
