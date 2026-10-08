@@ -12,7 +12,6 @@ import { apiErrorMessage } from '../core/api-error';
 import { ConfigService } from '../core/config.service';
 import { GoogleIdentityService } from '../core/google-identity.service';
 import { SessionService } from '../core/session.service';
-import { ThemeService } from '../core/theme.service';
 
 @Component({
   selector: 'app-login',
@@ -25,7 +24,6 @@ export class LoginComponent {
   private readonly session = inject(SessionService);
   private readonly googleIdentity = inject(GoogleIdentityService);
   private readonly router = inject(Router);
-  private readonly theme = inject(ThemeService);
 
   // undefined : en cours de lecture ; null : le serveur n'a pas répondu
   protected readonly config = toSignal(inject(ConfigService).getConfig().pipe(catchError(() => of(null))));
@@ -41,7 +39,7 @@ export class LoginComponent {
       const clientId = this.config()?.google_client_id;
       if (parent && clientId) {
         this.googleIdentity
-          .renderButton(parent, clientId, this.theme.dark(), (idToken) => this.open(idToken))
+          .renderButton(parent, clientId, (idToken) => this.open(idToken))
           .catch(() => this.error.set("Le bouton de connexion Google n'a pas pu être chargé. Rechargez la page."));
       }
     });
