@@ -477,3 +477,28 @@ def test_front_is_compressed_but_a_search_stream_is_not(tmp_path, valid_pdf):
     # Compressé, le flux serait retenu jusqu'à la fin : le suivi de la recherche n'arriverait plus en direct
     assert stream.headers["content-type"].startswith("text/event-stream")
     assert "content-encoding" not in stream.headers
+
+
+def test_every_response_carries_the_security_headers(tmp_path):
+    front = tmp_path / "front"
+    front.mkdir()
+    (front / "index.html").write_text("<app-root></app-root>", encoding="utf-8")
+    client = make_client(tmp_path, frontend_dir=front, app_password="sesame", auth_cookie_secret=SECRET)
+
+    # Le front, une page légale, une route de l'API et un refus
+    for path in ("/", "/confidentialite", "/api/health", "/api/me"):
+        headers = client.get(path).headers
+        policy = headers["content-security-policy"]
+        assert "default-src 'self'" in policy and "frame-ancestors 'none'" in policy
+        # Aucun script écrit dans la page n'est accepté : c'est ce qui arrête un script injecté
+        assert "'unsafe-inline'" not in policy.split("script-src")[1].split(";")[0]
+        assert headers["x-content-type-options"] == "nosniff"
+        assert headers["x-frame-options"] == "DENY"
+        assert headers["referrer-policy"] == "strict-origin-when-cross-origin"
+        assert headers["strict-transport-security"].startswith("max-age=")
+
+    # Le bouton de connexion Google reste chargeable
+    assert "https://accounts.google.com/gsi/client" in policy
+    # La documentation, servie en développement, charge ses scripts d'un autre site
+    assert "content-security-policy" not in client.get("/docs").headers
+    assert client.get("/docs").headers["x-content-type-options"] == "nosniff"
