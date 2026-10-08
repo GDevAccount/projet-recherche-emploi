@@ -3,7 +3,7 @@
 <header>
   <span class="site">
     <span class="avatar" [style.--hue]="hue()">{{ site().charAt(0) || '?' }}</span>
-    {{ site() }}
+    <span class="name">{{ site() }}</span>
   </span>
   @if (offer.applied) {
     <span class="stamp">

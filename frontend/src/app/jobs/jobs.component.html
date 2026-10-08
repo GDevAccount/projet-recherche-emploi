@@ -21,13 +21,15 @@
       </div>
       <div class="tile wide">
         <div class="meter-head">
-          <span>{{ total() }} {{ total() > 1 ? 'offres retenues' : 'offre retenue' }}</span>
+          <span>
+            <b>{{ appliedCount() }}</b> {{ appliedCount() > 1 ? 'offres' : 'offre' }} sur <b>{{ total() }}</b>
+            {{ appliedCount() > 1 ? 'ont' : 'a' }} reçu une candidature
+          </span>
           <strong>{{ progress() }} %</strong>
         </div>
         <div class="meter" role="progressbar" [attr.aria-valuenow]="progress()" aria-valuemin="0" aria-valuemax="100">
           <span [style.width.%]="progress()"></span>
         </div>
-        <small>de vos offres ont reçu une candidature</small>
       </div>
     </section>
 
