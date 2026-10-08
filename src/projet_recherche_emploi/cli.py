@@ -45,6 +45,11 @@ def migrate() -> None:
     get_container().auth.check_configuration()
 
 
+def purge() -> None:
+    deleted = get_container().account.delete_inactive_accounts()
+    logger.info("%d compte(s) inactif(s) supprimé(s)", deleted)
+
+
 def serve_api() -> None:
     import uvicorn
 
@@ -62,6 +67,7 @@ COMMANDS = {
     "search": (run_search, "lance une recherche pour le propriétaire (par défaut)"),
     "graph": (draw_graph, "génère le schéma du graph dans graph.png"),
     "migrate": (migrate, "crée la base ou l'amène à la dernière version du schéma"),
+    "purge": (purge, "supprime les comptes d'invités inactifs depuis trop longtemps (fait aussi à chaque démarrage)"),
     "api": (serve_api, "sert l'application en développement, avec la documentation : http://127.0.0.1:8000/docs"),
     "serve": (serve, "sert l'application en ligne sur le port 8000, sans la documentation de l'API"),
 }

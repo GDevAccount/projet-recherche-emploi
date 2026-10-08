@@ -1,3 +1,7 @@
+import logging
+from datetime import UTC, datetime, timedelta
+
+from projet_recherche_emploi.config import INACTIVE_ACCOUNT_DAYS
 from projet_recherche_emploi.data.cv_storage import CvStorage
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.job_repository import JobRepository
@@ -7,6 +11,8 @@ from projet_recherche_emploi.data.search_run_repository import SearchRunReposito
 from projet_recherche_emploi.data.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConflictError
 from projet_recherche_emploi.services.search_service import SearchService
+
+logger = logging.getLogger(__name__)
 
 
 class AccountService:
@@ -35,3 +41,18 @@ class AccountService:
             UserRepository(session).forget_user(user_id)
         # Les copies d'avant migration contiennent encore ses données : elles restent, sans lui
         self.database.purge_user_from_backups(user_id)
+
+    def delete_inactive_accounts(self, now: datetime | None = None) -> int:
+        """Supprime les comptes d'invités sans activité depuis INACTIVE_ACCOUNT_DAYS, et renvoie leur nombre.
+
+        Le propriétaire n'est jamais concerné. Un invité retiré de ALLOWED_EMAILS, qui ne peut plus
+        se connecter, finit donc par être effacé sans avoir à le demander.
+        """
+        since = (now or datetime.now(UTC)) - timedelta(days=INACTIVE_ACCOUNT_DAYS)
+        with self.database.session() as session:
+            user_ids = UserRepository(session).list_inactive_user_ids(since)
+        for user_id in user_ids:
+            self.delete_account(user_id)
+            # L'identifiant seul : l'adresse vient d'être effacée, elle n'a rien à faire dans les logs
+            logger.info("Compte %d supprimé après %d jours sans activité", user_id, INACTIVE_ACCOUNT_DAYS)
+        return len(user_ids)

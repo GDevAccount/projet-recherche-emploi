@@ -19,6 +19,10 @@ MAX_SEARCHES_PER_DAY = 2
 # Durée d'une session de l'API, après quoi le front redemande une connexion
 SESSION_DAYS = 30
 
+# Un compte d'invité resté sans connexion aussi longtemps est supprimé, avec toutes ses données.
+# Les règles de confidentialité affichent cette durée : elles suivent cette valeur.
+INACTIVE_ACCOUNT_DAYS = 365
+
 ContractType = Literal["CDI", "freelance", "CDD", "alternance", "stage"]
 CONTRACT_TYPES = list(get_args(ContractType))
 

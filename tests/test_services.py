@@ -1,11 +1,17 @@
 import gc
 import sqlite3
 from contextlib import closing
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from helpers import blank_pdf, job, rejected_job
 
-from projet_recherche_emploi.config import DEFAULT_QUERIES, DEFAULT_USER_ID, MAX_SEARCHES_PER_DAY
+from projet_recherche_emploi.config import (
+    DEFAULT_QUERIES,
+    DEFAULT_USER_ID,
+    INACTIVE_ACCOUNT_DAYS,
+    MAX_SEARCHES_PER_DAY,
+)
 from projet_recherche_emploi.data.job_repository import JobRepository
 from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.data.user_repository import UserRepository
@@ -380,3 +386,37 @@ def test_account_is_not_deleted_while_its_search_runs(container, valid_pdf):
     list(events)
     assert not container.search.is_running(DEFAULT_USER_ID)
     container.account.delete_account(DEFAULT_USER_ID)
+
+
+def test_guest_accounts_left_unused_too_long_are_deleted(container, valid_pdf):
+    now = datetime(2026, 10, 9, tzinfo=UTC)
+    limit = timedelta(days=INACTIVE_ACCOUNT_DAYS)
+    last_seen = {
+        "alice@exemple.fr": now - limit - timedelta(days=1),
+        "bob@exemple.fr": now - limit + timedelta(days=1),
+        "carol@exemple.fr": now - limit - timedelta(days=30),
+    }
+    with container.database.session() as session:
+        users = UserRepository(session)
+        ids = {email: users.get_or_create_user_id(email) for email in last_seen}
+        for email, seen in last_seen.items():
+            assert users.record_activity(ids[email], seen, now + timedelta(days=1))
+        # Le propriétaire aussi est resté longtemps sans venir : il n'est jamais concerné
+        users.record_activity(DEFAULT_USER_ID, now - 3 * limit, now + timedelta(days=1))
+        # Carol a déjà supprimé son compte : sa ligne, sans adresse, n'est pas un compte à supprimer
+        users.forget_user(ids["carol@exemple.fr"])
+    alice, bob = ids["alice@exemple.fr"], ids["bob@exemple.fr"]
+    for user_id in (alice, bob):
+        container.cv.save_cv(user_id, valid_pdf)
+        container.queries.add_query(user_id, "CDI", "data engineer")
+
+    assert container.account.delete_inactive_accounts(now) == 1
+
+    assert container.queries.list_queries(alice) == [] and not container.cv_storage.path_for(alice).exists()
+    assert len(container.queries.list_queries(bob)) == 1 and container.cv_storage.path_for(bob).exists()
+    assert container.queries.list_queries(DEFAULT_USER_ID)
+    with container.database.session() as session:
+        emails = {user.id: user.email for user in UserRepository(session).list_users()}
+    assert (emails[alice], emails[bob]) == (None, "bob@exemple.fr")
+    # Rien de plus à supprimer au passage suivant
+    assert container.account.delete_inactive_accounts(now) == 0

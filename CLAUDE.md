@@ -13,13 +13,14 @@ uv run projet-recherche-emploi api                        # serveur de développ
 uv run projet-recherche-emploi serve                      # serveur tel qu'en ligne : toutes les interfaces, sans la documentation
 uv run projet-recherche-emploi graph                      # régénérer graph.png (service en ligne mermaid.ink)
 uv run projet-recherche-emploi migrate                    # créer la base ou l'amener au dernier schéma
+uv run projet-recherche-emploi purge                      # supprimer les comptes d'invités inactifs (fait aussi à chaque démarrage)
 uv add <paquet>                                           # ajouter une dépendance
 ```
 
 ```bash
 uv run pytest                                             # tests, sur une base temporaire
 uv run ruff check .                                       # linter
-uv run alembic revision --autogenerate -m "..." --rev-id 0004   # écrire une migration (voir Pièges)
+uv run alembic revision --autogenerate -m "..." --rev-id 0005   # écrire une migration (voir Pièges)
 ```
 
 Le front se pilote depuis `frontend/` (Node 22.22.3 ou plus récent) :
@@ -118,9 +119,10 @@ Le front Angular est hors de ce paquet, dans `frontend/` : composants autonomes 
 - **Le fuseau horaire vient d'un paquet.** Le quota journalier se compte à l'heure de Paris, avec `zoneinfo`, qui a besoin des données de `tzdata` : ni Windows ni l'image Docker ne les fournissent. Ne pas retirer `tzdata` des dépendances, même si rien ne l'importe.
 - **Pousser sur `main` met en ligne.** Le workflow lance le linter et les tests, puis déploie et redémarre l'instance, ce qui interrompt une recherche en cours et applique les migrations en attente à la base en ligne. Ne pas pousser sans l'accord de l'utilisateur.
 - **Sur Fly.io, seul `/data` survit à un redémarrage.** Le reste du disque est remis à zéro, et le volume monté sur `/data` (section `[mounts]` de `fly.toml`) n'est pas partagé entre machines. Tout fichier à conserver doit passer par `DATA_DIR`, et l'application doit rester sur une seule machine.
-- **Les textes de `api/legal/` décrivent le comportement réel.** Données enregistrées, envoi du CV à OpenAI, quota, copies de sauvegarde, suppression de compte, nom et photo Google gardés dans le cookie : les mettre à jour quand l'un de ces points change.
+- **Les textes de `api/legal/` décrivent le comportement réel.** Données enregistrées, envoi du CV à OpenAI, quota, copies de sauvegarde, suppression de compte, durée de conservation, nom et photo Google gardés dans le cookie : les mettre à jour quand l'un de ces points change.
 - **Le mot de passe donne les données du propriétaire.** Sans connexion Google, `APP_PASSWORD` désigne l'utilisateur 1. Dès que `GOOGLE_CLIENT_ID` est défini, il n'ouvre plus rien, et une session ouverte avec lui ne vaut plus (`read_session_token`).
 - **Un compte supprimé garde sa ligne, vide.** `AccountService.delete_account` efface le CV et les lignes de l'utilisateur dans chaque table, y compris dans les copies d'avant migration, puis retire l'adresse de sa ligne de `users` sans la supprimer : SQLite redonnerait son identifiant au compte suivant, qui hériterait de ce qu'une recherche encore en cours aurait écrit. Pour la même raison, la suppression est refusée pendant une recherche (`SearchService.is_running`). Une nouvelle table qui porte `user_id` doit être vidée dans `delete_account`. Le propriétaire peut effacer ses données, mais garde l'identifiant 1.
+- **Un compte d'invité inactif est supprimé au démarrage du serveur.** `AuthService.resolve_user_id` date la dernière activité d'un invité (`users.last_seen_at`), au jour près pour ne pas écrire à chaque requête. `create_app()` appelle `AccountService.delete_inactive_accounts`, qui supprime ceux restés `INACTIVE_ACCOUNT_DAYS` sans activité : il n'y a pas de tâche planifiée, mais l'instance s'arrête quand elle ne sert pas et redémarre souvent. Un échec est journalisé sans empêcher de servir. Le propriétaire n'est jamais concerné. Les règles de confidentialité affichent la durée à partir de cette constante ; la page Compte du front, elle, écrit « un an » en dur.
 - **L'identifiant 1 est réservé au propriétaire.** La première migration insère la ligne 1 de `users` sans adresse, pour qu'aucun invité ne reçoive cet identifiant et les données d'avant les comptes. Le propriétaire est reconnu par `OWNER_EMAIL`, pas par la table.
 
 ## Conventions

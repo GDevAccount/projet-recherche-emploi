@@ -13,7 +13,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse
 from starlette.routing import Route
 
-from projet_recherche_emploi.config import MAX_SEARCHES_PER_DAY, Settings
+from projet_recherche_emploi.config import INACTIVE_ACCOUNT_DAYS, MAX_SEARCHES_PER_DAY, Settings
 
 LEGAL_DIR = Path(__file__).parent / "legal"
 # Adresse de la page -> titre
@@ -47,6 +47,7 @@ def render_legal_page(page: str, contact_email: str = "") -> str:
     contact = contact_email.strip() or "adressez-vous à l'exploitant de l'application"
     text = (LEGAL_DIR / f"{page}.md").read_text(encoding="utf-8")
     text = text.replace("{contact}", contact).replace("{max_searches}", str(MAX_SEARCHES_PER_DAY))
+    text = text.replace("{inactive_months}", str(INACTIVE_ACCOUNT_DAYS // 30))
     links = ['<a href="/">Retour à l\'application</a>']
     links += [f'<a href="/{other}">{title}</a>' for other, title in LEGAL_PAGES.items() if other != page]
     return PAGE_TEMPLATE.format(

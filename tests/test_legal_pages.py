@@ -3,7 +3,7 @@ from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
 from projet_recherche_emploi.api.public_pages import build_routes
-from projet_recherche_emploi.config import MAX_SEARCHES_PER_DAY, Settings
+from projet_recherche_emploi.config import INACTIVE_ACCOUNT_DAYS, MAX_SEARCHES_PER_DAY, Settings
 
 
 def client(**settings: str) -> TestClient:
@@ -24,6 +24,7 @@ def test_legal_page_is_plain_html_readable_without_javascript(path, title):
     assert "<script" not in response.text
     # Aucun champ de remplacement oublié dans le texte
     assert "{contact}" not in response.text and "{max_searches}" not in response.text
+    assert "{inactive_months}" not in response.text
 
 
 def test_conditions_state_the_real_quota_and_link_to_the_privacy_rules():
@@ -31,6 +32,12 @@ def test_conditions_state_the_real_quota_and_link_to_the_privacy_rules():
 
     assert f"limité à {MAX_SEARCHES_PER_DAY} par jour" in text
     assert 'href="/confidentialite"' in text
+
+
+def test_privacy_rules_state_the_real_retention_period():
+    text = client().get("/confidentialite").text
+
+    assert f"Un compte resté {INACTIVE_ACCOUNT_DAYS // 30} mois sans utilisation est supprimé automatiquement" in text
 
 
 def test_privacy_rules_name_who_receives_the_data():

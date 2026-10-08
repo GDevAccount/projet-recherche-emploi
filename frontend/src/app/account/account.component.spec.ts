@@ -67,6 +67,7 @@ describe('AccountComponent', () => {
     expect(text()).toContain('Alice Martin');
     expect(text()).toContain('alice@exemple.fr');
     expect(text()).toContain('Connecté avec Google.');
+    expect(text()).toContain('un compte resté un an sans servir est supprimé');
     expect(element().querySelector('a[href="/confidentialite"]')).toBeTruthy();
   });
 
@@ -75,6 +76,8 @@ describe('AccountComponent', () => {
 
     expect(text()).toContain('Session ouverte avec le mot de passe de cette instance.');
     expect(text()).not.toContain('Votre adresse e-mail');
+    // Le propriétaire n'est jamais supprimé pour inactivité
+    expect(text()).not.toContain('sans servir');
     expect(text()).toContain('vous retrouverez un compte vide');
   });
 

@@ -6,6 +6,7 @@ import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from projet_recherche_emploi.config import DEFAULT_USER_ID, SESSION_DAYS, Settings
@@ -17,6 +18,8 @@ from projet_recherche_emploi.errors import ConfigurationError
 EVERYONE = "*"
 
 SESSION_SECONDS = SESSION_DAYS * 24 * 3600
+# La dernière activité d'un compte est datée au jour près : assez pour un délai compté en mois
+ACTIVITY_PRECISION = timedelta(days=1)
 
 LoginMode = Literal["google", "password"]
 
@@ -82,8 +85,13 @@ class AuthService:
         allowed_emails = self._allowed_emails()
         if EVERYONE not in allowed_emails and email not in allowed_emails:
             return None
+        now = datetime.fromtimestamp(self.clock(), UTC)
         with self.database.session() as session:
-            return UserRepository(session).get_or_create_user_id(email)
+            users = UserRepository(session)
+            user_id = users.get_or_create_user_id(email)
+            # Sans cela, un compte qui sert encore serait supprimé comme inactif
+            users.record_activity(user_id, now, now - ACTIVITY_PRECISION)
+            return user_id
 
     def create_session_token(self, email: str | None, name: str | None = None, picture: str | None = None) -> str:
         """Renvoie le jeton de session d'une identité déjà vérifiée : une adresse Google, ou None pour le mot de passe.

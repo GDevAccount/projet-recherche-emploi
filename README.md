@@ -79,6 +79,7 @@ La même commande a d'autres usages :
 | `uv run projet-recherche-emploi` (ou `search`) | Lance une recherche pour le propriétaire |
 | `uv run projet-recherche-emploi graph` | Génère le schéma du graph dans `graph.png` |
 | `uv run projet-recherche-emploi migrate` | Crée la base ou l'amène à la dernière version du schéma |
+| `uv run projet-recherche-emploi purge` | Supprime les comptes d'invités inactifs depuis trop longtemps. Le serveur le fait aussi à chaque démarrage |
 | `uv run projet-recherche-emploi api` | Sert l'application en développement sur `http://127.0.0.1:8000`, avec la documentation de l'[API](#api) |
 | `uv run projet-recherche-emploi serve` | Sert l'application en ligne, sur le port 8000 de toutes les interfaces, sans la documentation de l'API |
 
@@ -344,6 +345,7 @@ Table `users`, les comptes (connexion Google) :
 | `id` | Identifiant du compte. Le `1` est réservé au propriétaire |
 | `email` | Adresse Google de l'invité (vide pour le propriétaire, dont l'adresse vient de `OWNER_EMAIL`) |
 | `created_at` | Date de la première connexion (UTC) |
+| `last_seen_at` | Date de la dernière requête identifiée (UTC), au jour près. Un compte d'invité sans activité depuis `INACTIVE_ACCOUNT_DAYS` est supprimé |
 
 Table `search_runs`, les lancements de recherche, qui servent au quota journalier :
 
@@ -380,6 +382,7 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 | Mot de passe de l'application (`APP_PASSWORD`) | variable d'environnement | aucun |
 | Connexion Google (`GOOGLE_CLIENT_ID`, `OWNER_EMAIL`, `ALLOWED_EMAILS`…) | variables d'environnement | désactivée |
 | Recherches par jour pour un invité (`MAX_SEARCHES_PER_DAY`) | `src/projet_recherche_emploi/config.py` | `2` |
+| Jours sans activité avant la suppression d'un compte d'invité (`INACTIVE_ACCOUNT_DAYS`) | `src/projet_recherche_emploi/config.py` | `365` |
 | Modèle OpenAI du filtre (`FILTER_MODEL`) | `src/projet_recherche_emploi/config.py` | `gpt-5-mini` |
 | Taille maximale de page envoyée au modèle (`MAX_PAGE_CHARS`) | `src/projet_recherche_emploi/config.py` | `8000` |
 | Recherches créées avec la base (`DEFAULT_QUERIES`) | `src/projet_recherche_emploi/config.py` | 2 recherches CDI, 2 freelance (ingénieur IA) |
