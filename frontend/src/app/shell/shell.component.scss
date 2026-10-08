@@ -24,10 +24,6 @@ header {
     grid-template-columns: auto 1fr;
     padding-inline: 1rem;
 
-    .name {
-      display: none;
-    }
-
     nav {
       grid-row: 2;
       grid-column: 1 / -1;
@@ -46,7 +42,7 @@ header {
   gap: 0.7rem;
   justify-self: start;
   font-family: var(--app-display);
-  font-size: 1.05rem;
+  font-size: 1.35rem;
   font-weight: 650;
   letter-spacing: -0.02em;
   text-decoration: none;
