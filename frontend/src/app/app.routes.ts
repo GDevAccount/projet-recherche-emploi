@@ -5,8 +5,8 @@ import { JOBS_PATH, LOGIN_PATH, PROFILE_PATH, REJECTED_PATH } from './core/paths
 import { JobsComponent } from './jobs/jobs.component';
 import { LoginComponent } from './login/login.component';
 import { ProfileComponent } from './profile/profile.component';
+import { RejectedComponent } from './rejected/rejected.component';
 import { ShellComponent } from './shell/shell.component';
-import { UpcomingComponent } from './shell/upcoming.component';
 
 export const routes: Routes = [
   { path: LOGIN_PATH, component: LoginComponent, canActivate: [loginGuard] },
@@ -18,14 +18,7 @@ export const routes: Routes = [
     children: [
       { path: '', pathMatch: 'full', redirectTo: JOBS_PATH },
       { path: JOBS_PATH, component: JobsComponent },
-      {
-        path: REJECTED_PATH,
-        component: UpcomingComponent,
-        data: {
-          title: 'Les pages écartées',
-          text: 'Chaque annonce rejetée avec son motif, pour comprendre ce qui vous fait perdre des offres.',
-        },
-      },
+      { path: REJECTED_PATH, component: RejectedComponent },
       { path: PROFILE_PATH, component: ProfileComponent },
     ],
   },

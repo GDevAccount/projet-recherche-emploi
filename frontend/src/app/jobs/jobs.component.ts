@@ -5,18 +5,11 @@ import { Message } from 'primeng/message';
 import { apiErrorMessage } from '../core/api-error';
 import { Job } from '../core/api.models';
 import { JobService } from '../core/job.service';
+import { normalize } from '../core/text';
 import { JobCardComponent } from './job-card.component';
 
 /** Libellé du filtre pour les offres dont l'annonce ne dit pas le contrat. */
 const NOT_STATED = 'non précisé';
-
-/** Texte comparable sans tenir compte des accents ni de la casse : « ingenieur » trouve « Ingénieur ». */
-function normalize(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase();
-}
 
 function contractOf(job: Job): string {
   return job.contract_type ?? NOT_STATED;

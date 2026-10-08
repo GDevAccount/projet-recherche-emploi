@@ -57,3 +57,18 @@ export interface Job {
   applied_at: string | null;
   created_at: string;
 }
+
+export interface RejectedJob {
+  url: string;
+  title: string;
+  contract_type: string | null;
+  work_location: string | null;
+  /** Recherche qui a trouvé la page */
+  query: string | null;
+  reject_reason: string | null;
+  /** Motif principal du rejet, calculé par l'API : le premier critère en défaut */
+  motive: string;
+  /** Tous les critères en défaut, le principal en premier */
+  failed_criteria: string[];
+  created_at: string;
+}
