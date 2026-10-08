@@ -13,7 +13,10 @@ FILTER_PROMPT = ChatPromptTemplate.from_messages(
             "formation, une page d'accueil, une offre expirée ou une offre qui ne se situe pas en région parisienne.\n"
             "- matches_cv : vrai seulement si le poste correspond au profil du candidat "
             "(compétences, niveau d'expérience, domaine).\n"
-            "- reason : une phrase qui justifie la décision.",
+            "- reason : une phrase qui justifie la décision.\n"
+            "- contract_type : le type de contrat écrit sur la page (CDI, freelance, CDD, alternance ou stage). "
+            "Une mission pour indépendant ou en portage salarial est un freelance. "
+            "null si la page ne le dit pas ou n'est pas une offre : ne pas le deviner.",
         ),
         ("human", "Titre : {title}\nURL : {url}\n\nContenu de la page :\n{page}"),
     ]

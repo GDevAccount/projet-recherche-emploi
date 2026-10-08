@@ -19,6 +19,13 @@ def get_user_id(state: JobSearchState) -> int:
     return state.get("user_id", DEFAULT_USER_ID)
 
 
+def build_search_text(contract_type: str, query: str) -> str:
+    """Renvoie le texte envoyé au moteur de recherche : la recherche, avec son type de contrat s'il n'y est pas."""
+    if contract_type.casefold() in query.casefold():
+        return query
+    return f"{query} {contract_type}"
+
+
 class SearchNodes:
     """Les quatre étapes du graph. Chacune ouvre sa propre session : une recherche dure plusieurs minutes."""
 
@@ -47,14 +54,15 @@ class SearchNodes:
 
         jobs_by_url = {}
         for index, (contract_type, query) in enumerate(queries):
+            search_text = build_search_text(contract_type, query)
             write_progress(
                 {
-                    "message": f"Recherche Tavily {index + 1}/{len(queries)} : {query}",
+                    "message": f"Recherche Tavily {index + 1}/{len(queries)} : {search_text}",
                     "done": index,
                     "total": len(queries),
                 }
             )
-            for result in self.search_engine.search(query):
+            for result in self.search_engine.search(search_text):
                 jobs_by_url.setdefault(
                     result["url"],
                     {
@@ -63,7 +71,6 @@ class SearchNodes:
                         "content": result["content"],
                         "raw_content": result.get("raw_content"),
                         "score": result["score"],
-                        "contract_type": contract_type,
                         "query": query,
                     },
                 )
@@ -107,6 +114,8 @@ class SearchNodes:
         filtered_jobs = []
         rejected_jobs = []
         for job, evaluation in zip(jobs, evaluations, strict=True):
+            # Le contrat enregistré est celui de la page : une recherche de CDI ramène aussi des missions
+            job = {**job, "contract_type": evaluation.contract_type}
             if evaluation.is_real_offer and evaluation.matches_cv:
                 filtered_jobs.append({**job, "match_reason": evaluation.reason})
             else:

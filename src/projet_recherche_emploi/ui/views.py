@@ -13,6 +13,7 @@ from projet_recherche_emploi.services.job_service import JobService
 from projet_recherche_emploi.services.query_service import QueryService
 from projet_recherche_emploi.services.search_service import SearchService
 
+UNKNOWN_CONTRACT = "non précisé"
 REJECT_NOT_AN_OFFER = "Pas une offre valable"
 REJECT_PROFILE_MISMATCH = "Hors profil"
 
@@ -56,8 +57,10 @@ def render_queries(user_id: int, queries: QueryService) -> None:
             st.rerun()
 
     with st.form("add_query", clear_on_submit=True):
-        contract_type = st.selectbox("Type de contrat", CONTRACT_TYPES)
-        text = st.text_input("Recherche", placeholder="offre d'emploi data engineer en CDI à Lyon")
+        contract_type = st.selectbox(
+            "Type de contrat", CONTRACT_TYPES, help="Ajouté à la recherche s'il n'y figure pas déjà."
+        )
+        text = st.text_input("Recherche", placeholder="offre d'emploi data engineer en Île-de-France")
         submitted = st.form_submit_button("Ajouter")
 
     if submitted:
@@ -112,6 +115,8 @@ def render_jobs(user_id: int, jobs: JobService) -> None:
     table["created_at"] = to_local_time(table["created_at"])
     table["applied_at"] = to_local_time(table["applied_at"])
     table["to_delete"] = False
+    # Sans cela, le filtre par contrat masquerait les offres dont la page ne dit pas le contrat
+    table["contract_type"] = table["contract_type"].fillna(UNKNOWN_CONTRACT)
 
     applied_count = int(table["applied"].sum())
     total_column, applied_column, remaining_column = st.columns(3)
@@ -120,7 +125,7 @@ def render_jobs(user_id: int, jobs: JobService) -> None:
     remaining_column.metric("À traiter", len(table) - applied_count)
 
     contract_column, toggle_column = st.columns([3, 2])
-    contract_types = sorted(table["contract_type"].dropna().unique())
+    contract_types = sorted(table["contract_type"].unique())
     selected_types = contract_column.multiselect("Type de contrat", contract_types, default=contract_types)
     search_text = contract_column.text_input("Rechercher", placeholder="Nom d'entreprise, mot-clé…").strip()
     hide_applied = toggle_column.toggle("Masquer les offres déjà postulées")

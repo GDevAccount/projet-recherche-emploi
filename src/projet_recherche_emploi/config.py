@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Literal, get_args
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,7 +19,8 @@ MAX_SEARCHES_PER_DAY = 2
 # Durée d'une session de l'API, après quoi le front redemande une connexion
 SESSION_DAYS = 30
 
-CONTRACT_TYPES = ["CDI", "freelance", "CDD", "alternance", "stage"]
+ContractType = Literal["CDI", "freelance", "CDD", "alternance", "stage"]
+CONTRACT_TYPES = list(get_args(ContractType))
 
 # Sites auxquels la recherche Tavily est limitée
 JOB_SITES = [

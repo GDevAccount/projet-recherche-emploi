@@ -6,12 +6,15 @@ from typing import Protocol
 from pydantic import BaseModel
 
 from projet_recherche_emploi.agent.state import FoundPage
+from projet_recherche_emploi.config import ContractType
 
 
 class JobEvaluation(BaseModel):
     is_real_offer: bool
     matches_cv: bool
     reason: str
+    # Lu sur la page ; None quand elle ne le dit pas
+    contract_type: ContractType | None = None
 
 
 class JobSearchEngine(Protocol):

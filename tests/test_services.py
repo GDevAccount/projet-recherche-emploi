@@ -126,8 +126,8 @@ def test_real_graph_runs_behind_the_service(container, ready_users):
 
     # Le faux Tavily renvoie deux pages par recherche, le faux modèle en retient une sur deux
     assert summary == SearchSummary(found=2, new=2, kept=1, rejected=1, inserted=1)
-    assert [job.url for job in container.jobs.list_jobs(BOB)] == ["https://x/une recherche/0"]
-    assert [job.url for job in container.jobs.list_rejected_jobs(BOB)] == ["https://x/une recherche/1"]
+    assert [job.url for job in container.jobs.list_jobs(BOB)] == ["https://x/une recherche CDI/0"]
+    assert [job.url for job in container.jobs.list_rejected_jobs(BOB)] == ["https://x/une recherche CDI/1"]
     assert container.jobs.list_jobs(CAROL) == []
 
 
