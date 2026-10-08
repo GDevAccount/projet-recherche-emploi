@@ -1,0 +1,50 @@
+:host {
+  display: block;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+
+  h1 {
+    flex: 1;
+    margin: 0;
+    font-size: 1.25rem;
+  }
+}
+
+.quota {
+  font-size: 0.875rem;
+  color: var(--p-text-muted-color);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 20rem 1fr;
+  gap: 1.5rem;
+  padding: 1.5rem;
+
+  @media (max-width: 60rem) {
+    grid-template-columns: 1fr;
+  }
+}
+
+aside h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+aside section + section {
+  margin-top: 1.5rem;
+}
+
+main {
+  min-width: 0;
+}
+
+.placeholder {
+  color: var(--p-text-muted-color);
+}

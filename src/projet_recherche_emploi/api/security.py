@@ -126,7 +126,7 @@ def clear_session_cookie(request: Request, response: Response) -> None:
 
 
 def _require_protection(container: Container) -> None:
-    if not container.settings.google_client_id and not container.auth.password_required:
+    if container.auth.login_mode is None:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "L'API n'est pas protégée : définir la connexion Google ou APP_PASSWORD.",
@@ -134,7 +134,7 @@ def _require_protection(container: Container) -> None:
 
 
 def _caller_from_credentials(request: Request, container: Container, token: str) -> Caller:
-    if container.settings.google_client_id:
+    if container.auth.login_mode == "google":
         identity = request.app.state.identity_verifier.verify(token)
         if identity is None:
             raise _unauthorized()

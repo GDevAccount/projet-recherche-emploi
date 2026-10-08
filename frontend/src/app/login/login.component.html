@@ -1,0 +1,44 @@
+<p-card header="Recherche d'emploi">
+  @let loaded = config();
+  @if (loaded === undefined) {
+    <p>Chargement…</p>
+  } @else if (loaded === null) {
+    <p-message severity="error">Le serveur ne répond pas. Rechargez la page dans un instant.</p-message>
+  } @else {
+    @switch (loaded.login_mode) {
+      @case ('google') {
+        <p>Connectez-vous avec votre compte Google pour accéder à vos offres.</p>
+        <div #googleButton class="google-button"></div>
+        @if (pending()) {
+          <p>Connexion…</p>
+        }
+      }
+      @case ('password') {
+        <form (ngSubmit)="submitPassword()">
+          <label for="password">Mot de passe</label>
+          <input
+            pInputText
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            [ngModel]="password()"
+            (ngModelChange)="password.set($event)"
+          />
+          <p-button type="submit" label="Se connecter" [loading]="pending()" [disabled]="!password()" />
+        </form>
+      }
+      @default {
+        <p-message severity="error">
+          Cette instance n'est pas protégée : la connexion Google ou un mot de passe doit être configuré sur le serveur.
+        </p-message>
+      }
+    }
+  }
+  @if (error()) {
+    <p-message severity="error" class="error">{{ error() }}</p-message>
+  }
+</p-card>
+<nav>
+  <a href="/confidentialite">Règles de confidentialité</a> · <a href="/conditions">Conditions d'utilisation</a>
+</nav>
