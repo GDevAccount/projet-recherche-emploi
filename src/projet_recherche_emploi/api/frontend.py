@@ -4,6 +4,7 @@ Le front est construit à part (npm run build dans frontend/, ou l'image Docker)
 Ses routes s'ajoutent en dernier : elles ne reçoivent que ce que l'API et les pages publiques n'ont pas pris.
 """
 
+import re
 from pathlib import PurePosixPath
 
 from starlette.exceptions import HTTPException
@@ -20,6 +21,8 @@ INDEX_FILE = "index.html"
 API_PATH = "api"
 # Adresse du front tant que Streamlit occupait la racine : les favoris d'alors y pointent encore
 FORMER_PATH = "/frontend"
+# Empreinte qu'Angular met dans le nom d'un fichier construit : « main-5UFRYBOQ.js », « chunk-BBrCm5NO.js »
+HASHED_FILE_PATTERN = re.compile(r"-[A-Za-z0-9_-]{8}\.\w+$")
 
 
 class SinglePageApp(StaticFiles):
@@ -35,8 +38,11 @@ class SinglePageApp(StaticFiles):
             path = INDEX_FILE
             response = await super().get_response(path, scope)
         if path in (".", INDEX_FILE):
-            # Les autres fichiers changent de nom à chaque build ; la page d'accueil, non
+            # La page d'accueil garde son nom d'un build à l'autre : le navigateur doit la redemander
             response.headers["Cache-Control"] = "no-cache"
+        elif HASHED_FILE_PATTERN.search(path):
+            # Un fichier dont le nom porte son empreinte ne change jamais : inutile de le redemander
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response
 
 

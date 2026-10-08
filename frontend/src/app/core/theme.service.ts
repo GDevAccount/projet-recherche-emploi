@@ -5,7 +5,10 @@ import { DARK_CLASS } from './theme';
 
 const STORAGE_KEY = 'theme';
 
-/** Thème clair ou sombre : celui du système à la première visite, puis le choix de l'utilisateur. */
+/**
+ * Thème clair ou sombre : celui du système à la première visite, puis le choix de l'utilisateur.
+ * public/theme-init.js applique la même règle avant le démarrage d'Angular : changer l'une demande de changer l'autre.
+ */
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   private readonly document = inject(DOCUMENT);
