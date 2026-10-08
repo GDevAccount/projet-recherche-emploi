@@ -10,6 +10,7 @@ class _FromRow(BaseModel):
 
 
 class JobRead(_FromRow):
+    id: int
     url: str
     title: str
     content: str | None

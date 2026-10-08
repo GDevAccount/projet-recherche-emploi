@@ -30,7 +30,8 @@ def test_application_shows_the_offers_of_the_owner(app, container, valid_pdf):
     with container.database.session() as session:
         JobRepository(session, DEFAULT_USER_ID).insert_jobs([job("https://a/1"), job("https://a/2")])
         RejectedJobRepository(session, DEFAULT_USER_ID).insert_rejected_jobs([rejected_job("https://r/1")])
-    container.jobs.set_applied(DEFAULT_USER_ID, "https://a/1", True)
+    first_job = container.jobs.list_jobs(DEFAULT_USER_ID)[0]
+    container.jobs.set_applied(DEFAULT_USER_ID, first_job.id, True)
 
     app.run()
 

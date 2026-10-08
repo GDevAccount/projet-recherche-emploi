@@ -36,10 +36,13 @@ def test_applying_does_not_touch_another_user(session):
     alice.insert_jobs([job("https://a/1")])
     bob.insert_jobs([job("https://a/1")])
 
-    assert bob.set_applied("https://a/1", True) is True
-    assert bob.set_applied("https://a/inconnue", True) is False
-
     [alice_job], [bob_job] = alice.list_jobs(), bob.list_jobs()
+
+    assert bob.set_applied(bob_job.id, True) is True
+    # L'offre d'Alice existe, mais pas pour Bob
+    assert bob.set_applied(alice_job.id, True) is False
+    session.expire_all()
+
     assert (alice_job.applied, alice_job.applied_at) == (False, None)
     assert bob_job.applied is True and bob_job.applied_at is not None
 
@@ -47,9 +50,10 @@ def test_applying_does_not_touch_another_user(session):
 def test_unapplying_clears_the_application_date(session):
     jobs = JobRepository(session, BOB)
     jobs.insert_jobs([job("https://a/1")])
-    jobs.set_applied("https://a/1", True)
+    [saved] = jobs.list_jobs()
+    jobs.set_applied(saved.id, True)
 
-    jobs.set_applied("https://a/1", False)
+    jobs.set_applied(saved.id, False)
     session.expire_all()
 
     [saved] = jobs.list_jobs()
@@ -61,9 +65,12 @@ def test_deleting_does_not_touch_another_user(session):
     alice.insert_jobs([job("https://a/1")])
     bob.insert_jobs([job("https://a/1")])
 
-    assert bob.delete_jobs(["https://a/1", "https://a/inconnue"]) == 1
-    # Une offre déjà supprimée n'est pas comptée une seconde fois
-    assert bob.delete_jobs(["https://a/1"]) == 0
+    [alice_job], [bob_job] = alice.list_jobs(), bob.list_jobs()
+
+    assert bob.delete_jobs([bob_job.id, alice_job.id]) == 1
+    # Une offre déjà supprimée n'est pas comptée une seconde fois, et ne se coche plus
+    assert bob.delete_jobs([bob_job.id]) == 0
+    assert bob.set_applied(bob_job.id, True) is False
 
     assert len(alice.list_jobs()) == 1
     assert bob.list_jobs() == []

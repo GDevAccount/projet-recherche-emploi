@@ -152,19 +152,20 @@ def render_jobs(user_id: int, jobs: JobService) -> None:
         width="stretch",
     )
 
-    changed = edited[edited["applied"].to_numpy() != visible["applied"].to_numpy()]
-    for job in changed.itertuples():
+    # Le tableau n'affiche pas l'identifiant : ses lignes sont celles de visible, dans le même ordre
+    changed = edited["applied"].to_numpy() != visible["applied"].to_numpy()
+    for job_id, applied in zip(visible["id"][changed], edited["applied"][changed], strict=True):
         try:
-            jobs.set_applied(user_id, job.url, bool(job.applied))
+            jobs.set_applied(user_id, int(job_id), bool(applied))
         except AppError as error:
             st.error(str(error))
-    if not changed.empty:
+    if changed.any():
         st.rerun()
 
     # La suppression passe par un bouton : une coche seule ne doit pas suffire à faire disparaître une offre
-    to_delete = edited[edited["to_delete"]]
-    if not to_delete.empty and st.button(f"Supprimer {len(to_delete)} offre(s)"):
-        jobs.delete_jobs(user_id, to_delete["url"].tolist())
+    to_delete = visible["id"][edited["to_delete"].to_numpy()].tolist()
+    if to_delete and st.button(f"Supprimer {len(to_delete)} offre(s)"):
+        jobs.delete_jobs(user_id, to_delete)
         st.rerun()
 
 

@@ -182,11 +182,17 @@ def test_jobs_are_tracked_and_private(container):
     with container.database.session() as session:
         JobRepository(session, BOB).insert_jobs([job("https://a/1"), job("https://a/2")])
 
-    container.jobs.set_applied(BOB, "https://a/1", True)
+    ids = {saved.url: saved.id for saved in container.jobs.list_jobs(BOB)}
+
+    container.jobs.set_applied(BOB, ids["https://a/1"], True)
     with pytest.raises(NotFoundError):
-        container.jobs.set_applied(CAROL, "https://a/1", True)
-    assert container.jobs.delete_jobs(CAROL, ["https://a/2"]) == 0
-    assert container.jobs.delete_jobs(BOB, ["https://a/2"]) == 1
+        container.jobs.set_applied(CAROL, ids["https://a/1"], True)
+    assert container.jobs.delete_jobs(CAROL, [ids["https://a/2"]]) == 0
+    with pytest.raises(NotFoundError):
+        container.jobs.delete_job(CAROL, ids["https://a/2"])
+    container.jobs.delete_job(BOB, ids["https://a/2"])
+    with pytest.raises(NotFoundError):
+        container.jobs.delete_job(BOB, ids["https://a/2"])
 
     [saved] = container.jobs.list_jobs(BOB)
     assert (saved.url, saved.applied) == ("https://a/1", True)
