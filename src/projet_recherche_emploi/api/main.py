@@ -16,6 +16,7 @@ from projet_recherche_emploi.api.frontend import build_frontend_routes
 from projet_recherche_emploi.api.public_pages import build_routes
 from projet_recherche_emploi.api.routers import account, cv, jobs, queries, searches
 from projet_recherche_emploi.api.security import GoogleIdentityVerifier, IdentityVerifier
+from projet_recherche_emploi.api.security_headers import SecurityHeadersMiddleware
 from projet_recherche_emploi.config import configure_logging
 from projet_recherche_emploi.container import Container, get_container
 from projet_recherche_emploi.errors import (
@@ -59,6 +60,8 @@ def create_app(
     # Le front pèse plusieurs centaines de ko non compressé. Le flux d'une recherche (text/event-stream)
     # n'est pas concerné : le compresser le retiendrait, et son suivi n'arriverait plus en direct
     app.add_middleware(GZipMiddleware, minimum_size=1024)
+    documentation_paths = frozenset(path for path in (app.docs_url, app.redoc_url) if path)
+    app.add_middleware(SecurityHeadersMiddleware, unrestricted_paths=documentation_paths)
 
     if settings.cors_origin_list:
         app.add_middleware(
