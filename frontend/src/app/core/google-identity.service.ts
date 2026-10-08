@@ -24,20 +24,19 @@ export class GoogleIdentityService {
   private readonly document = inject(DOCUMENT);
   private script?: Promise<GoogleIdentityApi>;
 
-  /** Affiche le bouton dans l'élément donné, et appelle onCredential avec le jeton d'identité obtenu. */
-  async renderButton(
-    parent: HTMLElement,
-    clientId: string,
-    dark: boolean,
-    onCredential: (idToken: string) => void,
-  ): Promise<void> {
+  /**
+   * Affiche le bouton dans l'élément donné, sur toute sa largeur, et appelle onCredential avec le jeton
+   * d'identité obtenu. Google n'accepte qu'une largeur de 200 à 400 pixels.
+   */
+  async renderButton(parent: HTMLElement, clientId: string, onCredential: (idToken: string) => void): Promise<void> {
     const api = await this.load();
     api.initialize({ client_id: clientId, callback: (response) => onCredential(response.credential) });
     api.renderButton(parent, {
-      theme: dark ? 'filled_black' : 'outline',
+      theme: 'outline',
       size: 'large',
-      shape: 'pill',
-      text: 'signin_with',
+      shape: 'rectangular',
+      text: 'continue_with',
+      width: String(Math.min(400, Math.max(200, parent.clientWidth))),
       locale: 'fr',
     });
   }

@@ -19,12 +19,7 @@ class FakeGoogleIdentity {
   clientId = '';
   onCredential: (idToken: string) => void = () => undefined;
 
-  renderButton(
-    _parent: HTMLElement,
-    clientId: string,
-    _dark: boolean,
-    onCredential: (idToken: string) => void,
-  ): Promise<void> {
+  renderButton(_parent: HTMLElement, clientId: string, onCredential: (idToken: string) => void): Promise<void> {
     this.clientId = clientId;
     this.onCredential = onCredential;
     return Promise.resolve();
