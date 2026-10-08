@@ -47,6 +47,8 @@ def create_app(container: Container | None = None, identity_verifier: IdentityVe
         app.add_middleware(
             CORSMiddleware,
             allow_origins=settings.cors_origin_list,
+            # Sans cela, le navigateur ne joint pas le cookie de session à une requête venue d'une autre origine
+            allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["Authorization", "Content-Type"],
         )

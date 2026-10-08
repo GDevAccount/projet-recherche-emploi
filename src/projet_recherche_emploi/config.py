@@ -15,6 +15,9 @@ LOCAL_TIMEZONE = "Europe/Paris"
 # Nombre de recherches par jour pour chaque utilisateur invité (le propriétaire n'est pas limité)
 MAX_SEARCHES_PER_DAY = 2
 
+# Durée d'une session de l'API, après quoi le front redemande une connexion
+SESSION_DAYS = 30
+
 CONTRACT_TYPES = ["CDI", "freelance", "CDD", "alternance", "stage"]
 
 # Sites auxquels la recherche Tavily est limitée
