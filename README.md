@@ -136,6 +136,16 @@ npm run build          # build de production, dans frontend/dist/
 
 Une fois le front construit par `npm run build`, le serveur Python le sert lui-même sous `/frontend`, avec l'interface Streamlit comme avec l'API seule. L'image Docker fait ce build dans une première étape : elle ne contient ni Node ni `node_modules`.
 
+PrimeNG demande une clé de licence, gratuite pour un particulier ou une petite structure (licence « Community », à demander sur <https://primeui.dev/pricing>, valable un an et renouvelable). Sans elle, le front fonctionne mais affiche un bandeau « licence invalide ». Le dépôt étant public, la clé n'y est pas écrite : elle est passée au build.
+
+```bash
+npm start -- --define "PRIMEUI_LICENSE='ma-clé'"         # en développement
+npm run build -- --define "PRIMEUI_LICENSE='ma-clé'"     # build de production
+fly deploy --build-arg PRIMEUI_LICENSE=ma-clé             # publication à la main
+```
+
+Le workflow de déploiement la lit dans le secret `PRIMEUI_LICENSE` du dépôt GitHub (**Settings → Secrets and variables → Actions**). Elle se retrouve dans le JavaScript servi aux visiteurs : ce n'est pas un secret au sens des clés API, seulement une valeur qu'on évite de publier dans le dépôt.
+
 L'adresse de l'API est dans `frontend/src/environments/` (`apiUrl`, par défaut `/api`), jamais dans le code. Pour héberger le front ailleurs, y mettre l'adresse complète de l'API et déclarer l'adresse du front dans `CORS_ORIGINS`.
 
 ## Héberger l'application pour quelqu'un d'autre
@@ -177,7 +187,7 @@ fly secrets set TAVILY_API_KEY=... OPENAI_API_KEY=... APP_PASSWORD=...
 
 Une nouvelle version est publiée automatiquement à chaque push sur la branche `main`, par le workflow GitHub Actions `.github/workflows/fly-deploy.yml`. Il lance d'abord le linter et les tests, côté Python et côté front, puis le build du front : si l'un échoue, rien n'est publié. Il les lance aussi sur chaque pull request, sans rien publier. Le déroulement se suit dans l'onglet **Actions** du dépôt. L'instance redémarre à chaque déploiement : le volume `/data` est conservé, mais une recherche en cours est interrompue.
 
-Ce workflow a besoin d'un jeton Fly.io, enregistré une seule fois comme secret `FLY_API_TOKEN` du dépôt GitHub :
+Ce workflow lit aussi la clé de licence PrimeNG dans le secret `PRIMEUI_LICENSE` (voir [Front Angular](#front-angular)). Il a besoin d'un jeton Fly.io, enregistré une seule fois comme secret `FLY_API_TOKEN` du dépôt GitHub :
 
 ```bash
 fly tokens create deploy -x 999999h    # jeton limité à cette application
