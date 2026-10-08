@@ -23,13 +23,17 @@ class FakeEvaluator:
 
     def __init__(self):
         self.evaluated = []
+        # Contrat que le modèle est censé lire sur chaque page
+        self.contract_type = "freelance"
 
     def evaluate(self, cv, pages):
         for index, page in enumerate(pages):
             self.evaluated.append((cv, page["url"]))
             matches = page["url"].endswith("/0")
             reason = "ok" if matches else "hors profil"
-            yield index, JobEvaluation(is_real_offer=True, matches_cv=matches, reason=reason)
+            yield index, JobEvaluation(
+                is_real_offer=True, matches_cv=matches, reason=reason, contract_type=self.contract_type
+            )
 
 
 @pytest.fixture(autouse=True)

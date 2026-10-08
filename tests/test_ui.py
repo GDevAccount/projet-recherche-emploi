@@ -28,7 +28,9 @@ def app(tmp_path, monkeypatch, container):
 def test_application_shows_the_offers_of_the_owner(app, container, valid_pdf):
     container.cv.save_cv(DEFAULT_USER_ID, valid_pdf)
     with container.database.session() as session:
-        JobRepository(session, DEFAULT_USER_ID).insert_jobs([job("https://a/1"), job("https://a/2")])
+        # La seconde offre vient d'une page qui ne dit pas son contrat
+        jobs = [job("https://a/1"), {**job("https://a/2"), "contract_type": None}]
+        JobRepository(session, DEFAULT_USER_ID).insert_jobs(jobs)
         RejectedJobRepository(session, DEFAULT_USER_ID).insert_rejected_jobs([rejected_job("https://r/1")])
     first_job = container.jobs.list_jobs(DEFAULT_USER_ID)[0]
     container.jobs.set_applied(DEFAULT_USER_ID, first_job.id, True)
@@ -43,6 +45,9 @@ def test_application_shows_the_offers_of_the_owner(app, container, valid_pdf):
     }
     [search_button] = [button for button in app.button if button.label == "Lancer une recherche"]
     assert search_button.disabled is False
+    # Une offre sans contrat reste visible : elle a sa propre valeur dans le filtre
+    [contract_filter] = [field for field in app.multiselect if field.label == "Type de contrat"]
+    assert contract_filter.value == ["CDI", "non précisé"]
 
 
 def test_search_button_is_disabled_without_cv(app):

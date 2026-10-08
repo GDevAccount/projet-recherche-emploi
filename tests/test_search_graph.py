@@ -3,6 +3,7 @@ from helpers import blank_pdf
 from langchain_core.runnables import RunnableLambda
 
 from projet_recherche_emploi.agent.adapters import OpenAIJobEvaluator
+from projet_recherche_emploi.agent.nodes import build_search_text
 from projet_recherche_emploi.config import MAX_PAGE_CHARS
 from projet_recherche_emploi.data.cv_storage import CvStorage
 from projet_recherche_emploi.data.job_repository import JobRepository
@@ -30,8 +31,8 @@ def test_search_uses_the_queries_and_cv_of_its_user(graph, container, evaluator)
     assert {job["query"] for job in result["jobs"]} == {"recherche de bob"}
     assert [cv for cv, _ in evaluator.evaluated] == ["CV:2.pdf", "CV:2.pdf"]
     with container.database.session() as session:
-        assert [job.url for job in JobRepository(session, BOB).list_jobs()] == ["https://x/recherche de bob/0"]
-        assert RejectedJobRepository(session, BOB).list_known_urls() == {"https://x/recherche de bob/1"}
+        assert [job.url for job in JobRepository(session, BOB).list_jobs()] == ["https://x/recherche de bob CDI/0"]
+        assert RejectedJobRepository(session, BOB).list_known_urls() == {"https://x/recherche de bob CDI/1"}
         assert JobRepository(session, ALICE).list_jobs() == []
         assert RejectedJobRepository(session, ALICE).list_known_urls() == set()
 
@@ -134,3 +135,41 @@ def test_refused_cv_writes_nothing(tmp_path):
 def test_reading_a_missing_cv_is_a_user_error(tmp_path):
     with pytest.raises(InvalidInputError):
         CvStorage(tmp_path).read_text(BOB)
+
+
+@pytest.mark.parametrize(
+    ("contract_type", "query", "sent"),
+    [
+        ("CDI", "data engineer à Paris", "data engineer à Paris CDI"),
+        ("CDI", "offre d'emploi ingénieur IA en cdi", "offre d'emploi ingénieur IA en cdi"),
+        ("freelance", "mission Freelance AI engineer", "mission Freelance AI engineer"),
+    ],
+)
+def test_contract_type_is_added_to_the_search_unless_already_there(contract_type, query, sent):
+    assert build_search_text(contract_type, query) == sent
+
+
+def test_saved_contract_is_the_one_read_on_the_page_not_the_one_of_the_search(graph, container, evaluator):
+    with container.database.session() as session:
+        QueryRepository(session, BOB).add_query("CDI", "recherche de bob")
+
+    graph.invoke({"user_id": BOB})
+    with container.database.session() as session:
+        # La recherche demandait un CDI, le faux modèle a lu « freelance » sur les pages
+        assert [job.contract_type for job in JobRepository(session, BOB).list_jobs()] == ["freelance"]
+        assert [page.contract_type for page in RejectedJobRepository(session, BOB).list_rejected_jobs()] == [
+            "freelance"
+        ]
+        # La recherche d'origine reste le texte saisi, sans le contrat ajouté pour le moteur
+        assert [job.query for job in JobRepository(session, BOB).list_jobs()] == ["recherche de bob"]
+
+
+def test_a_page_that_does_not_state_its_contract_is_saved_without_one(graph, container, evaluator):
+    evaluator.contract_type = None
+    with container.database.session() as session:
+        QueryRepository(session, BOB).add_query("stage", "recherche de bob")
+
+    graph.invoke({"user_id": BOB})
+
+    with container.database.session() as session:
+        assert [job.contract_type for job in JobRepository(session, BOB).list_jobs()] == [None]

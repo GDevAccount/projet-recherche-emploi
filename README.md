@@ -44,9 +44,9 @@ La commande doit être lancée depuis la racine : `cv.pdf` et `jobs.db` sont che
 ## Utiliser l'interface
 
 1. **Déposer son CV.** Dans la barre latérale, choisir un PDF puis cliquer sur « Enregistrer ce CV ». Il est enregistré à la racine sous le nom `cv.pdf` et remplace le précédent. Les pages rejetées avec l'ancien CV sont alors oubliées : elles seront réévaluées à la prochaine recherche.
-2. **Choisir les postes recherchés.** La barre latérale liste les recherches enregistrées. Chacune associe un type de contrat à une phrase de recherche, par exemple « offre d'emploi data engineer en CDI à Lyon ». Le formulaire en ajoute une, le bouton ✕ en supprime une. Elles sont conservées en base d'une session à l'autre.
+2. **Choisir les postes recherchés.** La barre latérale liste les recherches enregistrées. Chacune associe un type de contrat à une phrase de recherche, par exemple « offre d'emploi data engineer en Île-de-France ». Le type de contrat est ajouté à la phrase envoyée au moteur de recherche, sauf si elle le mentionne déjà. Le formulaire en ajoute une, le bouton ✕ en supprime une. Elles sont conservées en base d'une session à l'autre.
 3. **Lancer une recherche.** Le bouton « Lancer une recherche » est actif dès qu'un CV et au moins une recherche sont enregistrés. Une barre de progression suit les recherches Tavily puis les évaluations par OpenAI, ce qui peut prendre quelques minutes. La page indique ensuite le nombre de pages trouvées, de pages pas encore évaluées, d'offres retenues, de pages rejetées et de nouvelles offres en base.
-4. **Suivre ses candidatures.** L'onglet « Offres retenues » liste les offres, de la plus récente à la plus ancienne, avec un lien vers l'annonce et la raison pour laquelle elle a été retenue. Cocher « Postulé » enregistre la candidature et sa date. Au-dessus du tableau, un filtre par type de contrat, un champ de recherche (sur le titre de l'offre et la raison donnée par le modèle, par exemple pour retrouver une entreprise) et un interrupteur masquant les offres déjà postulées sont disponibles.
+4. **Suivre ses candidatures.** L'onglet « Offres retenues » liste les offres, de la plus récente à la plus ancienne, avec un lien vers l'annonce et la raison pour laquelle elle a été retenue. Cocher « Postulé » enregistre la candidature et sa date. La colonne « Contrat » donne le contrat que le modèle a lu sur l'annonce, qui peut différer de celui de la recherche, ou « non précisé » si l'annonce ne le dit pas. Au-dessus du tableau, un filtre par type de contrat, un champ de recherche (sur le titre de l'offre et la raison donnée par le modèle, par exemple pour retrouver une entreprise) et un interrupteur masquant les offres déjà postulées sont disponibles.
 5. **Supprimer une offre.** Cocher « Supprimer » sur une ou plusieurs lignes, puis cliquer sur le bouton « Supprimer N offre(s) » qui apparaît sous le tableau. Une offre supprimée ne revient pas aux recherches suivantes.
 
 6. **Comprendre les rejets.** L'onglet « Pages rejetées » liste les pages écartées par le modèle, avec la raison donnée. Chaque page est classée « Pas une offre valable » (liste d'offres, article, offre expirée ou hors région parisienne) ou « Hors profil » (vraie offre, mais qui ne correspond pas au CV). Des filtres par motif et par recherche d'origine, et un champ de recherche, aident à repérer ce qui fait perdre des offres.
@@ -272,7 +272,7 @@ Table `jobs`, les offres retenues :
 | `title` | Titre de la page |
 | `content` | Extrait de l'annonce |
 | `score` | Pertinence estimée par Tavily, entre 0 et 1 |
-| `contract_type` | Type de contrat de la recherche qui a trouvé l'offre |
+| `contract_type` | Type de contrat lu sur l'annonce par le modèle, vide si elle ne le dit pas. Pour les offres trouvées avant ce changement : celui de la recherche qui a trouvé l'offre |
 | `query` | Recherche qui a trouvé l'offre |
 | `match_reason` | Justification du modèle pour avoir retenu l'offre |
 | `applied` | `1` si vous avez postulé, `0` sinon |
@@ -287,7 +287,7 @@ Table `rejected_jobs`, les pages rejetées par le modèle. Elle sert à ne pas p
 | `user_id` | Utilisateur propriétaire de la ligne. Vaut `1` tant que l'application n'a qu'un utilisateur |
 | `url` | Lien de la page (unique par utilisateur) |
 | `title` | Titre de la page |
-| `contract_type` | Type de contrat de la recherche qui a trouvé la page |
+| `contract_type` | Type de contrat lu sur la page par le modèle, souvent vide. Pour les pages rejetées avant ce changement : celui de la recherche qui a trouvé la page |
 | `query` | Recherche qui a trouvé la page |
 | `is_real_offer` | `1` si le modèle y a vu une vraie offre, `0` sinon |
 | `matches_cv` | `1` si le modèle a jugé que le poste correspond au CV, `0` sinon |
