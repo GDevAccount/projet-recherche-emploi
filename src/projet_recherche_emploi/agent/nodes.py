@@ -4,10 +4,15 @@ from collections.abc import Iterable
 
 from langgraph.config import get_stream_writer
 
-from projet_recherche_emploi.agent.ports import JobEvaluation, JobEvaluator, JobSearchEngine, SearchCriteria
+from projet_recherche_emploi.agent.ports import (
+    CvReader,
+    JobEvaluation,
+    JobEvaluator,
+    JobSearchEngine,
+    SearchCriteria,
+)
 from projet_recherche_emploi.agent.state import JobSearchState
 from projet_recherche_emploi.config import DEFAULT_USER_ID, FULL_REMOTE_MODE, TRAINING_CONTRACTS
-from projet_recherche_emploi.data.cv_storage import CvStorage
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.job_repository import JobRepository
 from projet_recherche_emploi.data.models import SearchQuery
@@ -199,12 +204,12 @@ class SearchNodes:
     def __init__(
         self,
         database: Database,
-        cv_storage: CvStorage,
+        cv_reader: CvReader,
         search_engine: JobSearchEngine,
         evaluator: JobEvaluator,
     ):
         self.database = database
-        self.cv_storage = cv_storage
+        self.cv_reader = cv_reader
         self.search_engine = search_engine
         self.evaluator = evaluator
 
@@ -272,7 +277,7 @@ class SearchNodes:
         if not jobs:
             return {"filtered_jobs": [], "rejected_jobs": []}
 
-        cv_content = self.cv_storage.read_text(get_user_id(state))
+        cv_content = self.cv_reader.read_text(get_user_id(state))
 
         write_progress = get_stream_writer()
         write_progress(

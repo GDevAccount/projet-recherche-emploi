@@ -18,6 +18,7 @@ from projet_recherche_emploi.data.cv_storage import CvStorage
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.services.account_service import AccountService
 from projet_recherche_emploi.services.auth_service import AuthService
+from projet_recherche_emploi.services.cv_anonymizer import CvAnonymizer
 from projet_recherche_emploi.services.cv_service import CvService
 from projet_recherche_emploi.services.job_service import JobService
 from projet_recherche_emploi.services.query_service import QueryService
@@ -40,13 +41,14 @@ class Container:
         self.auth = AuthService(settings, self.database)
         self.jobs = JobService(self.database)
         self.queries = QueryService(self.database)
-        self.cv = CvService(self.database, self.cv_storage)
+        self.cv = CvService(self.database, self.cv_storage, CvAnonymizer())
         self.search = SearchService(self.database, self.cv_storage, lambda: self.graph)
         self.account = AccountService(self.database, self.cv_storage, self.search)
 
     @cached_property
     def graph(self) -> CompiledStateGraph:
-        nodes = SearchNodes(self.database, self.cv_storage, self._search_engine, self._evaluator)
+        # Le graph lit le CV par le service : il n'en reçoit que le texte sans coordonnées
+        nodes = SearchNodes(self.database, self.cv, self._search_engine, self._evaluator)
         return build_graph(nodes)
 
 

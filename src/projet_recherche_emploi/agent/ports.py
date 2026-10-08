@@ -26,6 +26,12 @@ class SearchCriteria:
     accepts_full_remote: bool = False
 
 
+class CvReader(Protocol):
+    def read_text(self, user_id: int) -> str:
+        """Renvoie le texte du CV de l'utilisateur, tel qu'il peut être envoyé au modèle : sans ses coordonnées."""
+        ...
+
+
 class JobEvaluation(BaseModel):
     """Ce que le modèle lit sur une page. Les champs sont dans l'ordre où il les écrit : les faits, puis les avis.
 

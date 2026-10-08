@@ -12,6 +12,8 @@ from projet_recherche_emploi.config import (
     INACTIVE_ACCOUNT_DAYS,
     MAX_SEARCHES_PER_DAY,
 )
+from projet_recherche_emploi.data.cv_storage import CvStorage
+from projet_recherche_emploi.data.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.job_repository import JobRepository
 from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.data.user_repository import UserRepository
@@ -325,6 +327,7 @@ def test_deleting_an_account_leaves_nothing_behind(container, valid_pdf):
     assert container.queries.list_queries(user_id) == []
     assert container.cv.get_status(user_id).updated_at is None
     assert not container.cv_storage.path_for(user_id).exists()
+    assert stored_cv_text(container, user_id) is None
     # Le quota repart de zéro : les lancements sont effacés aussi
     assert container.search.remaining_searches(user_id) == MAX_SEARCHES_PER_DAY
     # La copie reste, pour revenir en arrière après une migration ratée : seules ses données en sont retirées
@@ -420,3 +423,62 @@ def test_guest_accounts_left_unused_too_long_are_deleted(container, valid_pdf):
     assert (emails[alice], emails[bob]) == (None, "bob@exemple.fr")
     # Rien de plus à supprimer au passage suivant
     assert container.account.delete_inactive_accounts(now) == 0
+
+
+RAW_CV = "Alice Martin\nalice.martin@exemple.fr - 06 12 34 56 78\n12 rue des Lilas, 75011 Paris\nIngénieure IA, Python"
+ANONYMOUS_CV = "[nom] [nom]\n[e-mail] - [téléphone]\n[adresse], 75011 Paris\nIngénieure IA, Python"
+
+
+def stored_cv_text(container, user_id: int) -> str | None:
+    with container.database.session() as session:
+        return CvTextRepository(session, user_id).get_content()
+
+
+def test_saved_cv_is_stored_without_its_contact_details_and_read_from_the_database(container, valid_pdf, monkeypatch):
+    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: RAW_CV)
+
+    container.cv.save_cv(BOB, valid_pdf, ["Alice Martin"])
+
+    assert stored_cv_text(container, BOB) == ANONYMOUS_CV
+    assert stored_cv_text(container, CAROL) is None
+    # La lecture ne repasse pas par le PDF : c'est le texte enregistré qui part au modèle
+    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: pytest.fail("le PDF a été relu"))
+    assert container.cv.read_text(BOB) == ANONYMOUS_CV
+
+
+def test_new_cv_replaces_the_stored_text(container, valid_pdf, monkeypatch):
+    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: RAW_CV)
+    container.cv.save_cv(BOB, valid_pdf)
+
+    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: "Nouveau CV, bob@exemple.fr")
+    container.cv.save_cv(BOB, valid_pdf)
+
+    assert container.cv.read_text(BOB) == "Nouveau CV, [e-mail]"
+
+
+def test_cv_saved_before_its_text_was_stored_is_anonymized_at_first_reading(container, valid_pdf, monkeypatch):
+    # Le PDF est en place, sans texte en base : c'est l'état d'un CV déposé avant cette table
+    container.cv_storage.save(BOB, valid_pdf)
+    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: RAW_CV)
+    assert stored_cv_text(container, BOB) is None
+
+    text = container.cv.read_text(BOB)
+
+    # Sans le nom de l'utilisateur, inconnu à cet instant, le reste est tout de même retiré
+    assert text == ANONYMOUS_CV.replace("[nom] [nom]", "Alice Martin")
+    assert stored_cv_text(container, BOB) == text
+
+
+def test_reading_the_cv_of_a_user_who_has_none_is_a_user_error(container):
+    with pytest.raises(InvalidInputError):
+        container.cv.read_text(BOB)
+
+
+def test_search_sends_the_anonymized_cv_to_the_model(container, evaluator, valid_pdf, monkeypatch):
+    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: RAW_CV)
+    container.cv.save_cv(BOB, valid_pdf, ["Alice Martin"])
+    container.queries.add_query(BOB, "CDI", "data engineer")
+
+    container.search.run_search(BOB)
+
+    assert {cv for cv, _ in evaluator.evaluated} == {ANONYMOUS_CV}

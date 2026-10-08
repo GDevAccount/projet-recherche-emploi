@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from helpers import job, rejected_job
 
 from projet_recherche_emploi.config import DEFAULT_QUERIES
+from projet_recherche_emploi.data.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.job_repository import JobRepository
 from projet_recherche_emploi.data.query_repository import QueryRepository
 from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
@@ -176,3 +177,16 @@ def test_erasing_everything_does_not_touch_another_user(session):
     assert len(RejectedJobRepository(session, ALICE).list_rejected_jobs()) == 1
     assert len(QueryRepository(session, ALICE).list_queries()) == alice_queries
     assert SearchRunRepository(session, ALICE).count_runs_since(since) == 1
+
+
+def test_each_user_has_their_own_cv_text(session):
+    alice, bob = CvTextRepository(session, ALICE), CvTextRepository(session, BOB)
+    alice.save("CV d'Alice")
+    bob.save("CV de Bob")
+
+    bob.save("Nouveau CV de Bob")
+
+    assert (alice.get_content(), bob.get_content()) == ("CV d'Alice", "Nouveau CV de Bob")
+    assert bob.delete() is True
+    assert bob.delete() is False
+    assert (alice.get_content(), bob.get_content()) == ("CV d'Alice", None)
