@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
 import {
+  AccountDetail,
   AlertTest,
   BudgetOverview,
   HealthOverview,
@@ -54,6 +55,11 @@ export class TrackingService {
   /** Où en est chaque compte, et combien d'invités ont franchi chaque étape du parcours. */
   getJourneys(): Observable<JourneyOverview> {
     return this.http.get<JourneyOverview>(`${environment.apiUrl}/admin/journeys`);
+  }
+
+  /** Fiche d'un compte : la chronologie de ce qu'il a fait, et ce qui écarte ses pages. */
+  getJourney(userId: number): Observable<AccountDetail> {
+    return this.http.get<AccountDetail>(`${environment.apiUrl}/admin/journeys/${userId}`);
   }
 
   /** Envoie une alerte d'essai, et dit si elle est partie. */

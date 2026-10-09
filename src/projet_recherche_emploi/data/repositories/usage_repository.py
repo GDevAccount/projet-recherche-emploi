@@ -4,6 +4,7 @@ from sqlalchemy import Row, func, insert, literal, null, select
 from sqlalchemy.orm import Session
 
 from projet_recherche_emploi.data.models import (
+    ActivityDay,
     ArchivedUsage,
     Correction,
     CvText,
@@ -112,6 +113,7 @@ class UsageRepository:
             Job.user_id,
             func.count().label("kept"),
             # count ne compte que les dates renseignées
+            func.count(Job.opened_at).label("opened"),
             func.count(Job.applied_at).label("applied"),
             func.count(Job.interview_at).label("interviews"),
         ).group_by(Job.user_id)
@@ -120,4 +122,9 @@ class UsageRepository:
     def count_corrections(self) -> list[Row]:
         """Renvoie, par compte, le nombre de corrections du tri."""
         statement = select(Correction.user_id, func.count().label("corrections")).group_by(Correction.user_id)
+        return list(self.session.execute(statement))
+
+    def count_active_days(self) -> list[Row]:
+        """Renvoie, par compte, le nombre de jours où il s'est servi de l'application."""
+        statement = select(ActivityDay.user_id, func.count().label("days")).group_by(ActivityDay.user_id)
         return list(self.session.execute(statement))

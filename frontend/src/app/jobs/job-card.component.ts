@@ -50,6 +50,8 @@ export class JobCardComponent {
   readonly statusChange = output<JobStatus>();
   /** La corbeille : l'écran demande s'il s'agit d'un refus de l'employeur ou d'une suppression */
   readonly discard = output<void>();
+  /** L'utilisateur ouvre l'annonce, par un clic ou dans un nouvel onglet. */
+  readonly opened = output<void>();
 
   protected readonly site = computed(() => siteOf(this.job().url));
   protected readonly hue = computed(() => hueOf(this.site()));

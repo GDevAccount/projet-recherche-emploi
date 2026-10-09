@@ -41,10 +41,12 @@
         <thead>
           <tr>
             <th scope="col">Compte</th>
+            <th scope="col" class="extra">Arrêté à</th>
             <th scope="col" class="extra">CV</th>
             <th scope="col" class="number extra">Postes</th>
             <th scope="col" class="number">Recherches</th>
             <th scope="col" class="number extra">Offres</th>
+            <th scope="col" class="number extra">Ouvertes</th>
             <th scope="col" class="number">Candidatures</th>
             <th scope="col" class="number extra">Entretiens</th>
             <th scope="col" class="number extra">Corrections</th>
@@ -53,17 +55,25 @@
         </thead>
         <tbody>
           @for (account of journeys.accounts; track account.user_id) {
-            <tr>
+            <tr [class.selected]="selected() === account.user_id">
               <th scope="row">
-                {{ nameOf(account) }}
+                <button
+                  type="button"
+                  [attr.aria-expanded]="selected() === account.user_id"
+                  (click)="toggle(account)"
+                >
+                  {{ nameOf(account) }}
+                </button>
                 @if (account.returned) {
                   <small>revenu</small>
                 }
               </th>
+              <td class="extra">{{ account.step }}</td>
               <td class="extra">{{ account.has_cv ? 'Déposé' : '—' }}</td>
               <td class="number extra">{{ account.queries | count }}</td>
               <td class="number">{{ account.runs | count }}</td>
               <td class="number extra">{{ account.kept | count }}</td>
+              <td class="number extra">{{ account.opened | count }}</td>
               <td class="number">
                 <strong>{{ account.applied | count }}</strong>
               </td>
@@ -75,9 +85,73 @@
         </tbody>
       </table>
     </div>
+    @if (selected() !== undefined) {
+      <section class="detail" aria-live="polite">
+        @if (detail(); as detail) {
+          <header>
+            <div>
+              <h3>{{ nameOf(detail.account) }}</h3>
+              <p>
+                Arrêté à <strong>{{ detail.account.step }}</strong>
+                @if (idle(detail.account.idle_days)) {
+                  · dernière visite {{ idle(detail.account.idle_days) }}
+                }
+                @if (detail.account.active_days) {
+                  · venu {{ detail.account.active_days }}
+                  {{ detail.account.active_days > 1 ? 'jours' : 'jour' }}
+                }
+              </p>
+            </div>
+            <button type="button" class="close" (click)="close()">Fermer</button>
+          </header>
+
+          @if (detail.rejected) {
+            <h4>
+              Pourquoi ses pages sont écartées
+              <span
+                >{{ detail.rejected | count }} écartées sur
+                {{ detail.evaluated | count }} évaluées</span
+              >
+            </h4>
+            <ul class="rejections">
+              @for (reason of detail.rejections; track reason.label) {
+                <li>
+                  <span class="label">{{ reason.label }}</span>
+                  <span class="track"
+                    ><span [style.width.%]="(reason.rate ?? 0) * 100"></span
+                  ></span>
+                  <span class="value">
+                    <strong>{{ reason.count | count }}</strong>
+                    <small>{{ reason.rate | share }}</small>
+                  </span>
+                </li>
+              }
+            </ul>
+          }
+
+          <h4>Ce qu'il a fait, du plus récent au plus ancien</h4>
+          <ol class="events">
+            @for (event of detail.events; track $index) {
+              <li [class]="event.kind">
+                <time [attr.datetime]="event.at">{{ event.at | parisDate: 'time' }}</time>
+                <span>
+                  <strong>{{ event.label }}</strong>
+                  @if (event.detail) {
+                    <small>{{ event.detail }}</small>
+                  }
+                </span>
+              </li>
+            }
+          </ol>
+        } @else {
+          <p class="hint">Chargement de la fiche…</p>
+        }
+      </section>
+    }
+
     <small class="note">
-      Des nombres seulement : ni les postes recherchés, ni les offres d'un autre compte. Un compte
-      supprimé quitte ce tableau.
+      Cliquez sur un compte pour voir sa fiche. Des dates, des nombres et des motifs seulement : ni
+      les postes recherchés, ni les offres d'un autre compte. Un compte supprimé quitte ce tableau.
     </small>
   } @else {
     <p class="hint">Chargement du parcours des invités…</p>

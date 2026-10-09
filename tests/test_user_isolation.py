@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from helpers import job, rejected_job
 
 from projet_recherche_emploi.config import DEFAULT_QUERIES
+from projet_recherche_emploi.data.repositories.activity_repository import ActivityRepository
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.engine_call_repository import EngineCallRepository
@@ -218,6 +219,29 @@ def test_each_user_has_their_own_engine_calls(session):
     assert EngineCallRepository(session, ALICE).delete_all() == 1
 
 
+def test_each_user_has_their_own_days_of_activity(session):
+    alice, bob = ActivityRepository(session, ALICE), ActivityRepository(session, BOB)
+    assert alice.record_day("2026-10-08") and alice.record_day("2026-10-09")
+    # Le même jour ne se note qu'une fois par compte, mais chaque compte a le sien
+    assert not alice.record_day("2026-10-09") and bob.record_day("2026-10-09")
+
+    assert (alice.list_days(), bob.list_days()) == (["2026-10-08", "2026-10-09"], ["2026-10-09"])
+    assert alice.has_day("2026-10-08") and not bob.has_day("2026-10-08")
+    assert bob.delete_all() == 1
+    assert alice.list_days() == ["2026-10-08", "2026-10-09"]
+
+
+def test_opening_an_offer_stays_within_its_user(session):
+    JobRepository(session, ALICE).insert_jobs([job("https://a/1")])
+    [offer] = JobRepository(session, ALICE).list_jobs()
+    now = datetime.now(UTC)
+
+    assert not JobRepository(session, BOB).mark_opened(offer.id, now)
+    assert JobRepository(session, ALICE).mark_opened(offer.id, now)
+    # Seule la première ouverture est datée
+    assert not JobRepository(session, ALICE).mark_opened(offer.id, now)
+
+
 def test_forgetting_the_errors_of_a_user_leaves_those_of_the_others(session):
     health = HealthRepository(session)
     health.record_error(ALICE, "PUT", "/api/cv", 422, "InvalidInputError")
@@ -228,7 +252,11 @@ def test_forgetting_the_errors_of_a_user_leaves_those_of_the_others(session):
     since = datetime(2000, 1, 1, tzinfo=UTC)
     assert (health.count_client_errors(ALICE, since), health.count_client_errors(BOB, since)) == (1, 1)
 
+    assert [error.error_type for error in health.list_errors_of(ALICE)] == ["InvalidInputError"]
+    assert len(health.list_client_errors_of(ALICE)) == 1 and len(health.list_errors_of(BOB)) == 1
+
     assert health.forget_user(ALICE) == 2
+    assert health.list_errors_of(ALICE) == [] and health.list_client_errors_of(ALICE) == []
 
     assert (health.count_client_errors(ALICE, since), health.count_client_errors(BOB, since)) == (0, 1)
     [left] = health.summarize_client_errors()

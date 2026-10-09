@@ -62,6 +62,15 @@ class JobRepository:
         """Renvoie les URL de toutes les offres en base, y compris celles supprimées."""
         return set(self.session.scalars(select(Job.url).where(Job.user_id == self.user_id)))
 
+    def mark_opened(self, job_id: int, now: datetime) -> bool:
+        """Date la première ouverture de l'annonce, et renvoie faux si elle l'était déjà ou si l'offre est inconnue."""
+        statement = (
+            update(Job)
+            .where(Job.id == job_id, Job.user_id == self.user_id, Job.opened_at.is_(None))
+            .values(opened_at=now)
+        )
+        return self.session.execute(statement).rowcount == 1
+
     def set_tracking(
         self,
         job_id: int,

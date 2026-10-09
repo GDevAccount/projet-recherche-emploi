@@ -1,17 +1,38 @@
 import math
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from projet_recherche_emploi.config import DEFAULT_PLAN, DEFAULT_USER_ID, LOCAL_TIMEZONE, MODEL_PRICES_USD
+from projet_recherche_emploi.config import (
+    DEFAULT_PLAN,
+    DEFAULT_USER_ID,
+    LOCAL_TIMEZONE,
+    MODEL_PRICES_USD,
+    OFFER_PAGE_KIND,
+)
 from projet_recherche_emploi.data.database import Database
+from projet_recherche_emploi.data.models import Correction, Job, PageEvaluation, SearchRun
+from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
+from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
+from projet_recherche_emploi.data.repositories.health_repository import HealthRepository
+from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
+from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
+from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
 from projet_recherche_emploi.data.repositories.usage_repository import UsageRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
+from projet_recherche_emploi.errors import NotFoundError
 from projet_recherche_emploi.schemas import (
+    DELETE_REASON_NOT_GIVEN,
+    DELETE_REASONS,
+    AccountDetail,
     AccountJourney,
     AccountUsage,
     BudgetOverview,
+    JourneyEvent,
     JourneyOverview,
     JourneyStep,
+    RejectionCount,
     UsageOverview,
 )
 from projet_recherche_emploi.services.search_costs import (
@@ -20,6 +41,67 @@ from projet_recherche_emploi.services.search_costs import (
     search_cost_usd,
     sum_costs,
 )
+
+FIRST_STEP = "Compte créé"
+# Étapes du parcours d'un invité, dans l'ordre, et ce qui dit qu'un compte l'a franchie
+JOURNEY_STEPS: dict[str, Callable[[AccountJourney], bool]] = {
+    FIRST_STEP: lambda account: True,
+    "CV déposé": lambda account: account.has_cv,
+    "Poste recherché saisi": lambda account: account.queries > 0,
+    "Recherche lancée": lambda account: account.runs > 0,
+    "Offre retenue": lambda account: account.kept > 0,
+    "Annonce ouverte": lambda account: account.opened > 0,
+    "Candidature envoyée": lambda account: account.applied > 0,
+    "Revenu un autre jour": lambda account: account.returned,
+}
+# Raisons qui écartent une page, dans l'ordre où le tri les regarde
+REJECTION_LABELS = {
+    "page_kind": "Pas une offre",
+    "matches_search": "Métier",
+    "matches_skills": "Compétences",
+    "matches_level": "Niveau",
+    "matches_contract": "Contrat",
+    "matches_location": "Lieu",
+}
+# Au-delà, la fiche d'un compte ne montre que les moments les plus récents
+MAX_JOURNEY_EVENTS = 200
+
+
+def _rejection_labels(page: PageEvaluation) -> list[str]:
+    """Renvoie les raisons pour lesquelles cette page a été écartée."""
+    if page.page_kind is not None and page.page_kind != OFFER_PAGE_KIND:
+        return [REJECTION_LABELS["page_kind"]]
+    criteria = [name for name in REJECTION_LABELS if name != "page_kind"]
+    return [REJECTION_LABELS[name] for name in criteria if getattr(page, name) is False]
+
+
+def _describe_run(run: SearchRun) -> JourneyEvent:
+    if run.status == "failed":
+        return JourneyEvent(at=run.created_at, kind="error", label="Recherche échouée", detail=run.error)
+    if run.status == "done":
+        evaluated, found, kept = run.new_count or 0, run.found_count or 0, run.kept_count or 0
+        detail = f"{evaluated} pages évaluées sur {found} trouvées, {kept} retenues"
+        return JourneyEvent(at=run.created_at, kind="search", label="Recherche lancée", detail=detail)
+    # Sans bilan : une recherche d'avant le suivi, en cours, ou coupée par un redémarrage
+    return JourneyEvent(at=run.created_at, kind="search", label="Recherche lancée", detail="Sans bilan")
+
+
+def _describe_job(job: Job) -> list[JourneyEvent]:
+    steps = [
+        (job.opened_at, "opened", "Annonce ouverte"),
+        (job.applied_at, "applied", "Candidature envoyée"),
+        (job.interview_at, "interview", "Entretien obtenu"),
+        (job.rejected_at, "refused", "Refus de l'employeur"),
+    ]
+    return [JourneyEvent(at=at, kind=kind, label=label) for at, kind, label in steps if at is not None]
+
+
+def _describe_correction(correction: Correction) -> JourneyEvent:
+    if correction.kind == "restored":
+        label = "Page écartée remise dans les offres"
+        return JourneyEvent(at=correction.created_at, kind="restored", label=label)
+    reason = DELETE_REASONS.get(correction.reason, DELETE_REASON_NOT_GIVEN)
+    return JourneyEvent(at=correction.created_at, kind="deleted", label="Offre supprimée", detail=reason)
 
 
 class UsageService:
@@ -78,60 +160,131 @@ class UsageService:
             projected_over_budget=bool(budget) and projected > budget,
         )
 
-    def get_journeys(self) -> JourneyOverview:
+    def get_journeys(self, now: datetime | None = None) -> JourneyOverview:
         """Renvoie où en est chaque compte, et combien d'invités ont franchi chaque étape du parcours.
 
         C'est ce qui dit si l'application sert à d'autres que son propriétaire : un invité qui postule aux
         offres retenues et qui revient. Des nombres seulement : ni poste, ni offre, ni page d'un compte.
         """
-        timezone = ZoneInfo(LOCAL_TIMEZONE)
+        now = now or datetime.now(UTC)
         with self.database.session() as session:
-            usage = UsageRepository(session)
-            with_cv = usage.list_accounts_with_cv()
-            queries = {row.user_id: row.queries for row in usage.count_queries()}
-            jobs = {row.user_id: row for row in usage.count_jobs()}
-            corrections = {row.user_id: row.corrections for row in usage.count_corrections()}
-            runs: dict[int, int] = {}
-            for row in usage.summarize_runs():
-                runs[row.user_id] = runs.get(row.user_id, 0) + row.runs
-            accounts = [
-                AccountJourney(
-                    user_id=user.id,
-                    email=user.email,
-                    is_owner=user.id == DEFAULT_USER_ID,
-                    created_at=user.created_at,
-                    last_seen_at=user.last_seen_at,
-                    has_cv=user.id in with_cv,
-                    queries=queries.get(user.id, 0),
-                    runs=runs.get(user.id, 0),
-                    kept=jobs[user.id].kept if user.id in jobs else 0,
-                    applied=jobs[user.id].applied if user.id in jobs else 0,
-                    interviews=jobs[user.id].interviews if user.id in jobs else 0,
-                    corrections=corrections.get(user.id, 0),
-                    returned=user.last_seen_at is not None
-                    and user.last_seen_at.astimezone(timezone).date() > user.created_at.astimezone(timezone).date(),
-                )
-                for user in UserRepository(session).list_users()
-                # Une ligne sans adresse est un compte supprimé, sauf celle du propriétaire
-                if user.email is not None or user.id == DEFAULT_USER_ID
-            ]
+            accounts = self._describe_accounts(session, now)
         accounts.sort(key=lambda account: (account.last_seen_at or account.created_at, account.user_id), reverse=True)
 
         guests = [account for account in accounts if not account.is_owner]
-        reached = {
-            "Compte créé": lambda account: True,
-            "CV déposé": lambda account: account.has_cv,
-            "Poste recherché saisi": lambda account: account.queries > 0,
-            "Recherche lancée": lambda account: account.runs > 0,
-            "Offre retenue": lambda account: account.kept > 0,
-            "Candidature envoyée": lambda account: account.applied > 0,
-            "Revenu un autre jour": lambda account: account.returned,
-        }
         steps = []
-        for label, has_reached in reached.items():
+        for label, has_reached in JOURNEY_STEPS.items():
             count = sum(has_reached(account) for account in guests)
             steps.append(JourneyStep(label=label, count=count, rate=round(count / len(guests), 4) if guests else None))
         return JourneyOverview(guests=len(guests), steps=steps, accounts=accounts)
+
+    def get_journey(self, user_id: int, now: datetime | None = None) -> AccountDetail:
+        """Renvoie la fiche d'un compte : sa chronologie, et les raisons qui écartent ses pages.
+
+        Pour comprendre où un invité bute. Chaque ligne dit ce qu'il a fait et quand, jamais sur quoi : ni
+        intitulé, ni lien, ni phrase de recherche ne sortent d'ici.
+        """
+        now = now or datetime.now(UTC)
+        with self.database.session() as session:
+            account = next((row for row in self._describe_accounts(session, now) if row.user_id == user_id), None)
+            if account is None:
+                raise NotFoundError("Ce compte n'existe pas.")
+            events = [JourneyEvent(at=account.created_at, kind="account", label="Compte créé")]
+            cv_date = CvTextRepository(session, user_id).get_updated_at()
+            if cv_date is not None:
+                events.append(JourneyEvent(at=cv_date, kind="cv", label="CV déposé"))
+            events += [
+                JourneyEvent(at=query.created_at, kind="query", label="Poste recherché ajouté")
+                for query in QueryRepository(session, user_id).list_queries()
+            ]
+            events += [_describe_run(run) for run in SearchRunRepository(session, user_id).list_runs()]
+            for job in JobRepository(session, user_id).list_all():
+                events += _describe_job(job)
+            events += [_describe_correction(row) for row in CorrectionRepository(session, user_id).list_all()]
+            health = HealthRepository(session)
+            events += [
+                JourneyEvent(
+                    at=error.created_at,
+                    kind="error",
+                    label="Panne du serveur" if error.status_code >= 500 else "Demande refusée",
+                    detail=f"{error.method} {error.route or 'route inconnue'} · {error.error_type}",
+                )
+                for error in health.list_errors_of(user_id)
+            ]
+            events += [
+                JourneyEvent(
+                    at=error.created_at,
+                    kind="error",
+                    label="Erreur du navigateur",
+                    detail=f"{error.error_type} sur l'écran {error.route or 'inconnu'}",
+                )
+                for error in health.list_client_errors_of(user_id)
+            ]
+            pages = PageEvaluationRepository(session, user_id).list_all()
+            rejected = [page for page in pages if not page.kept]
+            counts = dict.fromkeys(REJECTION_LABELS.values(), 0)
+            for page in rejected:
+                for label in _rejection_labels(page):
+                    counts[label] += 1
+
+        # Le plus récent en premier ; à la même seconde, l'ordre du parcours : le compte se crée avant le CV
+        ranked = sorted(enumerate(events), key=lambda ranked: (ranked[1].at, ranked[0]), reverse=True)
+        events = [event for _, event in ranked]
+        rejections = [
+            RejectionCount(label=label, count=count, rate=round(count / len(rejected), 4))
+            for label, count in sorted(counts.items(), key=lambda item: -item[1])
+            if count
+        ]
+        return AccountDetail(
+            account=account,
+            evaluated=len(pages),
+            rejected=len(rejected),
+            rejections=rejections,
+            events=events[:MAX_JOURNEY_EVENTS],
+        )
+
+    def _describe_accounts(self, session, now: datetime) -> list[AccountJourney]:
+        timezone = ZoneInfo(LOCAL_TIMEZONE)
+        usage = UsageRepository(session)
+        with_cv = usage.list_accounts_with_cv()
+        queries = {row.user_id: row.queries for row in usage.count_queries()}
+        jobs = {row.user_id: row for row in usage.count_jobs()}
+        corrections = {row.user_id: row.corrections for row in usage.count_corrections()}
+        active_days = {row.user_id: row.days for row in usage.count_active_days()}
+        runs: dict[int, int] = {}
+        for row in usage.summarize_runs():
+            runs[row.user_id] = runs.get(row.user_id, 0) + row.runs
+
+        accounts = []
+        for user in UserRepository(session).list_users():
+            # Une ligne sans adresse est un compte supprimé, sauf celle du propriétaire
+            if user.email is None and user.id != DEFAULT_USER_ID:
+                continue
+            counted = jobs.get(user.id)
+            account = AccountJourney(
+                user_id=user.id,
+                email=user.email,
+                is_owner=user.id == DEFAULT_USER_ID,
+                created_at=user.created_at,
+                last_seen_at=user.last_seen_at,
+                has_cv=user.id in with_cv,
+                queries=queries.get(user.id, 0),
+                runs=runs.get(user.id, 0),
+                kept=counted.kept if counted else 0,
+                opened=counted.opened if counted else 0,
+                applied=counted.applied if counted else 0,
+                interviews=counted.interviews if counted else 0,
+                corrections=corrections.get(user.id, 0),
+                returned=user.last_seen_at is not None
+                and user.last_seen_at.astimezone(timezone).date() > user.created_at.astimezone(timezone).date(),
+                active_days=active_days.get(user.id, 0),
+                step=FIRST_STEP,
+                idle_days=None if user.last_seen_at is None else max((now - user.last_seen_at).days, 0),
+            )
+            # La dernière étape franchie, dans l'ordre du parcours : c'est là que le compte s'est arrêté
+            account.step = [label for label, has_reached in JOURNEY_STEPS.items() if has_reached(account)][-1]
+            accounts.append(account)
+        return accounts
 
     def list_unpriced_models(self, since: datetime | None = None) -> list[str]:
         """Renvoie les modèles qui ont évalué des pages depuis cette date et dont le tarif manque.

@@ -3,7 +3,14 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from projet_recherche_emploi.api.security import AdminId, Services
-from projet_recherche_emploi.schemas import AlertTest, BudgetOverview, HealthOverview, JourneyOverview, UsageOverview
+from projet_recherche_emploi.schemas import (
+    AccountDetail,
+    AlertTest,
+    BudgetOverview,
+    HealthOverview,
+    JourneyOverview,
+    UsageOverview,
+)
 
 router = APIRouter(tags=["administration"])
 
@@ -64,3 +71,12 @@ def get_journeys(admin_id: AdminId, services: Services) -> JourneyOverview:
     Réservé aux administrateurs. Pour chaque compte, son adresse et des nombres : aucun poste, aucune offre.
     """
     return services.usage.get_journeys()
+
+
+@router.get("/admin/journeys/{user_id}")
+def get_journey(user_id: int, admin_id: AdminId, services: Services) -> AccountDetail:
+    """Fiche d'un compte : la chronologie de ce qu'il a fait, et les raisons qui écartent ses pages.
+
+    Réservé aux administrateurs. Des dates, des nombres et des motifs : ni intitulé, ni lien, ni recherche.
+    """
+    return services.usage.get_journey(user_id)

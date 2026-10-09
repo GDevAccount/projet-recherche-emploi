@@ -73,6 +73,8 @@ class Job(Base):
     applied_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
     interview_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
     rejected_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    # Première fois que l'utilisateur a ouvert l'annonce depuis l'application ; vide s'il ne l'a jamais fait
+    opened_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
     deleted: Mapped[bool] = mapped_column(IntBool, server_default=text("0"))
 
@@ -332,6 +334,21 @@ class ClientError(Base):
     # Fichier du front et position dans ce fichier (« main-5UFRYBOQ.js:1:23456 ») ; vide si le navigateur ne les dit pas
     source: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+
+class ActivityDay(Base):
+    """Jour où un invité s'est servi de l'application : c'est ce qui dit s'il revient.
+
+    users.last_seen_at ne garde que le dernier. Le propriétaire n'y figure pas : son activité n'est pas datée.
+    """
+
+    __tablename__ = "activity_days"
+    __table_args__ = (UniqueConstraint("user_id", "day"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer)
+    # Jour à l'heure de Paris, « AAAA-MM-JJ »
+    day: Mapped[str] = mapped_column(Text)
 
 
 class ArchivedUsage(Base):

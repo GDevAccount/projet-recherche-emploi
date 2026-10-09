@@ -56,6 +56,14 @@ class JobService:
         with self.database.session() as session:
             return [_read(job) for job in JobRepository(session, user_id).list_jobs()]
 
+    def mark_opened(self, user_id: int, job_id: int, now: datetime | None = None) -> None:
+        """Note que l'utilisateur a ouvert l'annonce, la première fois seulement. Une offre inconnue est ignorée.
+
+        Entre « retenue » et « candidature », c'est le seul signe que l'offre a donné envie d'aller voir.
+        """
+        with self.database.session() as session:
+            JobRepository(session, user_id).mark_opened(job_id, now or datetime.now(UTC))
+
     def set_status(self, user_id: int, job_id: int, status: JobStatus, now: datetime | None = None) -> JobRead:
         """Fait passer la candidature à cet état, et renvoie l'offre à jour, dates comprises.
 

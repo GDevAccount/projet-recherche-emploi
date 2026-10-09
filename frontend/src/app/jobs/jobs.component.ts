@@ -126,6 +126,11 @@ export class JobsComponent {
     this.contracts.set(new Set());
   }
 
+  /** L'annonce s'ouvre de toute façon dans son onglet : le signalement ne doit rien retarder ni rien afficher. */
+  protected markOpened(job: Job): void {
+    this.jobService.markOpened(job.id).subscribe({ error: () => undefined });
+  }
+
   protected setStatus(job: Job, status: JobStatus): void {
     if (job.status === status || this.busy().has(job.id)) {
       return;
