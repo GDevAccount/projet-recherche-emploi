@@ -29,6 +29,9 @@ INSERTED_FIELDS = (
     "full_page",
     "input_tokens",
     "output_tokens",
+    "cache_read_tokens",
+    "cache_write_tokens",
+    "reasoning_tokens",
     "duration_ms",
 )
 
@@ -60,6 +63,11 @@ class PageEvaluationRepository:
             .where(PageEvaluation.user_id == self.user_id, PageEvaluation.search_run_id == search_run_id)
             .order_by(PageEvaluation.id)
         )
+        return list(self.session.scalars(statement))
+
+    def list_all(self) -> list[PageEvaluation]:
+        """Renvoie tout le journal de l'utilisateur, dans l'ordre de son enregistrement."""
+        statement = select(PageEvaluation).where(PageEvaluation.user_id == self.user_id).order_by(PageEvaluation.id)
         return list(self.session.scalars(statement))
 
     def delete_all(self) -> int:

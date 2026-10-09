@@ -17,8 +17,8 @@ from projet_recherche_emploi.agent.nodes import (
     format_work_location,
     location_is_accepted,
 )
-from projet_recherche_emploi.agent.ports import JobEvaluation, SearchCriteria
-from projet_recherche_emploi.config import MAX_PAGE_CHARS
+from projet_recherche_emploi.agent.ports import EvaluationUsage, JobEvaluation, SearchCriteria
+from projet_recherche_emploi.config import FILTER_MODEL, MAX_PAGE_CHARS
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
@@ -27,6 +27,8 @@ from projet_recherche_emploi.data.repositories.query_repository import QueryRepo
 from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.errors import InvalidInputError
 from projet_recherche_emploi.schemas import SearchProgress
+from projet_recherche_emploi.services.search_costs import model_cost_usd, search_cost_usd, total_cost_usd
+from projet_recherche_emploi.services.search_service import site_of
 
 ALICE = 1
 BOB = 2
@@ -131,7 +133,13 @@ def test_openai_evaluator_sends_the_cv_and_the_truncated_page_to_the_model():
                     matches_level=True,
                     reason="hors profil",
                 )
-                usage = {"input_tokens": 1200, "output_tokens": 80, "total_tokens": 1280}
+                usage = {
+                    "input_tokens": 1200,
+                    "output_tokens": 80,
+                    "total_tokens": 1280,
+                    "input_token_details": {"cache_read": 700},
+                    "output_token_details": {"reasoning": 30},
+                }
                 return {"raw": AIMessage(content="", usage_metadata=usage), "parsed": parsed, "parsing_error": None}
 
             return RunnableLambda(evaluate)
@@ -149,6 +157,8 @@ def test_openai_evaluator_sends_the_cv_and_the_truncated_page_to_the_model():
     # Chaque verdict vient avec ce que son appel a consommé
     for _, _, usage in results:
         assert (usage.input_tokens, usage.output_tokens) == (1200, 80) and usage.duration_ms >= 0
+        # Le détail aussi : les jetons lus en cache coûtent moins, ceux du raisonnement ne se voient pas
+        assert (usage.cache_read_tokens, usage.cache_write_tokens, usage.reasoning_tokens) == (700, None, 30)
     first, second = sorted(prompts, key=lambda prompt: "https://x/2" in prompt)
     assert "texte du CV" in first and "https://x/1" in first
     assert "Lyon ; Nantes" in first and "Lyon ; Nantes" in second
@@ -462,6 +472,64 @@ def test_every_evaluated_page_is_logged_with_what_was_read_and_what_it_cost(cont
         (MAX_PAGE_CHARS + 1, True, True)
     }
     assert {page.score for page in evaluations} == {1.0}
+
+
+def test_costs_follow_the_prices_and_the_cache(container, evaluator):
+    assert search_cost_usd(3) == 0.048 and search_cost_usd(None) is None
+    # La recherche réelle du 2026-10-09 : 94 967 jetons d'entrée, 10 625 de sortie
+    assert model_cost_usd(FILTER_MODEL, 94967, 10625) == 0.014809
+    # Les jetons lus en cache font partie de l'entrée, à un dixième du prix
+    assert model_cost_usd(FILTER_MODEL, 1000, 100, cache_read_tokens=600) == 0.000096
+    assert model_cost_usd("modèle sans tarif", 1000, 100) is None
+    assert model_cost_usd(FILTER_MODEL, None, None) is None
+    # Une recherche arrêtée avant l'évaluation n'a coûté que ses appels au moteur de recherche
+    assert total_cost_usd(0.048, None, has_model_usage=False) == 0.048
+    assert total_cost_usd(0.048, None, has_model_usage=True) is None
+    assert site_of("https://www.welcometothejungle.com/fr/jobs/1") == "welcometothejungle.com"
+
+
+def test_stats_gather_every_search_of_the_user(container, evaluator):
+    evaluator.model_name = FILTER_MODEL
+    evaluator.usage = EvaluationUsage(1000, 50, 120, cache_read_tokens=600, reasoning_tokens=20)
+    container.cv.save_cv(BOB, VALID_PDF.read_bytes())
+    container.queries.add_query(BOB, "CDI", "ingénieur IA")
+    assert container.search.get_stats(BOB).runs == 0
+
+    container.search.run_search(BOB)
+
+    [run] = container.search.list_runs(BOB)
+    assert (run.cache_read_tokens, run.cache_write_tokens, run.reasoning_tokens) == (1200, None, 40)
+    assert (run.search_cost_usd, run.model_cost_usd, run.cost_usd) == (0.016, 0.000142, 0.016142)
+    assert {page.model_cost_usd for page in container.search.list_evaluations(BOB, run.id)} == {0.000071}
+
+    stats = container.search.get_stats(BOB)
+    assert (stats.runs, stats.unfinished_runs, stats.found_count, stats.kept_count, stats.rejected_count) == (
+        1,
+        0,
+        2,
+        1,
+        1,
+    )
+    assert (stats.search_calls, stats.input_tokens, stats.cache_read_tokens, stats.reasoning_tokens) == (
+        1,
+        2000,
+        1200,
+        40,
+    )
+    assert (stats.search_cost_usd, stats.model_cost_usd, stats.cost_usd, stats.cost_per_kept_usd) == (
+        0.016,
+        0.000142,
+        0.016142,
+        0.016142,
+    )
+    assert stats.average_duration_ms is not None
+    [site] = stats.by_site
+    assert (site.label, site.evaluated, site.kept, site.not_an_offer, site.rejected_offers) == ("x", 2, 1, 0, 1)
+    assert (site.input_tokens, site.output_tokens, site.model_cost_usd) == (2000, 100, 0.000142)
+    assert [(group.label, group.evaluated) for group in stats.by_query] == [("ingénieur IA", 2)]
+    assert [(group.label, group.evaluated) for group in stats.by_page_kind] == [("offre", 2)]
+    assert [(group.label, group.evaluated) for group in stats.by_text] == [("Extrait seul", 2)]
+    assert container.search.get_stats(ALICE).runs == 0
 
 
 def test_the_log_survives_a_new_cv_but_not_the_account(container):

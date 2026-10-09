@@ -164,6 +164,14 @@ class SearchRunRead(_FromRow):
     search_calls: int | None
     input_tokens: int | None
     output_tokens: int | None
+    # Parts des jetons d'entrée lues ou écrites en cache, et part des jetons de sortie passée en raisonnement
+    cache_read_tokens: int | None
+    cache_write_tokens: int | None
+    reasoning_tokens: int | None
+    # Coûts en dollars, calculés aux tarifs actuels ; None quand une consommation ou un tarif n'est pas connu
+    search_cost_usd: float | None = None
+    model_cost_usd: float | None = None
+    cost_usd: float | None = None
 
 
 class PageEvaluationRead(_FromRow):
@@ -199,8 +207,58 @@ class PageEvaluationRead(_FromRow):
     full_page: bool | None
     input_tokens: int | None
     output_tokens: int | None
+    cache_read_tokens: int | None
+    cache_write_tokens: int | None
+    reasoning_tokens: int | None
     duration_ms: int | None
+    # Coût de l'appel au modèle en dollars, aux tarifs actuels ; None si ses jetons ou son tarif ne sont pas connus
+    model_cost_usd: float | None = None
     created_at: datetime
+
+
+class EvaluationGroup(BaseModel):
+    """Pages évaluées qui partagent un trait : même recherche, même site, même nature."""
+
+    label: str
+    evaluated: int
+    kept: int
+    # Pages qui n'étaient pas des offres : listes, articles, offres expirées…
+    not_an_offer: int
+    # Offres écartées pour leur métier, leur contrat, leur lieu ou le CV
+    rejected_offers: int
+    input_tokens: int
+    output_tokens: int
+    model_cost_usd: float | None
+
+
+class SearchStats(BaseModel):
+    """Synthèse de toutes les recherches suivies d'un utilisateur. Les coûts sont en dollars, aux tarifs actuels."""
+
+    # Lancements dont le bilan a été enregistré, et parmi eux ceux qui ont échoué ou ont été interrompus
+    runs: int
+    unfinished_runs: int
+    found_count: int
+    new_count: int
+    kept_count: int
+    rejected_count: int
+    search_calls: int
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int
+    reasoning_tokens: int
+    search_cost_usd: float
+    # None dès qu'un lancement a consommé des jetons d'un modèle sans tarif connu
+    model_cost_usd: float | None
+    cost_usd: float | None
+    cost_per_kept_usd: float | None
+    # Durée moyenne d'une recherche terminée, toutes étapes réunies
+    average_duration_ms: int | None
+    # Répartitions des pages évaluées, le groupe le plus fourni en premier
+    by_query: list[EvaluationGroup]
+    by_site: list[EvaluationGroup]
+    by_page_kind: list[EvaluationGroup]
+    # Selon le texte lu par le modèle : page entière, page tronquée, ou extrait du moteur de recherche
+    by_text: list[EvaluationGroup]
 
 
 class SearchSummary(BaseModel):
@@ -221,9 +279,56 @@ class AppConfig(BaseModel):
     contract_types: list[str]
 
 
+# Formule d'un compte. Il n'y a pas encore de paiement : tout compte est « free » (DEFAULT_PLAN de config.py)
+AccountPlan = Literal["free", "paid"]
+
+
+class AccountUsage(BaseModel):
+    """Ce qu'un compte a consommé et coûté sur la période. Des nombres seulement, plus l'adresse du compte."""
+
+    user_id: int
+    # None pour le propriétaire, que la table des comptes ne connaît pas par son adresse, et pour un compte supprimé
+    email: str | None
+    is_owner: bool
+    # Compte supprimé : seuls ses totaux restent, et « last_search_at » n'est plus connu
+    deleted: bool
+    # Formule du compte, ou celle qu'il avait à sa suppression
+    plan: AccountPlan
+    # Lancements suivis, échecs compris : ils ont pu consommer des crédits
+    runs: int
+    found_count: int
+    kept_count: int
+    search_calls: int
+    input_tokens: int
+    output_tokens: int
+    search_cost_usd: float
+    # None dès qu'un lancement a consommé des jetons d'un modèle sans tarif connu
+    model_cost_usd: float | None
+    cost_usd: float | None
+    last_search_at: datetime | None
+
+
+class UsageOverview(BaseModel):
+    """Consommation de tous les comptes, pour les administrateurs. Les coûts sont en dollars, aux tarifs actuels."""
+
+    # Début de la période ; None quand tout l'historique est compté
+    since: datetime | None
+    # Les comptes qui ont lancé une recherche sur la période, supprimés depuis ou non, le plus coûteux en premier
+    accounts: list[AccountUsage]
+    runs: int
+    kept_count: int
+    search_cost_usd: float
+    model_cost_usd: float | None
+    cost_usd: float | None
+    # Part du coût due aux comptes autres que celui du propriétaire
+    guests_cost_usd: float | None
+
+
 class Account(BaseModel):
     user_id: int
     is_owner: bool
+    # Le propriétaire, ou une adresse d'ADMIN_EMAILS : il a accès au suivi des recherches et des coûts
+    is_admin: bool
     # Adresse, nom et photo du compte Google ; None avec le mot de passe de l'instance
     email: str | None
     name: str | None

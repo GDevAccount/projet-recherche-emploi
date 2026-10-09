@@ -6,8 +6,14 @@ from collections.abc import Iterator
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from projet_recherche_emploi.api.security import Services, UserId
-from projet_recherche_emploi.schemas import PageEvaluationRead, SearchProgress, SearchRunRead, SearchSummary
+from projet_recherche_emploi.api.security import AdminId, Services, UserId
+from projet_recherche_emploi.schemas import (
+    PageEvaluationRead,
+    SearchProgress,
+    SearchRunRead,
+    SearchStats,
+    SearchSummary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +38,22 @@ def start_search(user_id: UserId, services: Services) -> StreamingResponse:
 
 
 @router.get("/searches")
-def list_searches(user_id: UserId, services: Services) -> list[SearchRunRead]:
-    """Derniers lancements de l'utilisateur, avec leur bilan : compteurs, durées par étape, appels et jetons."""
+def list_searches(user_id: AdminId, services: Services) -> list[SearchRunRead]:
+    """Derniers lancements de l'appelant, avec leur bilan : compteurs, durées par étape, appels, jetons, coûts.
+
+    Réservé aux administrateurs (403 pour un invité), comme les deux routes suivantes.
+    """
     return services.search.list_runs(user_id)
 
 
+@router.get("/searches/stats")
+def get_search_stats(user_id: AdminId, services: Services) -> SearchStats:
+    """Synthèse de toutes les recherches suivies : volumes, coûts, et répartition des pages évaluées."""
+    return services.search.get_stats(user_id)
+
+
 @router.get("/searches/{run_id}/evaluations")
-def list_evaluations(run_id: int, user_id: UserId, services: Services) -> list[PageEvaluationRead]:
+def list_evaluations(run_id: int, user_id: AdminId, services: Services) -> list[PageEvaluationRead]:
     """Pages évaluées pendant un lancement, retenues ou non : faits lus, verdict, jetons et durée de l'appel."""
     return services.search.list_evaluations(user_id, run_id)
 

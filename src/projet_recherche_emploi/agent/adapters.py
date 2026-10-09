@@ -79,10 +79,15 @@ class OpenAIJobEvaluator:
             if answer["parsing_error"]:
                 raise answer["parsing_error"]
             usage = getattr(answer["raw"], "usage_metadata", None) or {}
+            input_details = usage.get("input_token_details") or {}
+            output_details = usage.get("output_token_details") or {}
             return answer["parsed"], EvaluationUsage(
                 input_tokens=usage.get("input_tokens"),
                 output_tokens=usage.get("output_tokens"),
                 duration_ms=duration_ms,
+                cache_read_tokens=input_details.get("cache_read"),
+                cache_write_tokens=input_details.get("cache_creation"),
+                reasoning_tokens=output_details.get("reasoning"),
             )
 
         results = RunnableLambda(evaluate_page).batch_as_completed(

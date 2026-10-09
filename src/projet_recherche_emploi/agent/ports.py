@@ -68,6 +68,11 @@ class EvaluationUsage:
     input_tokens: int | None = None
     output_tokens: int | None = None
     duration_ms: int | None = None
+    # Parts des jetons d'entrée lues ou écrites en cache, facturées à un autre tarif
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
+    # Part des jetons de sortie passée en raisonnement, que la réponse ne montre pas
+    reasoning_tokens: int | None = None
 
 
 def page_text(page: FoundPage) -> str:

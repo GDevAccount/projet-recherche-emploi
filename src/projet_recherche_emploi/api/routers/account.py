@@ -56,6 +56,7 @@ def _account(caller: Caller, services: Container) -> Account:
     return Account(
         user_id=user_id,
         is_owner=user_id == DEFAULT_USER_ID,
+        is_admin=services.auth.is_admin(user_id, caller.email),
         email=caller.email,
         name=caller.name,
         picture=caller.picture,

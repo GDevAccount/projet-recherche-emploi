@@ -13,6 +13,7 @@ from projet_recherche_emploi.config import (
     CONTRACT_TYPES,
     DEFAULT_QUERIES,
     DEFAULT_USER_ID,
+    FILTER_MODEL,
     INACTIVE_ACCOUNT_DAYS,
     MAX_SEARCHES_PER_DAY,
     SESSION_DAYS,
@@ -130,7 +131,9 @@ def test_config_leaks_no_secret(tmp_path):
         ("PUT", "/api/cv"),
         ("POST", "/api/searches"),
         ("GET", "/api/searches"),
+        ("GET", "/api/searches/stats"),
         ("GET", "/api/searches/1/evaluations"),
+        ("GET", "/api/admin/usage"),
     ],
 )
 def test_every_data_route_requires_an_identity(client, method, path):
@@ -166,6 +169,7 @@ def test_account_tells_who_is_calling(client):
     assert owner == {
         "user_id": DEFAULT_USER_ID,
         "is_owner": True,
+        "is_admin": True,
         "email": "proprietaire@exemple.fr",
         "name": "Proprietaire",
         "picture": "https://lh3.googleusercontent.com/proprietaire",
@@ -176,6 +180,7 @@ def test_account_tells_who_is_calling(client):
         "max_searches_per_day": MAX_SEARCHES_PER_DAY,
     }
     assert alice["is_owner"] is False and alice["remaining_searches"] == MAX_SEARCHES_PER_DAY
+    assert alice["is_admin"] is False
     assert alice["user_id"] not in (DEFAULT_USER_ID, client.get("/api/me", headers=BOB).json()["user_id"])
 
 
@@ -272,20 +277,114 @@ def test_search_is_streamed_then_counted(client, valid_pdf):
         ["Compétences insuffisantes"],
     )
 
-    # Le bilan du lancement et le journal de ses pages se relisent ensuite
-    [run] = client.get("/api/searches", headers=ALICE).json()
-    assert (run["status"], run["found_count"], run["kept_count"], run["rejected_count"]) == ("done", 2, 1, 1)
-    assert (run["input_tokens"], run["output_tokens"], run["search_calls"]) == (2000, 100, 1)
-    evaluations = client.get(f"/api/searches/{run['id']}/evaluations", headers=ALICE).json()
-    assert sorted(page["kept"] for page in evaluations) == [False, True]
-    # Le lancement d'un autre n'existe pas pour soi
-    assert client.get(f"/api/searches/{run['id']}/evaluations", headers=BOB).status_code == 404
-    assert client.get("/api/searches", headers=BOB).json() == []
-
     # Le refus n'avait pas entamé le quota, la recherche si
     assert client.get("/api/me", headers=ALICE).json()["remaining_searches"] == MAX_SEARCHES_PER_DAY - 1
     client.post("/api/searches", headers=ALICE)
     assert client.post("/api/searches", headers=ALICE).status_code == 429
+
+
+def test_search_tracking_is_for_administrators_only(client, valid_pdf):
+    for headers in (OWNER, ALICE):
+        client.put("/api/cv", headers=headers, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    client.post("/api/queries", headers=ALICE, json=QUERY)
+    client.post("/api/searches", headers=OWNER)
+    client.post("/api/searches", headers=ALICE)
+
+    # Le propriétaire relit le bilan de ses recherches, le journal de leurs pages et leur synthèse
+    [run] = client.get("/api/searches", headers=OWNER).json()
+    calls = len(DEFAULT_QUERIES)
+    assert (run["status"], run["search_calls"], run["found_count"]) == ("done", calls, 2 * calls)
+    assert (run["input_tokens"], run["output_tokens"]) == (2000 * calls, 100 * calls)
+    evaluations = client.get(f"/api/searches/{run['id']}/evaluations", headers=OWNER).json()
+    assert len(evaluations) == 2 * calls and {page["kept"] for page in evaluations} == {True, False}
+    stats = client.get("/api/searches/stats", headers=OWNER).json()
+    # Le faux modèle n'a pas de tarif : pas de coût total, plutôt qu'un total partiel
+    assert (stats["runs"], stats["search_cost_usd"], stats["cost_usd"]) == (1, round(0.016 * calls, 6), None)
+
+    # Un invité n'y a pas accès, pas même pour ses propres recherches
+    paths = ("/api/searches", "/api/searches/stats", f"/api/searches/{run['id']}/evaluations", "/api/admin/usage")
+    for path in paths:
+        response = client.get(path, headers=ALICE)
+        assert response.status_code == 403 and "sk-" not in response.text
+    # Il lance toujours les siennes
+    assert client.get("/api/me", headers=ALICE).json()["remaining_searches"] == MAX_SEARCHES_PER_DAY - 1
+
+
+def test_administrator_sees_what_each_account_spends_and_nothing_else_of_them(tmp_path, valid_pdf):
+    evaluator = FakeEvaluator()
+    evaluator.model_name = FILTER_MODEL
+    # Bob est administrateur sans figurer parmi les invités : ADMIN_EMAILS suffit à le laisser entrer
+    client = make_client(
+        tmp_path,
+        evaluator,
+        google_client_id="id.apps.googleusercontent.com",
+        owner_email="proprietaire@exemple.fr",
+        allowed_emails="alice@exemple.fr",
+        admin_emails="Bob@exemple.fr",
+        auth_cookie_secret=SECRET,
+    )
+    bob = client.get("/api/me", headers=BOB).json()
+    assert (bob["is_admin"], bob["is_owner"], bob["remaining_searches"]) == (True, False, MAX_SEARCHES_PER_DAY)
+    for headers in (OWNER, ALICE):
+        client.put("/api/cv", headers=headers, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    client.post("/api/queries", headers=ALICE, json=QUERY)
+    client.post("/api/searches", headers=OWNER)
+    for _ in range(2):
+        client.post("/api/searches", headers=ALICE)
+
+    assert client.get("/api/admin/usage", headers=ALICE).status_code == 403
+    usage = client.get("/api/admin/usage", headers=BOB).json()
+
+    calls = len(DEFAULT_QUERIES)
+    owner, alice = usage["accounts"]
+    # Le plus coûteux en premier : le propriétaire a trois recherches enregistrées, Alice une seule lancée deux fois
+    assert (owner["is_owner"], owner["email"], owner["runs"], owner["search_calls"]) == (True, None, 1, calls)
+    assert (alice["is_owner"], alice["email"], alice["runs"], alice["search_calls"]) == (
+        False,
+        "alice@exemple.fr",
+        2,
+        2,
+    )
+    # La seconde recherche d'Alice n'a retrouvé que des pages déjà vues : rien à payer au modèle
+    assert (alice["input_tokens"], alice["output_tokens"], alice["kept_count"]) == (2000, 100, 1)
+    assert (alice["search_cost_usd"], alice["model_cost_usd"], alice["cost_usd"]) == (0.032, 0.00025, 0.03225)
+    assert usage["guests_cost_usd"] == alice["cost_usd"]
+    assert usage["cost_usd"] == round(owner["cost_usd"] + alice["cost_usd"], 6)
+    assert (usage["runs"], usage["since"]) == (3, None)
+    # Des nombres et une adresse, rien de ce qu'Alice cherche ni des pages trouvées pour elle
+    assert "data engineer" not in json.dumps(usage) and "https://x/" not in json.dumps(usage)
+    # Bob voit le suivi de ses propres recherches, pas celui d'un autre
+    assert client.get("/api/searches", headers=BOB).json() == []
+
+    assert client.get("/api/admin/usage?days=30", headers=BOB).json()["runs"] == 3
+    assert client.get("/api/admin/usage?days=0", headers=BOB).status_code == 422
+    assert (alice["deleted"], alice["plan"]) == (False, "free")
+
+    # Alice supprime son compte : ce qu'elle a coûté reste, sans son adresse ni la date de ses recherches
+    assert client.delete("/api/me", headers=ALICE).status_code == 204
+    after = client.get("/api/admin/usage?days=30", headers=BOB).json()
+    _, gone = after["accounts"]
+    kept = ("runs", "search_calls", "input_tokens", "output_tokens", "kept_count", "cost_usd", "plan", "is_owner")
+    assert {name: gone[name] for name in kept} == {name: alice[name] for name in kept}
+    assert (gone["deleted"], gone["email"], gone["last_search_at"]) == (True, None, None)
+    assert (after["cost_usd"], after["guests_cost_usd"]) == (usage["cost_usd"], usage["guests_cost_usd"])
+    assert "alice" not in json.dumps(after)
+    # Revenue avec la même adresse, elle a un compte neuf, que rien ne relie à l'ancien
+    client.get("/api/me", headers=ALICE)
+    assert len(client.get("/api/admin/usage", headers=BOB).json()["accounts"]) == 2
+
+
+def test_usage_can_be_limited_to_the_last_days(tmp_path, valid_pdf):
+    client = make_client(tmp_path, app_password="sesame")
+    client.put("/api/cv", headers=PASSWORD, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    client.post("/api/searches", headers=PASSWORD)
+    usage = client.app.state.container.usage
+
+    assert usage.get_overview(days=30).runs == 1
+    # Vue d'un mois plus tard, la recherche est sortie de la période
+    later = datetime.now(UTC) + timedelta(days=31)
+    overview = usage.get_overview(days=30, now=later)
+    assert (overview.runs, overview.accounts, overview.cost_usd, overview.guests_cost_usd) == (0, [], 0, 0)
 
 
 def test_failed_search_ends_the_stream_with_an_error_without_leaking_its_cause(tmp_path, valid_pdf):

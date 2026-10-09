@@ -24,6 +24,7 @@ from projet_recherche_emploi.services.cv_service import CvService
 from projet_recherche_emploi.services.job_service import JobService
 from projet_recherche_emploi.services.query_service import QueryService
 from projet_recherche_emploi.services.search_service import SearchService
+from projet_recherche_emploi.services.usage_service import UsageService
 
 
 class Container:
@@ -45,6 +46,7 @@ class Container:
         self.cv = CvService(self.database, self.cv_ingestion)
         self.search = SearchService(self.database, lambda: self.graph)
         self.account = AccountService(self.database, self.search)
+        self.usage = UsageService(self.database)
 
     @cached_property
     def graph(self) -> CompiledStateGraph:

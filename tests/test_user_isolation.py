@@ -184,6 +184,8 @@ def test_a_run_and_its_evaluations_belong_to_their_user(session):
     assert [run.id for run in bob.list_runs(10)] == [bob_run]
 
     assert PageEvaluationRepository(session, BOB).list_for_run(alice_run) == []
+    assert PageEvaluationRepository(session, BOB).list_all() == []
+    assert len(PageEvaluationRepository(session, ALICE).list_all()) == 1
     assert PageEvaluationRepository(session, BOB).delete_all() == 0
     [evaluation] = PageEvaluationRepository(session, ALICE).list_for_run(alice_run)
     assert (evaluation.url, evaluation.kept, evaluation.input_tokens) == ("https://a/1", True, 10)

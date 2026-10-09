@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Literal, get_args
+from typing import Literal, NamedTuple, get_args
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -22,6 +22,11 @@ SESSION_DAYS = 30
 # Un compte d'invité resté sans connexion aussi longtemps est supprimé, avec toutes ses données.
 # Les règles de confidentialité affichent cette durée : elles suivent cette valeur.
 INACTIVE_ACCOUNT_DAYS = 365
+
+# Formule d'un compte (AccountPlan de schemas.py). Il n'y a pas encore de paiement : tout compte a celle-ci.
+# Elle est déjà gardée avec la consommation d'un compte supprimé, pour savoir plus tard ce que coûtaient
+# les comptes gratuits et les payants
+DEFAULT_PLAN = "free"
 
 ContractType = Literal["CDI", "freelance", "CDD", "alternance", "stage"]
 CONTRACT_TYPES = list(get_args(ContractType))
@@ -80,6 +85,25 @@ REMOTE_JOB_SITES = [
 FILTER_MODEL = "gpt-6-luna"
 MAX_PAGE_CHARS = 8000
 
+
+class ModelPrice(NamedTuple):
+    """Tarif d'un modèle, en dollars par million de jetons."""
+
+    input: float
+    output: float
+    cache_read: float
+    cache_write: float
+
+
+# Tarifs relevés le 2026-10-09. Les coûts sont calculés à la lecture (services/search_costs.py) : corriger un
+# tarif ici corrige aussi le coût affiché des recherches passées. Un modèle absent n'a pas de coût affiché.
+MODEL_PRICES_USD = {
+    "gpt-6-luna": ModelPrice(input=0.10, output=0.50, cache_read=0.01, cache_write=0.125),
+}
+TAVILY_CREDIT_PRICE_USD = 0.008
+# Une recherche en profondeur « advanced », celle de TavilyJobSearch, coûte deux crédits
+TAVILY_CREDITS_PER_SEARCH = 2
+
 # Recherches enregistrées en base à sa création, modifiables ensuite.
 # Une phrase nomme un métier et ses spécialités : le filtre ne retient que les offres de ce métier.
 # Ni contrat ni lieu, qui sont ajoutés au texte envoyé au moteur de recherche. Ces recherches reçoivent
@@ -116,6 +140,9 @@ class Settings(BaseSettings):
     owner_email: str = ""
     # Adresses des invités séparées par des virgules, ou « * » pour accepter tout compte Google
     allowed_emails: str = ""
+    # Adresses des administrateurs, séparées par des virgules : ils voient le suivi des recherches et la
+    # consommation de tous les comptes, comme le propriétaire, et peuvent se connecter sans figurer parmi les invités
+    admin_emails: str = ""
 
     contact_email: str = ""
     google_site_verification_file: str = ""

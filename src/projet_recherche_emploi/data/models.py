@@ -174,6 +174,10 @@ class SearchRun(Base):
     search_calls: Mapped[int | None] = mapped_column(Integer)
     input_tokens: Mapped[int | None] = mapped_column(Integer)
     output_tokens: Mapped[int | None] = mapped_column(Integer)
+    # Parts des jetons d'entrée lues ou écrites en cache, et part des jetons de sortie passée en raisonnement
+    cache_read_tokens: Mapped[int | None] = mapped_column(Integer)
+    cache_write_tokens: Mapped[int | None] = mapped_column(Integer)
+    reasoning_tokens: Mapped[int | None] = mapped_column(Integer)
 
 
 class PageEvaluation(Base):
@@ -218,5 +222,38 @@ class PageEvaluation(Base):
     full_page: Mapped[bool | None] = mapped_column(IntBool)
     input_tokens: Mapped[int | None] = mapped_column(Integer)
     output_tokens: Mapped[int | None] = mapped_column(Integer)
+    # Parts des jetons d'entrée lues ou écrites en cache, et part des jetons de sortie passée en raisonnement
+    cache_read_tokens: Mapped[int | None] = mapped_column(Integer)
+    cache_write_tokens: Mapped[int | None] = mapped_column(Integer)
+    reasoning_tokens: Mapped[int | None] = mapped_column(Integer)
     duration_ms: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+
+class ArchivedUsage(Base):
+    """Consommation d'un compte supprimé, additionnée par mois et par modèle : ni adresse, ni contenu, ni date précise.
+
+    Écrite à la suppression du compte, juste avant l'effacement de ses lancements. Elle n'est jamais effacée :
+    c'est ce qui garde le coût de l'instance connu dans la durée.
+    """
+
+    __tablename__ = "archived_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Ancien identifiant du compte : il ne désigne plus personne, sa ligne de users n'a plus d'adresse.
+    # Pas « user_id » : cette table n'est pas vidée à la suppression d'un compte, elle en naît.
+    account_id: Mapped[int] = mapped_column(Integer)
+    # Formule du compte à sa suppression (AccountPlan)
+    plan: Mapped[str] = mapped_column(Text)
+    # Mois des lancements additionnés, « AAAA-MM »
+    month: Mapped[str] = mapped_column(Text)
+    model: Mapped[str | None] = mapped_column(Text)
+    runs: Mapped[int | None] = mapped_column(Integer)
+    found_count: Mapped[int | None] = mapped_column(Integer)
+    kept_count: Mapped[int | None] = mapped_column(Integer)
+    search_calls: Mapped[int | None] = mapped_column(Integer)
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    cache_read_tokens: Mapped[int | None] = mapped_column(Integer)
+    cache_write_tokens: Mapped[int | None] = mapped_column(Integer)
+    deleted_at: Mapped[datetime] = mapped_column(UtcDateTime)

@@ -424,6 +424,12 @@ def test_deleting_an_account_leaves_nothing_behind(container, valid_pdf):
     assert stored_cv_text(container, user_id) is None
     # Le quota repart de zéro : les lancements sont effacés aussi
     assert container.search.remaining_searches(user_id) == MAX_SEARCHES_PER_DAY
+    # Seuls restent des totaux du mois, sans adresse : un compte supprimé, une recherche, deux pages trouvées
+    [gone] = container.usage.get_overview().accounts
+    assert (gone.deleted, gone.email, gone.plan, gone.runs, gone.found_count) == (True, None, "free", 1, 2)
+    with closing(sqlite3.connect(container.settings.db_path)) as connection:
+        [(month,)] = connection.execute("SELECT DISTINCT month FROM archived_usage").fetchall()
+    assert month == datetime.now(UTC).strftime("%Y-%m")
     # La copie reste, pour revenir en arrière après une migration ratée : seules ses données en sont retirées
     with closing(sqlite3.connect(backup)) as copy:
         for table in ("jobs", "rejected_jobs", "search_queries", "search_runs"):
