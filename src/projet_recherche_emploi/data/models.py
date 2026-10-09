@@ -314,6 +314,26 @@ class ServerError(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
 
 
+class ClientError(Base):
+    """Erreur survenue dans le navigateur d'un utilisateur, signalée par le front.
+
+    Le serveur ne voit pas ces erreurs : un écran blanc chez un invité ne laisserait aucune trace. Comme pour
+    server_errors, jamais le message, qui peut contenir ce que la page affichait.
+    """
+
+    __tablename__ = "client_errors"
+    __table_args__ = (Index("ix_client_errors_user", "user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer)
+    # Écran du front où l'erreur est survenue (« /offres »)
+    route: Mapped[str | None] = mapped_column(Text)
+    error_type: Mapped[str] = mapped_column(Text)
+    # Fichier du front et position dans ce fichier (« main-5UFRYBOQ.js:1:23456 ») ; vide si le navigateur ne les dit pas
+    source: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+
 class ArchivedUsage(Base):
     """Consommation d'un compte supprimé, additionnée par mois et par modèle : ni adresse, ni contenu, ni date précise.
 

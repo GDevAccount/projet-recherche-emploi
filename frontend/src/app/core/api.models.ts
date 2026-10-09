@@ -348,6 +348,25 @@ export interface ServerErrorGroup {
   last_at: string | null;
 }
 
+/** Erreur survenue dans le navigateur, telle que le front la signale à l'API : jamais son message. */
+export interface ClientErrorReport {
+  error_type: string;
+  /** Écran du front, sans paramètre */
+  route: string | null;
+  /** Fichier du front et position dans ce fichier */
+  source: string | null;
+}
+
+/** Erreurs du front d'un même type, au même endroit et sur le même écran, tous comptes réunis. */
+export interface ClientErrorGroup {
+  route: string | null;
+  error_type: string;
+  source: string | null;
+  count: number;
+  accounts: number;
+  last_at: string | null;
+}
+
 /** Santé de l'instance, pour les administrateurs : ce qui a échoué sur tous les comptes. */
 export interface HealthOverview {
   since: string | null;
@@ -365,6 +384,11 @@ export interface HealthOverview {
   failures: number;
   refusals: number;
   server_errors: ServerErrorGroup[];
+  /** Erreurs survenues dans le navigateur des utilisateurs */
+  client_failures: number;
+  client_errors: ClientErrorGroup[];
+  /** Modèles utilisés sur la période dont le tarif manque : leurs coûts ne sont pas comptés */
+  unpriced_models: string[];
   /** Vrai quand un incident prévient quelqu'un ; faux, il ne se voit que dans cette rubrique */
   alerts_enabled: boolean;
 }

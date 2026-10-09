@@ -39,6 +39,10 @@ BUDGET_ALERT_FIRST_DAY = 5
 # Au démarrage, une recherche restée « en cours » depuis moins longtemps vient d'être coupée par ce redémarrage
 INTERRUPTION_ALERT_MINUTES = 60
 
+# Erreurs du front qu'un même compte peut signaler en 24 heures : au-delà, elles sont ignorées, pour qu'une
+# page qui échoue en boucle ne remplisse pas la table
+CLIENT_ERRORS_PER_DAY = 50
+
 # Formule d'un compte (AccountPlan de schemas.py). Il n'y a pas encore de paiement : tout compte a celle-ci.
 # Elle est déjà gardée avec la consommation d'un compte supprimé, pour savoir plus tard ce que coûtaient
 # les comptes gratuits et les payants

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 # Motif d'une page qui n'est pas une offre, quand sa nature n'est pas connue ou n'a pas de motif à elle
 REJECT_NOT_AN_OFFER = "Pas une offre valable"
@@ -480,12 +480,39 @@ class ServerErrorGroup(BaseModel):
     last_at: datetime | None
 
 
+# Ce que le front peut dire d'une erreur : des noms et des positions, rien qui puisse porter un contenu
+CLIENT_ERROR_TYPE_PATTERN = r"^[A-Za-z_][A-Za-z0-9_.]*$"
+CLIENT_ROUTE_PATTERN = r"^/[A-Za-z0-9/_-]*$"
+CLIENT_SOURCE_PATTERN = r"^[A-Za-z0-9_.-]+\.js:\d+(:\d+)?$"
+
+
+class ClientErrorReport(BaseModel):
+    """Erreur survenue dans le navigateur, telle que le front la signale. Jamais son message."""
+
+    error_type: str = Field(max_length=80, pattern=CLIENT_ERROR_TYPE_PATTERN)
+    # Écran du front, sans paramètre
+    route: str | None = Field(default=None, max_length=120, pattern=CLIENT_ROUTE_PATTERN)
+    # Fichier du front et position dans ce fichier
+    source: str | None = Field(default=None, max_length=120, pattern=CLIENT_SOURCE_PATTERN)
+
+
+class ClientErrorGroup(BaseModel):
+    """Erreurs du front d'un même type, au même endroit du code et sur le même écran, tous comptes réunis."""
+
+    route: str | None
+    error_type: str
+    source: str | None
+    count: int
+    accounts: int
+    last_at: datetime | None
+
+
 class HealthOverview(BaseModel):
     """Santé de l'instance, pour les administrateurs : ce qui a échoué, sur tous les comptes, en nombres seulement."""
 
     # Début de la période ; None quand tout l'historique est compté
     since: datetime | None
-    # Recherches échouées ou interrompues et pannes du serveur ; une demande refusée n'est pas un incident
+    # Recherches échouées ou interrompues, pannes du serveur et erreurs du front ; une demande refusée n'en est pas un
     incidents: int
     healthy: bool
     runs: int
@@ -503,6 +530,11 @@ class HealthOverview(BaseModel):
     refusals: int
     # Les pannes d'abord, puis le plus fréquent en premier
     server_errors: list[ServerErrorGroup]
+    # Erreurs survenues dans le navigateur des utilisateurs, la plus fréquente en premier
+    client_failures: int
+    client_errors: list[ClientErrorGroup]
+    # Modèles utilisés sur la période dont le tarif manque (MODEL_PRICES_USD) : leurs coûts ne sont pas comptés
+    unpriced_models: list[str]
     # Vrai quand un incident prévient quelqu'un (NTFY_TOPIC) ; faux, il ne se voit qu'ici
     alerts_enabled: bool
 

@@ -59,7 +59,7 @@ export class HealthCardComponent {
 
   private readonly tracking = inject(TrackingService);
 
-  /** Ce qui a mal tourné : recherches échouées, recherches interrompues, pannes du serveur. */
+  /** Ce qui a mal tourné : recherches échouées ou interrompues, pannes du serveur, erreurs du navigateur. */
   protected readonly incidents = computed<Row[]>(() => {
     const health = this.health();
     if (!health) {
@@ -81,7 +81,14 @@ export class HealthCardComponent {
         lastAt: health.last_interrupted_at,
       });
     }
-    return [...rows, ...this.serverErrors(health, true)];
+    const browser = health.client_errors.map((group) => ({
+      where: `Écran ${group.route ?? 'inconnu'}`,
+      error: group.source ? `${group.error_type} · ${group.source}` : group.error_type,
+      count: group.count,
+      accounts: group.accounts,
+      lastAt: group.last_at,
+    }));
+    return [...rows, ...this.serverErrors(health, true), ...browser];
   });
 
   /** Demandes que le serveur a refusées en disant pourquoi : pas des pannes. */

@@ -2,7 +2,7 @@ import math
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from projet_recherche_emploi.config import DEFAULT_PLAN, DEFAULT_USER_ID, LOCAL_TIMEZONE
+from projet_recherche_emploi.config import DEFAULT_PLAN, DEFAULT_USER_ID, LOCAL_TIMEZONE, MODEL_PRICES_USD
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.repositories.usage_repository import UsageRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
@@ -70,6 +70,17 @@ class UsageService:
             over_budget=bool(budget) and spent > budget,
             projected_over_budget=bool(budget) and projected > budget,
         )
+
+    def list_unpriced_models(self, since: datetime | None = None) -> list[str]:
+        """Renvoie les modèles qui ont évalué des pages depuis cette date et dont le tarif manque.
+
+        Leur coût vaut None partout, et le budget ne compte plus qu'eux en moins : c'est à corriger dans
+        MODEL_PRICES_USD dès que FILTER_MODEL change.
+        """
+        with self.database.session() as session:
+            rows = UsageRepository(session).summarize_runs(since)
+        used = {row.model for row in rows if row.input_tokens is not None}
+        return sorted(model or "inconnu" for model in used if model not in MODEL_PRICES_USD)
 
     def _overview(self, since: datetime | None, archived_since: datetime | None) -> UsageOverview:
         with self.database.session() as session:

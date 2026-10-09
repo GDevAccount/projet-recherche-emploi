@@ -30,6 +30,17 @@
   @if (error()) {
     <p class="hint">{{ error() }}</p>
   } @else if (health(); as health) {
+    @if (health.unpriced_models.length) {
+      <p class="warning">
+        Tarif manquant pour
+        @for (model of health.unpriced_models; track model) {
+          <code>{{ model }}</code>
+        }
+        : ses coûts ne sont pas comptés, et le budget est sous-estimé. Ajouter son tarif à
+        <code>MODEL_PRICES_USD</code>.
+      </p>
+    }
+
     <dl class="figures">
       <div [class.bad]="health.failed_runs > 0">
         <dt>Recherches échouées</dt>
@@ -50,6 +61,13 @@
         <dd>
           <strong>{{ health.failures | count }}</strong>
           hors recherche
+        </dd>
+      </div>
+      <div [class.bad]="health.client_failures > 0">
+        <dt>Erreurs du navigateur</dt>
+        <dd>
+          <strong>{{ health.client_failures | count }}</strong>
+          chez les utilisateurs
         </dd>
       </div>
       <div>

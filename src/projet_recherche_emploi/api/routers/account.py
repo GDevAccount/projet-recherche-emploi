@@ -5,12 +5,19 @@ from projet_recherche_emploi.api.security import (
     CredentialsCaller,
     CurrentCaller,
     Services,
+    UserId,
     clear_session_cookie,
     set_session_cookie,
 )
 from projet_recherche_emploi.config import CONTRACT_TYPES, DEFAULT_USER_ID, MAX_SEARCHES_PER_DAY
 from projet_recherche_emploi.container import Container
-from projet_recherche_emploi.schemas import DELETE_REASONS, Account, AppConfig, DeleteReasonOption
+from projet_recherche_emploi.schemas import (
+    DELETE_REASONS,
+    Account,
+    AppConfig,
+    ClientErrorReport,
+    DeleteReasonOption,
+)
 
 router = APIRouter(tags=["compte"])
 
@@ -66,3 +73,12 @@ def _account(caller: Caller, services: Container) -> Account:
         remaining_searches=services.search.remaining_searches(user_id),
         max_searches_per_day=MAX_SEARCHES_PER_DAY,
     )
+
+
+@router.post("/client-errors", status_code=status.HTTP_204_NO_CONTENT)
+def report_client_error(user_id: UserId, report: ClientErrorReport, services: Services) -> None:
+    """Signale une erreur survenue dans le navigateur : son type, l'écran et l'emplacement dans le code.
+
+    Le front l'appelle de lui-même. Jamais le message de l'erreur ; au-delà d'un nombre par jour, elle est ignorée.
+    """
+    services.health.record_client_error(user_id, report)

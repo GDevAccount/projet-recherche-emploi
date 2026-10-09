@@ -200,6 +200,9 @@ function health(values: Partial<HealthOverview> = {}): HealthOverview {
     failures: 0,
     refusals: 0,
     server_errors: [],
+    client_failures: 0,
+    client_errors: [],
+    unpriced_models: [],
     alerts_enabled: false,
     ...values,
   };
@@ -420,16 +423,30 @@ describe('TrackingComponent', () => {
       'Recherches échouées 0 sur 12',
       'Recherches interrompues 0 par un redémarrage',
       'Pannes du serveur 0 hors recherche',
+      'Erreurs du navigateur 0 chez les utilisateurs',
       'Demandes refusées 0 avec un message',
     ]);
+    expect(card.querySelector('.warning')).toBeNull();
     expect(card.querySelector('table')).toBeNull();
     expect(text(card)).toContain('Aucune recherche échouée ni erreur du serveur');
   });
 
   it('should list what failed on the instance, and reload it for another period', async () => {
     const state = health({
-      incidents: 6,
+      incidents: 9,
       healthy: false,
+      client_failures: 3,
+      client_errors: [
+        {
+          route: '/offres',
+          error_type: 'TypeError',
+          source: 'main-5UFRYBOQ.js:1:42',
+          count: 3,
+          accounts: 2,
+          last_at: null,
+        },
+      ],
+      unpriced_models: ['gpt-7'],
       failed_runs: 3,
       interrupted_runs: 1,
       failure_rate: 0.3333,
@@ -464,11 +481,13 @@ describe('TrackingComponent', () => {
     await serve(stats(), [run(28)], usage(), state);
 
     const card = element().querySelector('app-health-card')!;
-    expect(text(card.querySelector('h2.down'))).toBe('6 incidents');
+    expect(text(card.querySelector('h2.down'))).toBe('9 incidents');
+    expect(text(card.querySelector('.warning'))).toContain('Tarif manquant pour gpt-7');
     expect(texts('app-health-card .figures > .bad')).toEqual([
       'Recherches échouées 3 sur 12',
       'Recherches interrompues 1 par un redémarrage',
       'Pannes du serveur 2 hors recherche',
+      'Erreurs du navigateur 3 chez les utilisateurs',
     ]);
     expect(texts('app-health-card h3')).toEqual([
       "Ce qui a mal tourné 33,3 % des recherches n'ont pas abouti",
@@ -479,6 +498,7 @@ describe('TrackingComponent', () => {
       'Recherche RateLimitError 3 2 8 oct., 12:00',
       'Recherche Interrompue par un redémarrage 1 1 7 oct., 10:30',
       'GET /api/jobs OperationalError · 500 2 1 9 oct., 14:12',
+      'Écran /offres TypeError · main-5UFRYBOQ.js:1:42 3 2 —',
       'PUT /api/cv InvalidInputError · 422 5 3 —',
     ]);
 

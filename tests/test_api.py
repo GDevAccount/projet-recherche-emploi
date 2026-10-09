@@ -152,6 +152,7 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/admin/health"),
         ("POST", "/api/admin/alerts/test"),
         ("GET", "/api/admin/budget"),
+        ("POST", "/api/client-errors"),
     ],
 )
 def test_every_data_route_requires_an_identity(client, method, path):
@@ -485,6 +486,33 @@ def test_administrator_can_check_that_alerts_arrive(client, tmp_path):
     assert alerting.get("/api/admin/health", headers=PASSWORD).json()["alerts_enabled"] is True
     # Le sujet se lit comme un secret : rien de public ne le donne
     assert "ntfy" not in alerting.get("/api/config").text
+
+
+def test_front_reports_its_errors_without_their_message(client):
+    crash = {"error_type": "TypeError", "route": "/offres", "source": "main-5UFRYBOQ.js:1:23456"}
+    assert client.post("/api/client-errors", headers=ALICE, json=crash).status_code == 204
+    assert client.post("/api/client-errors", headers=ALICE, json={"error_type": "Error"}).status_code == 204
+
+    # Rien qui ressemble à un message, à une adresse ou à un contenu n'est accepté
+    for refused in (
+        {"error_type": "Cannot read properties of undefined (reading 'title')"},
+        {"error_type": "TypeError", "route": "/offres?q=ingénieur IA"},
+        {"error_type": "TypeError", "route": "https://exemple.fr/offres"},
+        {"error_type": "TypeError", "source": "https://exemple.fr/main.js:1:2"},
+        {"error_type": "TypeError", "source": "at JobCard (alice@exemple.fr)"},
+        {"error_type": "T" * 81},
+        {"route": "/offres"},
+    ):
+        assert client.post("/api/client-errors", headers=ALICE, json=refused).status_code == 422
+
+    health = client.get("/api/admin/health", headers=OWNER).json()
+    assert (health["client_failures"], health["incidents"], health["healthy"]) == (2, 2, False)
+    first = health["client_errors"][0]
+    assert (first["count"], first["accounts"]) == (1, 1) and "alice" not in json.dumps(health)
+    assert {(group["route"], group["error_type"], group["source"]) for group in health["client_errors"]} == {
+        ("/offres", "TypeError", "main-5UFRYBOQ.js:1:23456"),
+        (None, "Error", None),
+    }
 
 
 def test_administrator_reads_the_budget_of_the_month(tmp_path, valid_pdf):

@@ -72,9 +72,18 @@ header {
   }
 }
 
+.warning {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid color-mix(in srgb, #f59e0b, transparent 55%);
+  border-radius: var(--app-radius-sm);
+  background: color-mix(in srgb, #f59e0b, transparent 90%);
+  font-size: 0.8125rem;
+}
+
 .figures {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.6rem;
   margin: 0;
 
