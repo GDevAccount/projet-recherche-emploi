@@ -49,6 +49,7 @@ function stats(values: Partial<SearchStats> = {}): SearchStats {
     by_site: [group('indeed.com'), group('apec.fr', { evaluated: 5, kept: 0 })],
     by_page_kind: [group('offre')],
     by_text: [group('Page entière', { evaluated: 30 }), group('Extrait seul', { evaluated: 7 })],
+    by_search: [],
     corrections: [],
     delete_reasons: [],
     ...values,
@@ -349,6 +350,47 @@ describe('TrackingComponent', () => {
 
     expect(text()).toContain("Réservé aux administrateurs de l'instance.");
     expect(element().querySelector('.tiles')).toBeNull();
+  });
+
+  it('should show what each search sent to the engine brought back', async () => {
+    const remote = {
+      query: 'AI engineer',
+      search_text: 'AI engineer remote job',
+      international: true,
+      calls: 3,
+      found: 30,
+      repeated: 6,
+      known: 15,
+      rejected: 9,
+      kept: 0,
+      search_cost_usd: 0.048,
+      cost_per_kept_usd: null,
+    };
+    const french = {
+      ...remote,
+      search_text: "offre d'emploi ingénieur IA CDI",
+      international: false,
+      found: 60,
+      kept: 6,
+      cost_per_kept_usd: 0.008,
+    };
+    await serve(stats({ by_search: [remote, french] }));
+
+    const rows = [...element().querySelectorAll('app-yield-card .searches li')];
+    expect(rows.map((row) => text(row))).toEqual([
+      'AI engineer remote job sites internationaux 0 sur 30 3 appels · 0,048 $ Aucune offre',
+      "offre d'emploi ingénieur IA CDI 6 sur 60 3 appels · 0,048 $ 0,0080 $ par offre",
+    ]);
+    // La barre du texte le moins fourni est à la mesure du plus fourni, et ses parts à la mesure de ses pages
+    const width = (selector: string) => rows[0].querySelector<HTMLElement>(selector)!.style.width;
+    expect([width('.stack'), width('.stack .known'), width('.stack .repeated')]).toEqual(['50%', '50%', '20%']);
+  });
+
+  it('should say when no search has been measured yet', async () => {
+    await serve(stats());
+
+    expect(element().querySelector('app-yield-card .searches')).toBeNull();
+    expect(text(element().querySelector('app-yield-card'))).toContain('après votre prochaine recherche');
   });
 
   it('should show what the user corrected, by prompt version', async () => {

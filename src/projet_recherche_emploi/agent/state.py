@@ -11,6 +11,8 @@ class FoundPage(TypedDict):
     raw_content: str | None
     score: float
     query: str
+    # Rang, dans le lancement, de l'appel au moteur qui l'a rendue le premier (« searches » de l'état)
+    search_index: int
 
 
 class KeptJob(FoundPage):
@@ -40,6 +42,8 @@ class JobSearchState(TypedDict, total=False):
     # Lancement enregistré par SearchService, auquel le journal des évaluations se rattache
     run_id: int | None
     jobs: list[FoundPage]
+    # Un élément par appel au moteur de recherche, dans l'ordre : texte envoyé, pages rendues, durée
+    searches: list[dict]
     # Ce que l'utilisateur cherche, toutes recherches confondues (SearchCriteria de ports.py)
     criteria: Any
     new_jobs: list[FoundPage]

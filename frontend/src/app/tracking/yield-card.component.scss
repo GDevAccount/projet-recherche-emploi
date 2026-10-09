@@ -1,0 +1,193 @@
+:host {
+  display: block;
+  // Les deux teintes de plus que la répartition des pages : ce que l'appel a rendu sans rien apporter
+  --known: color-mix(in srgb, var(--app-muted), transparent 62%);
+  --repeated: color-mix(in srgb, var(--app-muted), transparent 85%);
+}
+
+header {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+
+  p {
+    max-width: 46rem;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--app-muted);
+  }
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--app-muted);
+}
+
+.kept {
+  background: var(--kept);
+}
+
+.rejected {
+  background: var(--rejected);
+}
+
+.known {
+  background: var(--known);
+}
+
+.repeated {
+  background: var(--repeated);
+  outline: 1px dashed color-mix(in srgb, var(--app-muted), transparent 40%);
+  outline-offset: -1px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  i {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 3px;
+  }
+}
+
+.searches {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(9rem, 19rem) minmax(4rem, 1fr) 5rem 8.5rem 8.5rem;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.55rem 0.6rem;
+    border-radius: var(--app-radius-sm);
+
+    &:hover {
+      background: color-mix(in srgb, var(--app-surface-2), transparent 30%);
+    }
+  }
+}
+
+.label {
+  min-width: 0;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+
+  small {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--app-muted);
+  }
+}
+
+.track {
+  height: 0.75rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--app-surface-2), transparent 30%);
+}
+
+.stack {
+  display: flex;
+  gap: 2px;
+  min-width: 6px;
+  height: 100%;
+
+  span {
+    border-radius: 3px;
+  }
+}
+
+.value,
+.cost {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+
+  small {
+    font-size: 0.8125rem;
+    color: var(--app-muted);
+  }
+}
+
+.value strong {
+  font-family: var(--app-display);
+  font-size: 1.125rem;
+}
+
+.calls {
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+// Un appel payé sans une seule offre : c'est la ligne à regarder
+.cost.none strong {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #ef4444, transparent 86%);
+  color: #ef4444;
+  font-size: 0.75rem;
+}
+
+.note {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+}
+
+@media (max-width: 52rem) {
+  .searches li {
+    grid-template-columns: 1fr auto;
+    gap: 0.4rem 0.9rem;
+    padding-block: 0.75rem;
+
+    .label {
+      grid-column: 1 / -1;
+    }
+
+    .track {
+      grid-column: 1 / -1;
+    }
+
+    .value {
+      grid-row: 3;
+      grid-column: 2;
+    }
+
+    .calls {
+      grid-row: 3;
+      grid-column: 1;
+      text-align: left;
+    }
+
+    .cost {
+      grid-column: 1 / -1;
+      justify-content: flex-start;
+    }
+  }
+}

@@ -5,6 +5,7 @@ from helpers import job, rejected_job
 from projet_recherche_emploi.config import DEFAULT_QUERIES
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
+from projet_recherche_emploi.data.repositories.engine_call_repository import EngineCallRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
 from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
@@ -202,6 +203,17 @@ def test_each_user_has_their_own_corrections(session):
     [saved] = CorrectionRepository(session, ALICE).list_all()
     assert (saved.kind, saved.url, saved.reason) == ("deleted", "https://a/1", "location")
     assert CorrectionRepository(session, ALICE).delete_all() == 1
+
+
+def test_each_user_has_their_own_engine_calls(session):
+    call = {"query": "data engineer", "search_text": "offre data engineer", "international": False, "found_count": 5}
+    assert EngineCallRepository(session, ALICE).insert_calls(1, [call]) == 1
+
+    assert EngineCallRepository(session, BOB).list_all() == []
+    assert EngineCallRepository(session, BOB).delete_all() == 0
+    [saved] = EngineCallRepository(session, ALICE).list_all()
+    assert (saved.search_run_id, saved.search_text, saved.found_count) == (1, "offre data engineer", 5)
+    assert EngineCallRepository(session, ALICE).delete_all() == 1
 
 
 def test_looking_up_a_page_stays_within_its_user(session):

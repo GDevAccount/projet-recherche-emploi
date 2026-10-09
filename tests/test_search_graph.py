@@ -530,6 +530,21 @@ def test_stats_gather_every_search_of_the_user(container, evaluator):
     assert [(group.label, group.evaluated) for group in stats.by_query] == [("ingénieur IA", 2)]
     assert [(group.label, group.evaluated) for group in stats.by_page_kind] == [("offre", 2)]
     assert [(group.label, group.evaluated) for group in stats.by_text] == [("Extrait seul", 2)]
+    # Le seul appel au moteur a rendu deux pages, toutes deux nouvelles : une retenue, une écartée
+    [first] = stats.by_search
+    assert (first.query, first.search_text, first.international) == (
+        "ingénieur IA",
+        "offre d'emploi ingénieur IA CDI",
+        False,
+    )
+    assert (first.calls, first.found, first.repeated, first.known) == (1, 2, 0, 0)
+    assert (first.rejected, first.kept, first.search_cost_usd, first.cost_per_kept_usd) == (1, 1, 0.016, 0.016)
+
+    # La même recherche relancée ne ramène que des pages connues : un appel payé de plus, pour rien
+    container.search.run_search(BOB)
+    [again] = container.search.get_stats(BOB).by_search
+    assert (again.calls, again.found, again.repeated, again.known) == (2, 4, 0, 2)
+    assert (again.rejected, again.kept, again.search_cost_usd, again.cost_per_kept_usd) == (1, 1, 0.032, 0.032)
     assert container.search.get_stats(ALICE).runs == 0
 
 

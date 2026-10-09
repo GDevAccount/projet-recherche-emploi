@@ -281,6 +281,7 @@ class SearchNodes:
         write_progress = get_stream_writer()
 
         jobs_by_url = {}
+        searches = []
         for index, (query, search_text, international) in enumerate(queries):
             write_progress(
                 {
@@ -291,7 +292,19 @@ class SearchNodes:
                     "found": len(jobs_by_url),
                 }
             )
-            for result in self.search_engine.search(search_text, international):
+            call_started = time.perf_counter()
+            results = list(self.search_engine.search(search_text, international))
+            searches.append(
+                {
+                    "query": query,
+                    "search_text": search_text,
+                    "international": international,
+                    "found_count": len(results),
+                    "duration_ms": elapsed_ms(call_started),
+                }
+            )
+            for result in results:
+                # Une page rendue par deux appels revient au premier : le second n'a rien apporté
                 jobs_by_url.setdefault(
                     result["url"],
                     {
@@ -301,11 +314,13 @@ class SearchNodes:
                         "raw_content": result.get("raw_content"),
                         "score": result["score"],
                         "query": query,
+                        "search_index": index,
                     },
                 )
 
         return {
             "jobs": list(jobs_by_url.values()),
+            "searches": searches,
             "criteria": criteria,
             "metrics": {"search_ms": elapsed_ms(started), "search_calls": len(queries)},
         }

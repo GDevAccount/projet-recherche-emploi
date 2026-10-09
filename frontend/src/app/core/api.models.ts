@@ -224,10 +224,35 @@ export interface SearchStats {
   by_site: EvaluationGroup[];
   by_page_kind: EvaluationGroup[];
   by_text: EvaluationGroup[];
+  /** Rendement de chaque texte envoyé au moteur de recherche, le moins rentable en premier */
+  by_search: SearchYield[];
   /** Corrections du tri par version du prompt, la plus récente en premier */
   corrections: CorrectionStats[];
   /** Motifs des suppressions d'offres, le plus fréquent en premier */
   delete_reasons: ReasonCount[];
+}
+
+/** Ce qu'un texte envoyé au moteur de recherche a rapporté, tous lancements réunis. */
+export interface SearchYield {
+  /** Phrase saisie par l'utilisateur */
+  query: string;
+  /** Texte réellement envoyé */
+  search_text: string;
+  /** Variante en anglais d'une recherche en télétravail complet */
+  international: boolean;
+  calls: number;
+  /** Pages rendues, qui se partagent entre les quatre nombres suivants */
+  found: number;
+  /** Déjà rendues par un autre appel du même lancement */
+  repeated: number;
+  /** Déjà connues : offres ou rejets d'une recherche passée */
+  known: number;
+  /** Évaluées, puis écartées */
+  rejected: number;
+  kept: number;
+  search_cost_usd: number;
+  /** null sans offre retenue */
+  cost_per_kept_usd: number | null;
 }
 
 /** Ce que l'utilisateur a corrigé du tri rendu avec une version du prompt. Les taux sont des planchers. */
