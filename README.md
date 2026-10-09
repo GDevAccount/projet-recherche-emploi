@@ -331,6 +331,8 @@ La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/)
 
 ## Base de données
 
+La base est un fichier SQLite, ce qui limite l'application à une seule machine. Le passage à PostgreSQL est prévu avant l'ouverture des paiements : [docs/migration-postgresql.md](docs/migration-postgresql.md) liste ce qui lie le code à SQLite ou à un processus unique, et ce que la bascule coûtera.
+
 `jobs.db` contient cinq tables, créées et tenues à jour par des migrations [Alembic](https://alembic.sqlalchemy.org/) que l'application applique seule à son démarrage (voir [Faire évoluer le schéma](#faire-évoluer-le-schéma)). Une sixième, `alembic_version`, retient la version du schéma. Le code y accède avec [SQLAlchemy](https://www.sqlalchemy.org/).
 
 Table `jobs`, les offres retenues :
