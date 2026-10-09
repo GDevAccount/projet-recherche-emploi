@@ -190,6 +190,19 @@ describe('JobsComponent', () => {
     expect(tiles[3]).toContain('60 %');
   });
 
+  it('should not count the interviews until there is one', async () => {
+    await serve([job(1), job(2, APPLIED)]);
+
+    const tiles = () => [...element().querySelectorAll('.stats .tile')].map((tile) => text(tile));
+    expect(tiles().length).toBe(3);
+    expect(tiles().join(' ')).not.toContain('entretien');
+
+    await click(card('Offre 2'), 'Entretien obtenu');
+    await answerStatus(2, 'interview', INTERVIEW);
+
+    expect(tiles()[2]).toMatch(/^1\s*entretien$/);
+  });
+
   it('should show what the model read on the page, or say it was not stated', async () => {
     await serve([job(1, { contract_type: null, work_location: null }), job(2, { work_location: 'Remote (Berlin)' })]);
 
