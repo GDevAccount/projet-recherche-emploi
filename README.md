@@ -476,8 +476,7 @@ src/projet_recherche_emploi/
     └── cv_ingestion/    # du PDF déposé au texte enregistré : le PDF n'est pas conservé
         ├── ingestion.py     # lit le PDF, retire les coordonnées, enregistre le texte
         ├── pdf_reader.py    # texte d'un PDF, refus d'un fichier illisible ou sans texte
-        ├── anonymizer.py    # retire d'un CV les coordonnées et le nom
-        └── legacy_files.py  # reprise en base, puis suppression, des PDF gardés par les versions précédentes
+        └── anonymizer.py    # retire d'un CV les coordonnées et le nom
 
 frontend/src/
 ├── environments/        # adresse de l'API, clé de licence PrimeNG reçue au build

@@ -191,10 +191,6 @@ def test_each_user_has_their_own_cv_text(session):
     bob.save("Nouveau CV de Bob")
 
     assert (alice.get_content(), bob.get_content()) == ("CV d'Alice", "Nouveau CV de Bob")
-    deposited_at = datetime(2026, 1, 2, tzinfo=UTC)
-    bob.save("Nouveau CV de Bob", deposited_at)
-    assert bob.get_updated_at() == deposited_at
-    assert alice.get_updated_at() != deposited_at
     assert bob.delete() is True
     assert bob.delete() is False
     assert (alice.get_content(), bob.get_content()) == ("CV d'Alice", None)
