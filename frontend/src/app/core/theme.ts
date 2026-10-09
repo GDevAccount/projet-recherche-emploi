@@ -3,8 +3,11 @@ import Aura from '@primeuix/themes/aura';
 
 /** Classe posée sur <html> en thème sombre : PrimeNG et styles.scss s'y accordent. */
 export const DARK_CLASS = 'app-dark';
-/** Classe posée en thème clair : les pages légales, hors d'Angular, s'en servent pour ne pas suivre le système. */
+/** Classe posée en thème clair : les pages légales, hors d'Angular, s'en servent pour quitter le thème sombre. */
 export const LIGHT_CLASS = 'app-light';
+/** Fonds des deux thèmes (--app-bg de styles.scss), pour la barre du navigateur mobile. */
+export const DARK_BACKGROUND = '#0a0b0d';
+export const LIGHT_BACKGROUND = '#f5f4ef';
 
 const shades = (color: string) =>
   Object.fromEntries(
