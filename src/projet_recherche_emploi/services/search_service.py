@@ -1,16 +1,39 @@
 import threading
 from collections.abc import Callable, Iterator
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from projet_recherche_emploi.config import DEFAULT_USER_ID, LOCAL_TIMEZONE, MAX_SEARCHES_PER_DAY
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
+from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
-from projet_recherche_emploi.errors import ConflictError, InvalidInputError, QuotaExceededError
-from projet_recherche_emploi.schemas import SearchProgress, SearchSummary
+from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
+from projet_recherche_emploi.schemas import PageEvaluationRead, SearchProgress, SearchRunRead, SearchSummary
+
+# Nombre de lancements renvoyés par list_runs
+RUN_HISTORY_SIZE = 100
+# Mesures que les nœuds du graph laissent dans son état (« metrics »), recopiées telles quelles dans le lancement
+RUN_METRICS = (
+    "model",
+    "prompt_version",
+    "search_ms",
+    "dedupe_ms",
+    "evaluate_ms",
+    "save_ms",
+    "search_calls",
+    "input_tokens",
+    "output_tokens",
+)
+# Listes de l'état du graph dont la longueur donne un compteur du lancement
+RUN_COUNTS = {
+    "found_count": "jobs",
+    "new_count": "new_jobs",
+    "kept_count": "filtered_jobs",
+    "rejected_count": "rejected_jobs",
+}
 
 
 class SearchGraph(Protocol):
@@ -93,13 +116,14 @@ class SearchService:
             # Le lancement est compté avant la recherche : même en échec, elle a pu consommer des crédits
             limit = None if user_id == DEFAULT_USER_ID else MAX_SEARCHES_PER_DAY
             with self.database.session() as session:
-                if not SearchRunRepository(session, user_id).record_run(start_of_local_day(), limit):
-                    raise QuotaExceededError("Quota de recherches atteint pour aujourd'hui.")
+                run_id = SearchRunRepository(session, user_id).record_run(start_of_local_day(), limit)
+            if run_id is None:
+                raise QuotaExceededError("Quota de recherches atteint pour aujourd'hui.")
         except BaseException:
             self._release(user_id)
             raise
 
-        return RunningSearch(self._stream(user_id), lambda: self._release(user_id))
+        return RunningSearch(self._stream(user_id, run_id), lambda: self._release(user_id))
 
     def _release(self, user_id: int) -> None:
         with self._running_lock:
@@ -117,14 +141,43 @@ class SearchService:
                 on_progress(event)
         return summary
 
-    def _stream(self, user_id: int) -> Iterator[SearchProgress | SearchSummary]:
+    def list_runs(self, user_id: int) -> list[SearchRunRead]:
+        """Renvoie les derniers lancements de l'utilisateur avec leur bilan, le plus récent en premier."""
+        with self.database.session() as session:
+            rows = SearchRunRepository(session, user_id).list_runs(RUN_HISTORY_SIZE)
+            runs = [SearchRunRead.model_validate(row) for row in rows]
+        # Seul le dernier lancement peut encore tourner : un autre resté « en cours » a été coupé par un redémarrage
+        running_id = runs[0].id if runs and self.is_running(user_id) else None
+        for run in runs:
+            if run.status == "running" and run.id != running_id:
+                run.status = "interrupted"
+        return runs
+
+    def list_evaluations(self, user_id: int, run_id: int) -> list[PageEvaluationRead]:
+        """Renvoie les pages évaluées pendant ce lancement, retenues ou non."""
+        with self.database.session() as session:
+            if SearchRunRepository(session, user_id).get_run(run_id) is None:
+                raise NotFoundError("Cette recherche n'existe pas.")
+            rows = PageEvaluationRepository(session, user_id).list_for_run(run_id)
+            return [PageEvaluationRead.model_validate(row) for row in rows]
+
+    def _stream(self, user_id: int, run_id: int) -> Iterator[SearchProgress | SearchSummary]:
         state = {}
-        # Le mode « custom » remonte l'avancement écrit par les nœuds, « values » l'état du graph
-        for mode, chunk in self._get_graph().stream({"user_id": user_id}, stream_mode=["custom", "values"]):
-            if mode == "values":
-                state = chunk
-            else:
-                yield SearchProgress(**chunk)
+        try:
+            # Le mode « custom » remonte l'avancement écrit par les nœuds, « values » l'état du graph
+            events = self._get_graph().stream(
+                {"user_id": user_id, "run_id": run_id}, stream_mode=["custom", "values"]
+            )
+            for mode, chunk in events:
+                if mode == "values":
+                    state = chunk
+                else:
+                    yield SearchProgress(**chunk)
+        except Exception as error:
+            # Le type seul : le message peut contenir une réponse brute de Tavily ou d'OpenAI
+            self._close_run(user_id, run_id, state, "failed", type(error).__name__)
+            raise
+        self._close_run(user_id, run_id, state, "done")
         yield SearchSummary(
             found=len(state.get("jobs", [])),
             new=len(state.get("new_jobs", [])),
@@ -132,3 +185,17 @@ class SearchService:
             rejected=len(state.get("rejected_jobs", [])),
             inserted=state.get("inserted_count", 0),
         )
+
+    def _close_run(self, user_id: int, run_id: int, state: dict, status: str, error: str | None = None) -> None:
+        """Écrit le bilan du lancement à partir du dernier état connu du graph : une étape non franchie reste vide."""
+        metrics = state.get("metrics", {})
+        values = {
+            "status": status,
+            "error": error,
+            "finished_at": datetime.now(UTC),
+            "inserted_count": state.get("inserted_count"),
+            **{column: len(state[key]) if key in state else None for column, key in RUN_COUNTS.items()},
+            **{name: metrics.get(name) for name in RUN_METRICS},
+        }
+        with self.database.session() as session:
+            SearchRunRepository(session, user_id).finish_run(run_id, values)

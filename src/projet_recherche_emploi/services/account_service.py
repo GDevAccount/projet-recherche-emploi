@@ -6,6 +6,7 @@ from projet_recherche_emploi.config import INACTIVE_ACCOUNT_DAYS
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
@@ -39,6 +40,7 @@ class AccountService:
             RejectedJobRepository(session, user_id).clear()
             QueryRepository(session, user_id).delete_all()
             SearchRunRepository(session, user_id).delete_all()
+            PageEvaluationRepository(session, user_id).delete_all()
             UserRepository(session).forget_user(user_id)
         # Les copies d'avant migration contiennent encore ses données : elles restent, sans lui
         self.database.purge_user_from_backups(user_id)

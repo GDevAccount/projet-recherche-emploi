@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import pytest
 from helpers import blank_pdf
+from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
 
 from projet_recherche_emploi.agent.adapters import OpenAIJobEvaluator
@@ -19,6 +22,7 @@ from projet_recherche_emploi.config import MAX_PAGE_CHARS
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.errors import InvalidInputError
@@ -26,6 +30,7 @@ from projet_recherche_emploi.schemas import SearchProgress
 
 ALICE = 1
 BOB = 2
+VALID_PDF = Path(__file__).parent / "fixtures" / "cv.pdf"
 
 
 @pytest.fixture
@@ -116,16 +121,18 @@ def test_openai_evaluator_sends_the_cv_and_the_truncated_page_to_the_model():
     prompts = []
 
     class FakeChat:
-        def with_structured_output(self, schema):
+        def with_structured_output(self, schema, include_raw):
             def evaluate(prompt):
                 prompts.append(prompt.to_string())
-                return schema(
+                parsed = schema(
                     page_kind="offre",
                     matches_search=True,
                     matches_skills=False,
                     matches_level=True,
                     reason="hors profil",
                 )
+                usage = {"input_tokens": 1200, "output_tokens": 80, "total_tokens": 1280}
+                return {"raw": AIMessage(content="", usage_metadata=usage), "parsed": parsed, "parsing_error": None}
 
             return RunnableLambda(evaluate)
 
@@ -135,9 +142,13 @@ def test_openai_evaluator_sends_the_cv_and_the_truncated_page_to_the_model():
     ]
 
     criteria = SearchCriteria(sought_jobs=("ingénieur IA", "AI engineer"), accepted_areas="Lyon ; Nantes")
-    verdicts = dict(OpenAIJobEvaluator(FakeChat()).evaluate("texte du CV", criteria, pages))
+    results = list(OpenAIJobEvaluator(FakeChat()).evaluate("texte du CV", criteria, pages))
+    verdicts = {index: evaluation for index, evaluation, _ in results}
 
     assert set(verdicts) == {0, 1} and verdicts[0].reason == "hors profil"
+    # Chaque verdict vient avec ce que son appel a consommé
+    for _, _, usage in results:
+        assert (usage.input_tokens, usage.output_tokens) == (1200, 80) and usage.duration_ms >= 0
     first, second = sorted(prompts, key=lambda prompt: "https://x/2" in prompt)
     assert "texte du CV" in first and "https://x/1" in first
     assert "Lyon ; Nantes" in first and "Lyon ; Nantes" in second
@@ -420,6 +431,58 @@ def test_internship_found_by_a_search_for_a_permanent_job_is_rejected(graph, con
         rejected = RejectedJobRepository(session, BOB).list_rejected_jobs()
         assert {page.matches_contract for page in rejected} == {False}
         assert "Contrat non recherché (stage). ok" in {page.reject_reason for page in rejected}
+
+
+def test_every_evaluated_page_is_logged_with_what_was_read_and_what_it_cost(container, evaluator, search_engine):
+    container.cv.save_cv(BOB, VALID_PDF.read_bytes())
+    container.queries.add_query(BOB, "CDI", "ingénieur IA", "Lyon")
+    evaluator.work_city, evaluator.in_accepted_area = "Berlin", False
+    search_engine.raw_content = "p" * (MAX_PAGE_CHARS + 1)
+
+    container.search.run_search(BOB)
+
+    [run] = container.search.list_runs(BOB)
+    assert (run.status, run.error, run.model) == ("done", None, "faux-modèle")
+    assert (run.found_count, run.new_count, run.kept_count, run.rejected_count, run.inserted_count) == (2, 2, 0, 2, 0)
+    assert (run.search_calls, run.input_tokens, run.output_tokens) == (1, 2000, 100)
+    assert run.finished_at >= run.created_at and len(run.prompt_version) == 12
+    assert all(duration is not None for duration in (run.search_ms, run.dedupe_ms, run.evaluate_ms, run.save_ms))
+
+    evaluations = container.search.list_evaluations(BOB, run.id)
+    assert {page.search_run_id for page in evaluations} == {run.id}
+    # Les faits lus et la règle qui a tranché sont gardés, même pour une page écartée
+    assert {(page.kept, page.work_city, page.in_accepted_area, page.matches_location) for page in evaluations} == {
+        (False, "Berlin", False, False)
+    }
+    assert {(page.page_kind, page.work_mode, page.open_to_candidates_in_france) for page in evaluations} == {
+        ("offre", "sur site", True)
+    }
+    assert {(page.input_tokens, page.output_tokens, page.duration_ms) for page in evaluations} == {(1000, 50, 120)}
+    assert {(page.page_chars, page.truncated, page.full_page) for page in evaluations} == {
+        (MAX_PAGE_CHARS + 1, True, True)
+    }
+    assert {page.score for page in evaluations} == {1.0}
+
+
+def test_the_log_survives_a_new_cv_but_not_the_account(container):
+    container.cv.save_cv(BOB, VALID_PDF.read_bytes())
+    container.queries.add_query(BOB, "CDI", "ingénieur IA")
+    container.search.run_search(BOB)
+    [run] = container.search.list_runs(BOB)
+    [kept, rejected] = sorted(container.search.list_evaluations(BOB, run.id), key=lambda page: not page.kept)
+    assert (kept.kept, rejected.kept, rejected.matches_skills) == (True, False, False)
+    # Sans texte complet, c'est l'extrait du moteur de recherche qui a été lu
+    assert (kept.full_page, kept.truncated, kept.page_chars) == (False, False, 1)
+
+    # Un nouveau CV vide les rejets, pas le journal : il raconte ce qui s'est passé
+    container.cv.save_cv(BOB, VALID_PDF.read_bytes())
+    assert container.jobs.list_rejected_jobs(BOB) == []
+    assert len(container.search.list_evaluations(BOB, run.id)) == 2
+
+    container.account.delete_account(BOB)
+    assert container.search.list_runs(BOB) == []
+    with container.database.session() as session:
+        assert PageEvaluationRepository(session, BOB).list_for_run(run.id) == []
 
 
 def test_a_page_that_is_not_an_offer_is_rejected_with_its_kind(graph, container, evaluator):

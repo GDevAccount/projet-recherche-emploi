@@ -5,7 +5,7 @@ Changer une table ici ne change aucune base existante : il faut une migration (v
 
 from datetime import UTC, datetime
 
-from sqlalchemy import REAL, Integer, Text, UniqueConstraint, text
+from sqlalchemy import REAL, Index, Integer, Text, UniqueConstraint, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
 
@@ -143,10 +143,80 @@ class CvText(Base):
 
 
 class SearchRun(Base):
-    """Lancement d'une recherche, compté par le quota journalier."""
+    """Lancement d'une recherche : compté par le quota journalier, puis complété par son bilan.
+
+    Tout sauf la date est vide pour les lancements d'avant le suivi.
+    """
 
     __tablename__ = "search_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+    # « running » à l'enregistrement, puis « done » ou « failed » : un lancement interrompu reste « running »
+    status: Mapped[str | None] = mapped_column(Text)
+    # Type de l'erreur d'une recherche échouée, sans son message : le détail est dans les logs
+    error: Mapped[str | None] = mapped_column(Text)
+    finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    model: Mapped[str | None] = mapped_column(Text)
+    prompt_version: Mapped[str | None] = mapped_column(Text)
+    found_count: Mapped[int | None] = mapped_column(Integer)
+    new_count: Mapped[int | None] = mapped_column(Integer)
+    kept_count: Mapped[int | None] = mapped_column(Integer)
+    rejected_count: Mapped[int | None] = mapped_column(Integer)
+    inserted_count: Mapped[int | None] = mapped_column(Integer)
+    # Durée de chaque étape du graph, en millisecondes
+    search_ms: Mapped[int | None] = mapped_column(Integer)
+    dedupe_ms: Mapped[int | None] = mapped_column(Integer)
+    evaluate_ms: Mapped[int | None] = mapped_column(Integer)
+    save_ms: Mapped[int | None] = mapped_column(Integer)
+    # Ce que la recherche a consommé : appels au moteur de recherche, jetons du modèle
+    search_calls: Mapped[int | None] = mapped_column(Integer)
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+
+
+class PageEvaluation(Base):
+    """Journal des pages évaluées, retenues ou non : ce que le modèle a lu, le verdict, et ce que l'appel a coûté.
+
+    Contrairement à rejected_jobs, il n'est pas vidé au changement de CV : il raconte ce qui s'est passé.
+    """
+
+    __tablename__ = "page_evaluations"
+    __table_args__ = (Index("ix_page_evaluations_run", "user_id", "search_run_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer)
+    # Vide pour une recherche lancée sans passer par SearchService
+    search_run_id: Mapped[int | None] = mapped_column(Integer)
+    url: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(Text)
+    query: Mapped[str | None] = mapped_column(Text)
+    # Score donné par le moteur de recherche
+    score: Mapped[float | None] = mapped_column(REAL)
+    kept: Mapped[bool] = mapped_column(IntBool)
+    # Faits lus sur la page par le modèle
+    page_kind: Mapped[str | None] = mapped_column(Text)
+    contract_type: Mapped[str | None] = mapped_column(Text)
+    work_city: Mapped[str | None] = mapped_column(Text)
+    work_country: Mapped[str | None] = mapped_column(Text)
+    work_mode: Mapped[str | None] = mapped_column(Text)
+    in_accepted_area: Mapped[bool | None] = mapped_column(IntBool)
+    open_to_candidates_in_france: Mapped[bool | None] = mapped_column(IntBool)
+    # Avis du modèle
+    matches_search: Mapped[bool | None] = mapped_column(IntBool)
+    matches_skills: Mapped[bool | None] = mapped_column(IntBool)
+    matches_level: Mapped[bool | None] = mapped_column(IntBool)
+    # Règles appliquées par le graph
+    matches_contract: Mapped[bool | None] = mapped_column(IntBool)
+    matches_location: Mapped[bool | None] = mapped_column(IntBool)
+    reason: Mapped[str | None] = mapped_column(Text)
+    # Longueur du texte disponible ; au-delà de MAX_PAGE_CHARS, le modèle n'en a lu que le début
+    page_chars: Mapped[int | None] = mapped_column(Integer)
+    truncated: Mapped[bool | None] = mapped_column(IntBool)
+    # Faux quand seul l'extrait du moteur de recherche était disponible
+    full_page: Mapped[bool | None] = mapped_column(IntBool)
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))

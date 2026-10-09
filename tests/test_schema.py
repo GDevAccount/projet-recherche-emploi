@@ -12,7 +12,7 @@ from projet_recherche_emploi.data.repositories.job_repository import JobReposito
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 
-TABLES = {"jobs", "rejected_jobs", "search_queries", "users", "search_runs"}
+TABLES = {"jobs", "rejected_jobs", "search_queries", "users", "search_runs", "cv_texts", "page_evaluations"}
 
 # Base telle que la créait l'application avant Alembic : chaque dépôt créait sa table à son premier usage,
 # donc users et search_runs manquent tant que la connexion Google n'a pas servi

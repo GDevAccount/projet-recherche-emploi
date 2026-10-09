@@ -13,7 +13,8 @@ L'application est un projet personnel, exploité par un particulier. Pour toute 
 - **Vos recherches** : les phrases de recherche, les types de contrat et les lieux que vous enregistrez.
 - **Les offres trouvées pour vous** : titre, lien, extrait, type de contrat et lieu lus sur l'annonce, raison pour laquelle l'offre a été retenue, et le suivi que vous en faites : candidature envoyée, entretien obtenu, refus de l'employeur, avec la date de chaque étape, et offre supprimée.
 - **Les pages écartées** : titre, lien, type de contrat et lieu lus sur la page, raison du rejet et critères en défaut, pour ne pas les évaluer une seconde fois.
-- **La date de chaque recherche lancée**, pour appliquer la limite quotidienne.
+- **Le bilan de chaque recherche lancée** : sa date, pour appliquer la limite quotidienne, et des mesures techniques (nombre de pages trouvées, retenues et écartées, durée, volume de texte échangé avec OpenAI), pour suivre le coût et le bon fonctionnement du service.
+- **Le journal des pages évaluées** : pour chaque page lue lors d'une recherche, retenue ou non, son titre, son lien, ce qui y a été lu (type de contrat, lieu, mode de travail), le verdict critère par critère et sa raison. Il sert à comprendre et à corriger le tri. Contrairement aux pages écartées, il n'est pas effacé quand vous remplacez votre CV.
 - **La date de votre dernière utilisation**, au jour près, pour supprimer les comptes qui ne servent plus.
 
 L'application n'utilise aucun outil de mesure d'audience ni de publicité. Elle dépose un seul cookie, nécessaire pour maintenir votre connexion. Votre choix de thème, clair ou sombre, est gardé dans votre navigateur et n'est pas envoyé au serveur. L'écran de connexion affiche le bouton « Se connecter avec Google », chargé depuis les serveurs de Google, qui peut déposer ses propres cookies.
@@ -35,7 +36,7 @@ Ces quatre sociétés sont établies aux États-Unis. Les données hébergées p
 
 ## Durée de conservation
 
-Vos données sont conservées tant que vous utilisez l'application. Un compte resté {inactive_months} mois sans utilisation est supprimé automatiquement, avec tout ce qu'il contient : adresse e-mail, CV, recherches, offres et pages écartées. Vous n'en êtes pas prévenu, l'application n'envoyant aucun e-mail.
+Vos données sont conservées tant que vous utilisez l'application. Un compte resté {inactive_months} mois sans utilisation est supprimé automatiquement, avec tout ce qu'il contient : adresse e-mail, CV, recherches, offres, pages écartées, bilans des recherches et journal des pages évaluées. Vous n'en êtes pas prévenu, l'application n'envoyant aucun e-mail.
 
 Si votre accès est retiré, vous ne pouvez plus vous connecter : votre compte est supprimé au terme de ce même délai, ou plus tôt si vous le demandez. Tant que vous avez accès à l'application, vous pouvez supprimer votre compte vous-même.
 
@@ -43,9 +44,9 @@ Avant certaines mises à jour de l'application, une copie de sauvegarde de la ba
 
 ## Vos droits
 
-Conformément au règlement général sur la protection des données (RGPD), vous pouvez demander l'accès à vos données, leur rectification ou leur suppression, en recevoir une copie dans un format courant (portabilité), et demander la limitation de leur traitement ou vous y opposer, en écrivant à l'adresse indiquée plus haut. Une réponse vous est donnée dans un délai d'un mois. La suppression porte sur l'ensemble de votre compte : adresse e-mail, CV, recherches, offres et pages écartées.
+Conformément au règlement général sur la protection des données (RGPD), vous pouvez demander l'accès à vos données, leur rectification ou leur suppression, en recevoir une copie dans un format courant (portabilité), et demander la limitation de leur traitement ou vous y opposer, en écrivant à l'adresse indiquée plus haut. Une réponse vous est donnée dans un délai d'un mois. La suppression porte sur l'ensemble de votre compte : adresse e-mail, CV, recherches, offres, pages écartées, bilans des recherches et journal des pages évaluées.
 
-Vous pouvez supprimer votre compte vous-même, depuis la page « Compte » de l'application : votre adresse e-mail, votre CV, vos recherches, vos offres et les pages écartées sont alors effacés immédiatement, sans retour possible. Vous pouvez aussi remplacer votre CV et supprimer vos recherches sans supprimer votre compte. Vous pouvez aussi retirer l'accès de l'application à votre compte Google depuis les paramètres de sécurité de ce compte.
+Vous pouvez supprimer votre compte vous-même, depuis la page « Compte » de l'application : votre adresse e-mail, votre CV, vos recherches, vos offres, les pages écartées, les bilans de vos recherches et le journal des pages évaluées sont alors effacés immédiatement, sans retour possible. Vous pouvez aussi remplacer votre CV et supprimer vos recherches sans supprimer votre compte. Vous pouvez aussi retirer l'accès de l'application à votre compte Google depuis les paramètres de sécurité de ce compte.
 
 Si vous estimez que vos droits ne sont pas respectés, vous pouvez adresser une réclamation à la CNIL (www.cnil.fr).
 

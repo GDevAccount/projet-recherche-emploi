@@ -130,6 +130,79 @@ class SearchProgress(BaseModel):
     kept: bool | None = None
 
 
+# État d'un lancement : en cours, terminé, échoué, ou interrompu par un redémarrage du serveur
+SearchRunStatus = Literal["running", "done", "failed", "interrupted"]
+
+
+class SearchRunRead(_FromRow):
+    """Bilan d'un lancement : ce qu'il a trouvé, ce qu'il a duré et ce qu'il a consommé.
+
+    Tout sauf la date est None pour un lancement d'avant le suivi ; une recherche échouée ou interrompue
+    n'a que les mesures des étapes qu'elle a franchies.
+    """
+
+    id: int
+    created_at: datetime
+    finished_at: datetime | None
+    status: SearchRunStatus | None
+    # Type de l'erreur d'une recherche échouée, sans son message
+    error: str | None
+    model: str | None
+    # Empreinte du prompt du filtre : deux lancements qui la partagent ont été jugés avec les mêmes consignes
+    prompt_version: str | None
+    found_count: int | None
+    new_count: int | None
+    kept_count: int | None
+    rejected_count: int | None
+    inserted_count: int | None
+    # Durée de chaque étape, en millisecondes
+    search_ms: int | None
+    dedupe_ms: int | None
+    evaluate_ms: int | None
+    save_ms: int | None
+    # Appels au moteur de recherche, et jetons du modèle
+    search_calls: int | None
+    input_tokens: int | None
+    output_tokens: int | None
+
+
+class PageEvaluationRead(_FromRow):
+    """Une page évaluée pendant un lancement, retenue ou non."""
+
+    id: int
+    search_run_id: int | None
+    url: str
+    title: str
+    query: str | None
+    score: float | None
+    kept: bool
+    # Faits lus sur la page par le modèle
+    page_kind: str | None
+    contract_type: str | None
+    work_city: str | None
+    work_country: str | None
+    work_mode: str | None
+    in_accepted_area: bool | None
+    open_to_candidates_in_france: bool | None
+    # Avis du modèle
+    matches_search: bool | None
+    matches_skills: bool | None
+    matches_level: bool | None
+    # Règles appliquées par le graph
+    matches_contract: bool | None
+    matches_location: bool | None
+    reason: str | None
+    # Longueur du texte disponible ; « truncated » si le modèle n'en a lu que le début
+    page_chars: int | None
+    truncated: bool | None
+    # Faux quand seul l'extrait du moteur de recherche était disponible
+    full_page: bool | None
+    input_tokens: int | None
+    output_tokens: int | None
+    duration_ms: int | None
+    created_at: datetime
+
+
 class SearchSummary(BaseModel):
     found: int
     new: int

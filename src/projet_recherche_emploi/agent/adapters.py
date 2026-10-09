@@ -4,14 +4,16 @@ Les clients ne sont créés qu'au premier appel : construire le conteneur ne dem
 """
 
 import logging
+import time
 from collections.abc import Iterator, Sequence
 from functools import cached_property
 
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import RunnableConfig, RunnableLambda
 from langchain_openai import ChatOpenAI
 from langchain_tavily import TavilySearch
 
-from projet_recherche_emploi.agent.ports import JobEvaluation, SearchCriteria
+from projet_recherche_emploi.agent.ports import EvaluationUsage, JobEvaluation, SearchCriteria, page_text
 from projet_recherche_emploi.agent.prompts import FILTER_PROMPT, describe_area_rule, describe_sought_jobs
 from projet_recherche_emploi.agent.state import FoundPage
 from projet_recherche_emploi.config import FILTER_MODEL, JOB_SITES, MAX_PAGE_CHARS, REMOTE_JOB_SITES
@@ -55,6 +57,8 @@ class TavilyJobSearch:
 
 
 class OpenAIJobEvaluator:
+    model_name = FILTER_MODEL
+
     def __init__(self, chat_model: BaseChatModel | None = None):
         self._injected_chat_model = chat_model
 
@@ -64,9 +68,24 @@ class OpenAIJobEvaluator:
 
     def evaluate(
         self, cv: str, criteria: SearchCriteria, pages: Sequence[FoundPage]
-    ) -> Iterator[tuple[int, JobEvaluation]]:
-        evaluator = FILTER_PROMPT | self._chat_model.with_structured_output(JobEvaluation)
-        yield from evaluator.batch_as_completed(
+    ) -> Iterator[tuple[int, JobEvaluation, EvaluationUsage]]:
+        # La réponse brute accompagne le verdict : c'est elle qui porte le nombre de jetons
+        chain = FILTER_PROMPT | self._chat_model.with_structured_output(JobEvaluation, include_raw=True)
+
+        def evaluate_page(inputs: dict, config: RunnableConfig) -> tuple[JobEvaluation, EvaluationUsage]:
+            started = time.perf_counter()
+            answer = chain.invoke(inputs, config)
+            duration_ms = round((time.perf_counter() - started) * 1000)
+            if answer["parsing_error"]:
+                raise answer["parsing_error"]
+            usage = getattr(answer["raw"], "usage_metadata", None) or {}
+            return answer["parsed"], EvaluationUsage(
+                input_tokens=usage.get("input_tokens"),
+                output_tokens=usage.get("output_tokens"),
+                duration_ms=duration_ms,
+            )
+
+        results = RunnableLambda(evaluate_page).batch_as_completed(
             [
                 {
                     "cv": cv,
@@ -74,9 +93,11 @@ class OpenAIJobEvaluator:
                     "area_rule": describe_area_rule(criteria.accepted_areas),
                     "title": page["title"],
                     "url": page["url"],
-                    "page": (page.get("raw_content") or page["content"])[:MAX_PAGE_CHARS],
+                    "page": page_text(page)[:MAX_PAGE_CHARS],
                 }
                 for page in pages
             ],
             config={"max_concurrency": 5},
         )
+        for index, (evaluation, usage) in results:
+            yield index, evaluation, usage

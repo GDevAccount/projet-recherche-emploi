@@ -16,6 +16,7 @@ from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
 from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
+from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
 from projet_recherche_emploi.schemas import SearchProgress, SearchSummary
@@ -42,7 +43,8 @@ class FakeGraph:
 
 class BrokenGraph:
     def stream(self, state, stream_mode):
-        raise RuntimeError("Tavily search failed")
+        yield "values", {"jobs": [{"url": "https://x/1"}], "metrics": {"search_ms": 12, "search_calls": 1}}
+        raise RuntimeError("Tavily search failed : clé sk-secrete")
 
 
 @pytest.fixture
@@ -74,7 +76,10 @@ def test_search_runs_for_its_user_and_reports_progress(search, graph, ready_user
 
     summary = search.run_search(BOB, events.append)
 
-    assert graph.inputs == [{"user_id": BOB}]
+    # Le graph reçoit aussi le lancement enregistré, pour y rattacher le journal des pages évaluées
+    [run] = search.list_runs(BOB)
+    assert graph.inputs == [{"user_id": BOB, "run_id": run.id}]
+    assert (run.status, run.found_count, run.new_count, run.kept_count, run.inserted_count) == ("done", 1, 1, None, 1)
     assert events == [
         SearchProgress(message="Recherche 1/1", done=0, total=1),
         SearchProgress(message="1 page(s) nouvelle(s) sur 1 trouvée(s)"),
@@ -111,6 +116,28 @@ def test_failed_search_still_counts(container, ready_users):
         search.run_search(BOB)
 
     assert search.remaining_searches(BOB) == MAX_SEARCHES_PER_DAY - 1
+    # Le lancement garde ce qui a été mesuré avant l'échec, et le type de l'erreur sans son message
+    [run] = search.list_runs(BOB)
+    assert (run.status, run.error, run.found_count, run.new_count) == ("failed", "RuntimeError", 1, None)
+    assert (run.search_ms, run.search_calls, run.evaluate_ms) == (12, 1, None)
+    assert run.finished_at is not None
+
+
+def test_run_left_running_by_a_restart_is_reported_as_interrupted(container, search, ready_users):
+    # Un lancement enregistré, puis le serveur redémarre : rien ne vient écrire son bilan
+    with container.database.session() as session:
+        SearchRunRepository(session, BOB).record_run()
+    assert [run.status for run in search.list_runs(BOB)] == ["interrupted"]
+
+    events = search.stream_search(BOB)
+    next(events)
+    # Seul le dernier lancement tourne vraiment
+    assert [run.status for run in search.list_runs(BOB)] == ["running", "interrupted"]
+    list(events)
+    assert [run.status for run in search.list_runs(BOB)] == ["done", "interrupted"]
+
+    with pytest.raises(NotFoundError):
+        search.list_evaluations(CAROL, search.list_runs(BOB)[0].id)
 
 
 def test_second_search_is_refused_while_the_first_runs_without_using_the_quota(search, graph, ready_users):

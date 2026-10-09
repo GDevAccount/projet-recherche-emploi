@@ -5,6 +5,7 @@ from helpers import job, rejected_job
 from projet_recherche_emploi.config import DEFAULT_QUERIES
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
@@ -146,13 +147,13 @@ def test_quota_is_per_user_and_per_day(session):
     alice, bob = SearchRunRepository(session, ALICE), SearchRunRepository(session, BOB)
     today = datetime(2000, 1, 1, tzinfo=UTC)
 
-    assert alice.record_run(today, limit=2) is True
-    assert alice.record_run(today, limit=2) is True
-    assert alice.record_run(today, limit=2) is False
+    assert alice.record_run(today, limit=2)
+    assert alice.record_run(today, limit=2)
+    assert alice.record_run(today, limit=2) is None
     assert alice.count_runs_since(today) == 2
 
     assert bob.count_runs_since(today) == 0
-    assert bob.record_run(today, limit=2) is True
+    assert bob.record_run(today, limit=2)
 
     # Les recherches d'avant minuit ne comptent plus le lendemain
     tomorrow = datetime(2999, 1, 1, tzinfo=UTC)
@@ -164,6 +165,29 @@ def test_run_without_limit_is_always_recorded(session):
 
     assert all(owner.record_run() for _ in range(5))
     assert owner.count_runs_since(datetime(2000, 1, 1, tzinfo=UTC)) == 5
+
+
+def test_a_run_and_its_evaluations_belong_to_their_user(session):
+    alice, bob = SearchRunRepository(session, ALICE), SearchRunRepository(session, BOB)
+    alice_run = alice.record_run()
+    bob_run = bob.record_run(datetime(2000, 1, 1, tzinfo=UTC), limit=2)
+    page = {"url": "https://a/1", "title": "Offre", "kept": True, "input_tokens": 10}
+    PageEvaluationRepository(session, ALICE).insert_evaluations(alice_run, [page])
+
+    assert alice_run != bob_run and alice.get_run(alice_run).status == "running"
+    # Le bilan d'un lancement ne s'écrit, et ne se lit, que par celui qui l'a lancé
+    assert bob.finish_run(alice_run, {"status": "done"}) is False
+    assert alice.finish_run(alice_run, {"status": "done", "found_count": 3}) is True
+    assert (alice.get_run(alice_run).status, alice.get_run(alice_run).found_count) == ("done", 3)
+    assert bob.get_run(alice_run) is None
+    assert [run.id for run in alice.list_runs(10)] == [alice_run]
+    assert [run.id for run in bob.list_runs(10)] == [bob_run]
+
+    assert PageEvaluationRepository(session, BOB).list_for_run(alice_run) == []
+    assert PageEvaluationRepository(session, BOB).delete_all() == 0
+    [evaluation] = PageEvaluationRepository(session, ALICE).list_for_run(alice_run)
+    assert (evaluation.url, evaluation.kept, evaluation.input_tokens) == ("https://a/1", True, 10)
+    assert PageEvaluationRepository(session, ALICE).delete_all() == 1
 
 
 def test_erasing_everything_does_not_touch_another_user(session):
