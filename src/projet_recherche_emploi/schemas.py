@@ -545,6 +545,47 @@ class AlertTest(BaseModel):
     sent: bool
 
 
+class JourneyStep(BaseModel):
+    """Une étape du parcours, et les invités qui l'ont franchie."""
+
+    label: str
+    count: int
+    # Part des invités ; None sans invité
+    rate: float | None
+
+
+class AccountJourney(BaseModel):
+    """Où en est un compte : des nombres seulement, plus l'adresse du compte."""
+
+    user_id: int
+    # None pour le propriétaire, que la table des comptes ne connaît pas par son adresse
+    email: str | None
+    is_owner: bool
+    created_at: datetime
+    # Au jour près
+    last_seen_at: datetime | None
+    has_cv: bool
+    queries: int
+    runs: int
+    # Offres retenues par le tri ou remises par l'utilisateur, supprimées comprises
+    kept: int
+    applied: int
+    interviews: int
+    corrections: int
+    # Vu un autre jour que celui de la création du compte
+    returned: bool
+
+
+class JourneyOverview(BaseModel):
+    """Parcours des invités, pour les administrateurs : qui va jusqu'à postuler, et qui revient."""
+
+    guests: int
+    # Du compte créé au retour un autre jour ; le propriétaire n'y est pas compté
+    steps: list[JourneyStep]
+    # Tous les comptes, le dernier vu en premier ; un compte supprimé n'y est plus
+    accounts: list[AccountJourney]
+
+
 class BudgetOverview(BaseModel):
     """Dépense du mois en cours, tous comptes réunis, face au budget de l'instance. Montants en dollars."""
 

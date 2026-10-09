@@ -82,6 +82,21 @@ describe('ShellComponent', () => {
     expect(text()).not.toContain('Lancer une recherche');
   });
 
+  it('should not send to the profile a user who is already there, but say what to do', async () => {
+    const router = TestBed.inject(Router);
+    router.resetConfig([{ path: '**', children: [] }]);
+    await router.navigateByUrl('/profil');
+    await openSession(GUEST);
+
+    expect(element().querySelector('a.cta')).toBeNull();
+    expect(text(element().querySelector('.hero')!)).toContain('Déposez votre CV et décrivez un poste recherché');
+
+    // De retour sur un autre écran, le renvoi vers le profil revient
+    await router.navigateByUrl('/offres');
+    await fixture.whenStable();
+    expect(element().querySelector('a.cta')?.getAttribute('href')).toBe('/profil');
+  });
+
   it('should offer to launch a search when the API finds the profile ready', async () => {
     await openSession({ ...GUEST, can_search: true });
 

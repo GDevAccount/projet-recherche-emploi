@@ -19,6 +19,7 @@ import { Job, JobStatus } from '../core/api.models';
 import { ConfigService } from '../core/config.service';
 import { JobService } from '../core/job.service';
 import { SearchRunService } from '../core/search-run.service';
+import { SessionService } from '../core/session.service';
 import { normalize } from '../core/text';
 import { JobCardComponent } from './job-card.component';
 
@@ -43,7 +44,10 @@ function contractOf(job: Job): string {
 })
 export class JobsComponent {
   private readonly jobService = inject(JobService);
+  private readonly session = inject(SessionService);
   protected readonly run = inject(SearchRunService);
+  /** Faux tant qu'il manque le CV ou un poste recherché : inviter à lancer une recherche serait trompeur. */
+  protected readonly canSearch = computed(() => this.session.account()?.can_search ?? true);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
   // undefined : en cours de lecture

@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, map } from 'rxjs';
 
 import { AvatarComponent } from '../account/avatar.component';
 import { ACCOUNT_PATH, LOGIN_PATH, PROFILE_PATH, SECTIONS } from '../core/paths';
@@ -29,6 +31,16 @@ export class ShellComponent {
     SECTIONS.filter((section) => !section.admin || this.account()?.is_admin),
   );
   protected readonly closing = signal(false);
+
+  private readonly url = toSignal(
+    this.router.events.pipe(
+      filter((event) => event instanceof NavigationEnd),
+      map(() => this.router.url),
+    ),
+    { initialValue: this.router.url },
+  );
+  /** Vrai sur la page Profil : le bandeau n'a pas à y renvoyer. */
+  protected readonly onProfile = computed(() => this.url().split(/[?#]/)[0] === `/${PROFILE_PATH}`);
 
   protected logout(): void {
     this.closing.set(true);

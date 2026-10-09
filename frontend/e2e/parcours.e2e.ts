@@ -184,6 +184,11 @@ test('le suivi montre le bilan des recherches et le détail de leurs pages', asy
   await expect(health.locator('.figures > div').first()).toContainText('0 sur 2');
   await expect(health.locator('.figures > .bad')).toHaveCount(0);
 
+  // Le mot de passe ne connaît que le propriétaire : aucun invité, mais sa ligne dit où il en est
+  const journeys = page.locator('app-journeys-card');
+  await expect(journeys.locator('h2')).toContainText('0 invité');
+  await expect(journeys.locator('tbody tr')).toContainText(['Propriétaire']);
+
   // Le budget du mois compte les deux recherches du parcours, et les semaines montrent celle en cours
   await expect(page.locator('app-budget-card .note')).toContainText('pour 2 recherches ce mois-ci');
   await expect(page.locator('app-trends-card figcaption').nth(1)).toContainText('Recherches');

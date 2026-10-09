@@ -415,6 +415,39 @@ export interface WeekStats {
   applications: number;
 }
 
+/** Une étape du parcours, et les invités qui l'ont franchie. */
+export interface JourneyStep {
+  label: string;
+  count: number;
+  /** Part des invités ; null sans invité */
+  rate: number | null;
+}
+
+/** Où en est un compte : des nombres, plus son adresse. */
+export interface AccountJourney {
+  user_id: number;
+  email: string | null;
+  is_owner: boolean;
+  created_at: string;
+  last_seen_at: string | null;
+  has_cv: boolean;
+  queries: number;
+  runs: number;
+  kept: number;
+  applied: number;
+  interviews: number;
+  corrections: number;
+  /** Vu un autre jour que celui de la création du compte */
+  returned: boolean;
+}
+
+/** Parcours des invités, pour les administrateurs. */
+export interface JourneyOverview {
+  guests: number;
+  steps: JourneyStep[];
+  accounts: AccountJourney[];
+}
+
 /** Dépense du mois en cours, tous comptes réunis, face au budget de l'instance. */
 export interface BudgetOverview {
   month_start: string;

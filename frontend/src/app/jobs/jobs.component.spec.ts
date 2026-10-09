@@ -144,7 +144,18 @@ describe('JobsComponent', () => {
     await serve([]);
 
     expect(text()).toContain("Pas encore d'offre");
+    expect(text()).toContain('Lancez une recherche :');
     expect(element().querySelector('.board')).toBeNull();
+  });
+
+  it('should not invite to launch a search before the profile is ready', async () => {
+    TestBed.inject(SessionService).open('preuve').subscribe();
+    http.expectOne('/api/session').flush({ ...SEARCHING, can_search: false, search_running: false });
+    await serve([]);
+
+    expect(text()).toContain("Pas encore d'offre");
+    expect(text()).toContain('Une fois votre profil complété');
+    expect(text()).not.toContain('Lancez une recherche :');
   });
 
   it('should not invite to launch a search while one is running', async () => {
