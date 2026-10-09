@@ -67,8 +67,12 @@ class Job(Base):
     work_location: Mapped[str | None] = mapped_column(Text)
     query: Mapped[str | None] = mapped_column(Text)
     match_reason: Mapped[str | None] = mapped_column(Text)
-    applied: Mapped[bool] = mapped_column(IntBool, server_default=text("0"))
+    # État de la candidature : todo, applied, interview ou rejected (JobStatus de schemas.py)
+    status: Mapped[str] = mapped_column(Text, server_default=text("'todo'"))
+    # Date de chaque étape franchie ; vide tant qu'elle ne l'est pas
     applied_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    interview_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    rejected_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
     deleted: Mapped[bool] = mapped_column(IntBool, server_default=text("0"))
 

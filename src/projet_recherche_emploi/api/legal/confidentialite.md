@@ -11,7 +11,7 @@ L'application est un projet personnel, exploité par un particulier. Pour toute 
 - **Votre adresse e-mail Google**, pour vous reconnaître d'une connexion à l'autre. Votre nom et votre photo de profil, transmis par Google à la connexion, ne sont pas enregistrés sur le serveur : ils sont gardés dans le cookie de votre session, pour afficher votre vignette. La photo elle-même est chargée depuis les serveurs de Google.
 - **Le texte de votre CV, dont vos coordonnées sont retirées** : adresse e-mail, téléphone, liens, adresse postale, date de naissance et, quand il est connu, votre nom. Ce retrait est automatique : il reconnaît ces informations à leur forme, sans garantie d'en trouver toutes les mentions. Le fichier PDF que vous déposez n'est pas conservé : il est lu une fois, pour en tirer ce texte.
 - **Vos recherches** : les phrases de recherche, les types de contrat et les lieux que vous enregistrez.
-- **Les offres trouvées pour vous** : titre, lien, extrait, type de contrat et lieu lus sur l'annonce, raison pour laquelle l'offre a été retenue, et le suivi que vous en faites (offre postulée, date, offre supprimée).
+- **Les offres trouvées pour vous** : titre, lien, extrait, type de contrat et lieu lus sur l'annonce, raison pour laquelle l'offre a été retenue, et le suivi que vous en faites : candidature envoyée, entretien obtenu, refus de l'employeur, avec la date de chaque étape, et offre supprimée.
 - **Les pages écartées** : titre, lien, type de contrat et lieu lus sur la page, raison du rejet et critères en défaut, pour ne pas les évaluer une seconde fois.
 - **La date de chaque recherche lancée**, pour appliquer la limite quotidienne.
 - **La date de votre dernière utilisation**, au jour près, pour supprimer les comptes qui ne servent plus.

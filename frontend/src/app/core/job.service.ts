@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
-import { Job, RejectedJob } from './api.models';
+import { Job, JobStatus, RejectedJob } from './api.models';
 
 @Injectable({ providedIn: 'root' })
 export class JobService {
@@ -15,9 +15,9 @@ export class JobService {
     return this.http.get<Job[]>(this.url);
   }
 
-  /** Marque l'offre comme postulée ou non. L'API la renvoie mise à jour, avec sa date de candidature. */
-  setApplied(id: number, applied: boolean): Observable<Job> {
-    return this.http.patch<Job>(`${this.url}/${id}`, { applied });
+  /** Fait passer la candidature à cet état. L'API renvoie l'offre mise à jour, avec ses dates. */
+  setStatus(id: number, status: JobStatus): Observable<Job> {
+    return this.http.patch<Job>(`${this.url}/${id}`, { status });
   }
 
   /** Pages écartées, avec le motif que l'API en a tiré. */

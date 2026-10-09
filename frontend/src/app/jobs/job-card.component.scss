@@ -1,4 +1,5 @@
 :host {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
@@ -22,8 +23,8 @@
   opacity: 0.55;
 }
 
-// Offre postulée : une carte plus discrète, marquée d'un trait citron vert
-:host(.applied) {
+// Candidature envoyée : une carte plus discrète, marquée d'un trait citron vert
+:host(.tracked) {
   gap: 0.6rem;
   padding: 1rem 1.1rem;
   border-left: 3px solid var(--app-accent-strong);
@@ -32,6 +33,23 @@
 
   h3 {
     font-size: 1rem;
+  }
+}
+
+// Entretien : la carte qui compte, pleine et cerclée de citron vert
+:host(.interview) {
+  border-color: var(--app-accent-strong);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow);
+}
+
+// Refusée : en retrait, sans trait de couleur
+:host(.rejected) {
+  border-left-color: var(--app-border);
+  color: var(--app-muted);
+
+  .contract {
+    background: var(--app-muted);
   }
 }
 
@@ -94,6 +112,18 @@ time,
   svg {
     width: 0.85rem;
     height: 0.85rem;
+  }
+
+  &.strong {
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: var(--app-accent);
+    color: var(--app-accent-ink);
+    font-weight: 700;
+  }
+
+  &.muted {
+    color: var(--app-muted);
   }
 }
 
@@ -200,10 +230,6 @@ footer {
   gap: 0.35rem;
   margin-top: auto;
 
-  &.confirming {
-    flex-wrap: wrap;
-  }
-
   button,
   a {
     display: inline-flex;
@@ -254,26 +280,37 @@ footer {
     }
   }
 
-  .icon {
-    flex: none;
-    margin-left: auto;
-    padding: 0.5rem;
-    color: var(--app-muted);
-
-    &:hover:not(:disabled) {
-      background: color-mix(in srgb, #ef4444, transparent 86%);
-      color: #ef4444;
+  // Carte étroite (téléphone) : les trois boutons ne tiennent pas sur une ligne avec leurs libellés
+  @container (max-width: 18.5rem) {
+    .link span {
+      display: none;
     }
   }
 
-  .danger {
-    background: #ef4444;
-    color: #fff;
+  .tools {
+    display: inline-flex;
+    flex: none;
+    margin-left: auto;
   }
 
-  .question {
-    flex: 1 1 100%;
-    font-size: 0.875rem;
-    font-weight: 600;
+  // Assez large pour le doigt : ces deux boutons n'ont pas de libellé
+  .icon {
+    padding: 0.6rem;
+    color: var(--app-muted);
+
+    &:hover:not(:disabled) {
+      background: var(--app-surface-2);
+      color: var(--app-text);
+    }
+
+    svg {
+      width: 1.1rem;
+      height: 1.1rem;
+    }
+  }
+
+  .discard:hover:not(:disabled) {
+    background: color-mix(in srgb, #ef4444, transparent 86%);
+    color: #ef4444;
   }
 }

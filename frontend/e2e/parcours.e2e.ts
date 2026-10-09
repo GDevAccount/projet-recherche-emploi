@@ -104,14 +104,43 @@ test('une offre marquée postulée change de colonne et le reste après recharge
   await expect(page.locator('.column.todo app-job-card').filter({ hasText: QUERY })).toHaveCount(0);
 });
 
+test('un entretien se met en avant, et un refus se range sans disparaître', async () => {
+  const applied = page.locator('.column.applied app-job-card').filter({ hasText: QUERY });
+  await applied.getByRole('button', { name: 'Entretien obtenu' }).click();
+
+  const interview = page.locator('.interviews app-job-card').filter({ hasText: QUERY });
+  await expect(interview).toContainText('Entretien depuis le');
+  // Les entretiens passent avant les colonnes
+  await expect(page.locator('.tracking > *').first()).toHaveClass(/interviews/);
+
+  await interview.getByRole('button', { name: /^Retirer l'offre/ }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: 'Que faire de cette offre ?' })).toBeVisible();
+  await dialog.getByRole('button', { name: /L'employeur a refusé ma candidature/ }).click();
+  await expect(dialog).toBeHidden();
+
+  // Rangée, repliée, et toujours là après rechargement
+  await expect(page.locator('.interviews')).toHaveCount(0);
+  await page.reload();
+  const refused = page.locator('details.refused');
+  await expect(refused.locator('summary')).toContainText('Candidatures refusées');
+  await expect(refused.locator('app-job-card')).toBeHidden();
+  await refused.locator('summary').click();
+  await expect(refused.locator('app-job-card').filter({ hasText: QUERY })).toContainText('Refusée le');
+});
+
 test('une offre supprimée ne revient pas, même après une nouvelle recherche', async () => {
   const cards = page.locator('.column.todo app-job-card');
   const before = await cards.count();
   expect(before).toBeGreaterThan(0);
   const title = (await cards.first().getByRole('heading').innerText()).trim();
 
-  await cards.first().getByRole('button', { name: /^Supprimer l'offre/ }).click();
-  await cards.first().getByRole('button', { name: 'Supprimer', exact: true }).click();
+  await cards.first().getByRole('button', { name: /^Retirer l'offre/ }).click();
+  const dialog = page.getByRole('dialog');
+  // Une offre à laquelle on n'a pas postulé ne peut pas avoir été refusée : la fenêtre ne propose que de la supprimer
+  await expect(dialog.getByRole('button', { name: /L'employeur a refusé/ })).toHaveCount(0);
+  await dialog.getByRole('button', { name: /Supprimer cette annonce/ }).click();
+  await expect(dialog).toBeHidden();
   await expect(cards).toHaveCount(before - 1);
 
   await page.getByRole('button', { name: 'Lancer une recherche' }).click();

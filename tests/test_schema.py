@@ -103,7 +103,9 @@ def test_database_from_before_alembic_keeps_its_rows(tmp_path):
     assert TABLES <= table_names(db_path)
     with database.session() as session:
         [job] = JobRepository(session, DEFAULT_USER_ID).list_jobs()
-        assert (job.url, job.applied, job.deleted) == ("https://a/1", True, False)
+        # L'offre cochée « postulée » du temps du booléen garde son état, et sa date
+        assert (job.url, job.status, job.deleted) == ("https://a/1", "applied", False)
+        assert (job.interview_at, job.rejected_at) == (None, None)
         assert job.applied_at.isoformat() == "2026-10-07T08:16:21+00:00"
         # Les offres sont numérotées dans leur ordre d'arrivée, et l'offre supprimée reste connue
         assert job.id == 1

@@ -1,6 +1,7 @@
 from collections.abc import Iterable, Mapping
+from datetime import datetime
 
-from sqlalchemy import delete, false, func, select, update
+from sqlalchemy import delete, false, select, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
@@ -52,13 +53,23 @@ class JobRepository:
         """Renvoie les URL de toutes les offres en base, y compris celles supprimées."""
         return set(self.session.scalars(select(Job.url).where(Job.user_id == self.user_id)))
 
-    def set_applied(self, job_id: int, applied: bool) -> bool:
-        """Marque l'offre comme postulée ou non, et renvoie faux si elle est inconnue ou supprimée."""
+    def set_tracking(
+        self,
+        job_id: int,
+        status: str,
+        applied_at: datetime | None,
+        interview_at: datetime | None,
+        rejected_at: datetime | None,
+    ) -> bool:
+        """Enregistre l'état de la candidature et la date de chaque étape, et renvoie faux si l'offre est inconnue.
+
+        Une offre supprimée est inconnue. Le dépôt écrit ce qu'on lui donne : quel état peut suivre quel autre
+        est décidé par JobService.
+        """
         statement = (
             update(Job)
             .where(Job.user_id == self.user_id, Job.id == job_id, Job.deleted == false())
-            # applied_at est daté quand on postule, et vidé quand on décoche
-            .values(applied=applied, applied_at=func.current_timestamp() if applied else None)
+            .values(status=status, applied_at=applied_at, interview_at=interview_at, rejected_at=rejected_at)
         )
         return self.session.execute(statement).rowcount == 1
 

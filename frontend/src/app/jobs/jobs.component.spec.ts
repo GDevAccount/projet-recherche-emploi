@@ -2,11 +2,26 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { Account, Job } from '../core/api.models';
+import { Account, Job, JobStatus } from '../core/api.models';
 import { SessionService } from '../core/session.service';
 import { JobsComponent } from './jobs.component';
 
+/** États que l'API annonce pour une offre, selon le sien : la règle est côté serveur, ceci la recopie pour les tests. */
+function nextStatuses(status: JobStatus, hadInterview: boolean): JobStatus[] {
+  switch (status) {
+    case 'todo':
+      return ['applied'];
+    case 'applied':
+      return ['interview', 'rejected', 'todo'];
+    case 'interview':
+      return ['rejected', 'applied'];
+    default:
+      return [hadInterview ? 'interview' : 'applied'];
+  }
+}
+
 function job(id: number, values: Partial<Job> = {}): Job {
+  const status = values.status ?? 'todo';
   return {
     id,
     url: `https://www.exemple-emploi.fr/offres/${id}`,
@@ -17,12 +32,19 @@ function job(id: number, values: Partial<Job> = {}): Job {
     work_location: 'Paris',
     query: 'ingénieur IA',
     match_reason: 'Le profil correspond.',
-    applied: false,
+    status,
     applied_at: null,
+    interview_at: null,
+    rejected_at: null,
     created_at: '2026-10-08T10:00:00Z',
+    next_statuses: nextStatuses(status, !!values.interview_at),
     ...values,
   };
 }
+
+const APPLIED: Partial<Job> = { status: 'applied', applied_at: '2026-10-08T12:00:00Z' };
+const INTERVIEW: Partial<Job> = { ...APPLIED, status: 'interview', interview_at: '2026-10-09T12:00:00Z' };
+const REJECTED: Partial<Job> = { ...APPLIED, status: 'rejected', rejected_at: '2026-10-10T12:00:00Z' };
 
 const NO_CONTENT = { status: 204, statusText: 'No Content' };
 
@@ -67,9 +89,9 @@ describe('JobsComponent', () => {
     await fixture.whenStable();
   }
 
-  /** Titres des cartes d'une colonne, dans l'ordre affiché. */
-  function titles(column: 'todo' | 'applied'): string[] {
-    return [...element().querySelectorAll(`.column.${column} app-job-card h3`)].map((title) => text(title));
+  /** Titres des cartes d'une zone, dans l'ordre affiché. */
+  function titles(zone: 'todo' | 'applied' | 'interviews' | 'refused'): string[] {
+    return [...element().querySelectorAll(`.${zone} app-job-card h3`)].map((title) => text(title));
   }
 
   function card(title: string): HTMLElement {
@@ -78,8 +100,27 @@ describe('JobsComponent', () => {
     )!;
   }
 
+  function dialog(): HTMLDialogElement {
+    return element().querySelector('dialog')!;
+  }
+
+  /** Clique le bouton qui porte ce texte, ou ce libellé s'il n'a qu'une icône. */
   async function click(root: Element, label: string): Promise<void> {
-    [...root.querySelectorAll('button')].find((button) => text(button) === label)!.click();
+    [...root.querySelectorAll('button')]
+      .find((button) => text(button).startsWith(label) || button.getAttribute('aria-label') === label)!
+      .click();
+    await fixture.whenStable();
+  }
+
+  async function openDiscard(title: string): Promise<void> {
+    await click(card(title), `Retirer l'offre « ${title} »`);
+  }
+
+  /** Répond à la demande de changement d'état par l'offre telle que l'API la renverrait. */
+  async function answerStatus(id: number, status: JobStatus, values: Partial<Job>): Promise<void> {
+    const request = http.expectOne({ method: 'PATCH', url: `/api/jobs/${id}` });
+    expect(request.request.body).toEqual({ status });
+    request.flush(job(id, values));
     await fixture.whenStable();
   }
 
@@ -106,23 +147,47 @@ describe('JobsComponent', () => {
     expect(text()).not.toContain('Lancez une recherche');
   });
 
-  it('should split offers between to-do and applied, in the order of the API', async () => {
-    await serve([job(3), job(2, { applied: true, applied_at: '2026-10-08T22:30:00Z' }), job(1)]);
+  it('should sort offers by the state of the application, in the order of the API', async () => {
+    await serve([job(5, REJECTED), job(4, INTERVIEW), job(3), job(2, APPLIED), job(1)]);
 
     expect(titles('todo')).toEqual(['Offre 3', 'Offre 1']);
     expect(titles('applied')).toEqual(['Offre 2']);
-    expect(text(card('Offre 2'))).toContain('Postulé le 9 oct.');
+    expect(titles('interviews')).toEqual(['Offre 4']);
+    expect(titles('refused')).toEqual(['Offre 5']);
+    expect(text(card('Offre 2'))).toContain('Postulé le 8 oct.');
+    expect(text(card('Offre 4'))).toContain('Entretien depuis le 9 oct.');
+    expect(text(card('Offre 5'))).toContain('Refusée le 10 oct.');
+  });
+
+  it('should put interviews first and keep refused applications folded', async () => {
+    await serve([job(3, REJECTED), job(2, INTERVIEW), job(1)]);
+
+    const zones = [...element().querySelectorAll('.tracking > *')].map((zone) => zone.className);
+    expect(zones[0]).toContain('interviews');
+    expect(zones.at(-1)).toContain('refused');
+    const refused = element().querySelector<HTMLDetailsElement>('details.refused')!;
+    expect(refused.open).toBe(false);
+    expect(text(refused.querySelector('summary')!)).toBe('Candidatures refusées 1');
+  });
+
+  it('should show neither interviews nor refused applications when there is none', async () => {
+    await serve([job(2, APPLIED), job(1)]);
+
+    expect(element().querySelector('.interviews')).toBeNull();
+    expect(element().querySelector('.refused')).toBeNull();
   });
 
   it('should count the offers, whatever the filters', async () => {
-    await serve([job(1), job(2), job(3, { applied: true }), job(4, { applied: true, contract_type: 'freelance' })]);
+    await serve([job(1), job(2), job(3, APPLIED), job(4, { ...INTERVIEW, contract_type: 'freelance' }), job(5, REJECTED)]);
     await search('introuvable');
 
     const tiles = [...element().querySelectorAll('.stats .tile')].map((tile) => text(tile));
     expect(tiles[0]).toMatch(/^2\s*à traiter$/);
-    expect(tiles[1]).toMatch(/^2\s*candidatures envoyées$/);
-    expect(tiles[2]).toMatch(/2\s+offres sur\s+4\s+ont reçu une candidature/);
-    expect(tiles[2]).toContain('50 %');
+    // Une candidature refusée ou suivie d'un entretien a bien été envoyée
+    expect(tiles[1]).toMatch(/^3\s*candidatures envoyées$/);
+    expect(tiles[2]).toMatch(/^1\s*entretien$/);
+    expect(tiles[3]).toMatch(/3\s+offres sur\s+5\s+ont reçu une candidature/);
+    expect(tiles[3]).toContain('60 %');
   });
 
   it('should show what the model read on the page, or say it was not stated', async () => {
@@ -169,10 +234,7 @@ describe('JobsComponent', () => {
     await serve([job(1), job(2)]);
 
     await click(card('Offre 1'), "J'ai postulé");
-    const request = http.expectOne({ method: 'PATCH', url: '/api/jobs/1' });
-    expect(request.request.body).toEqual({ applied: true });
-    request.flush(job(1, { applied: true, applied_at: '2026-10-08T12:00:00Z' }));
-    await fixture.whenStable();
+    await answerStatus(1, 'applied', APPLIED);
 
     // L'offre renvoyée par l'API remplace la carte : la date n'est pas inventée, et la liste n'est pas rechargée
     expect(titles('applied')).toEqual(['Offre 1']);
@@ -187,64 +249,121 @@ describe('JobsComponent', () => {
     await click(card('Offre 2'), "J'ai postulé");
     const [first, second] = [1, 2].map((id) => http.expectOne({ method: 'PATCH', url: `/api/jobs/${id}` }));
     // Les réponses arrivent dans le désordre : aucune ne défait l'autre
-    second.flush(job(2, { applied: true, applied_at: '2026-10-08T12:00:01Z' }));
-    first.flush(job(1, { applied: true, applied_at: '2026-10-08T12:00:00Z' }));
+    second.flush(job(2, APPLIED));
+    first.flush(job(1, APPLIED));
     await fixture.whenStable();
 
     expect(titles('applied')).toEqual(['Offre 1', 'Offre 2']);
     expect(titles('todo')).toEqual([]);
   });
 
+  it('should move an application to the interviews, and back', async () => {
+    await serve([job(1, APPLIED)]);
+
+    await click(card('Offre 1'), 'Entretien obtenu');
+    await answerStatus(1, 'interview', INTERVIEW);
+
+    expect(titles('interviews')).toEqual(['Offre 1']);
+    expect(titles('applied')).toEqual([]);
+    // Une carte en entretien n'a plus d'étape suivante à proposer : seulement le retour, et la corbeille
+    expect(card('Offre 1').querySelector('button.primary')).toBeNull();
+
+    await click(card('Offre 1'), "Annuler l'entretien");
+    await answerStatus(1, 'applied', APPLIED);
+
+    expect(titles('applied')).toEqual(['Offre 1']);
+    expect(element().querySelector('.interviews')).toBeNull();
+  });
+
   it('should put an applied offer back to do', async () => {
-    await serve([job(1, { applied: true, applied_at: '2026-10-08T12:00:00Z' })]);
+    await serve([job(1, APPLIED)]);
 
     await click(card('Offre 1'), 'Remettre à traiter');
-    const request = http.expectOne({ method: 'PATCH', url: '/api/jobs/1' });
-    expect(request.request.body).toEqual({ applied: false });
-    request.flush(job(1));
-    await fixture.whenStable();
+    await answerStatus(1, 'todo', {});
 
     expect(titles('todo')).toEqual(['Offre 1']);
   });
 
+  it('should only offer the states the API announces for an offer', async () => {
+    await serve([job(1, { ...APPLIED, next_statuses: ['todo'] })]);
+
+    expect(card('Offre 1').querySelector('button.primary')).toBeNull();
+    await openDiscard('Offre 1');
+    expect(text(dialog())).not.toContain("L'employeur a refusé");
+  });
+
   it('should mark an offer as applied when it is dropped on the applied column', async () => {
-    await serve([job(1), job(2, { applied: true })]);
+    await serve([job(1), job(2, APPLIED)]);
 
     card('Offre 1').dispatchEvent(new Event('dragstart'));
     const over = new Event('dragover', { cancelable: true });
     const column = element().querySelector('.column.applied')!;
     column.dispatchEvent(over);
-    // Une colonne n'accepte que les cartes de l'autre
+    // Une zone n'accepte que les cartes qui peuvent prendre son état
     expect(over.defaultPrevented).toBe(true);
     const back = new Event('dragover', { cancelable: true });
     element().querySelector('.column.todo')!.dispatchEvent(back);
     expect(back.defaultPrevented).toBe(false);
 
     column.dispatchEvent(new Event('drop', { cancelable: true }));
-    http.expectOne({ method: 'PATCH', url: '/api/jobs/1' }).flush(job(1, { applied: true }));
-    await fixture.whenStable();
+    await answerStatus(1, 'applied', APPLIED);
 
     expect(titles('applied')).toEqual(['Offre 1', 'Offre 2']);
   });
 
-  it('should delete an offer only once confirmed', async () => {
+  it('should ask what to do with an offer when its bin is clicked, and do nothing if cancelled', async () => {
+    await serve([job(1, APPLIED)]);
+    expect(dialog().hasAttribute('open')).toBe(false);
+
+    await openDiscard('Offre 1');
+
+    expect(dialog().hasAttribute('open')).toBe(true);
+    expect(text(dialog())).toContain('Que faire de cette offre ?');
+    expect(text(dialog())).toContain('Offre 1');
+
+    await click(dialog(), 'Annuler');
+    expect(dialog().hasAttribute('open')).toBe(false);
+    expect(titles('applied')).toEqual(['Offre 1']);
+  });
+
+  it('should file an application refused by the employer, where it can be found and reopened', async () => {
+    await serve([job(1, APPLIED), job(2, APPLIED)]);
+
+    await openDiscard('Offre 1');
+    await click(dialog(), "L'employeur a refusé ma candidature");
+    await answerStatus(1, 'rejected', REJECTED);
+
+    expect(dialog().hasAttribute('open')).toBe(false);
+    expect(titles('applied')).toEqual(['Offre 2']);
+    expect(titles('refused')).toEqual(['Offre 1']);
+
+    await click(card('Offre 1'), 'Rouvrir la candidature');
+    await answerStatus(1, 'applied', APPLIED);
+    expect(titles('applied')).toEqual(['Offre 1', 'Offre 2']);
+  });
+
+  it('should not offer to declare a refusal for an offer never applied to', async () => {
+    await serve([job(1)]);
+
+    await openDiscard('Offre 1');
+
+    expect(text(dialog())).not.toContain("L'employeur a refusé");
+    expect(text(dialog())).toContain('Supprimer cette annonce');
+  });
+
+  it('should delete an offer from the same window', async () => {
     await serve([job(1), job(2)]);
 
-    card('Offre 1').querySelector<HTMLButtonElement>('button[aria-label="Supprimer l\'offre « Offre 1 »"]')!.click();
-    await fixture.whenStable();
+    await openDiscard('Offre 1');
     http.expectNone({ method: 'DELETE', url: '/api/jobs/1' });
-    expect(text(card('Offre 1'))).toContain('Elle ne reviendra pas');
+    expect(text(dialog())).toContain('ne reviendra pas');
 
-    await click(card('Offre 1'), 'Garder');
-    http.expectNone({ method: 'DELETE', url: '/api/jobs/1' });
-
-    card('Offre 1').querySelector<HTMLButtonElement>('button[aria-label^="Supprimer"]')!.click();
-    await fixture.whenStable();
-    await click(card('Offre 1'), 'Supprimer');
+    await click(dialog(), 'Supprimer cette annonce');
     http.expectOne({ method: 'DELETE', url: '/api/jobs/1' }).flush(null, NO_CONTENT);
     await fixture.whenStable();
 
     expect(titles('todo')).toEqual(['Offre 2']);
+    expect(dialog().hasAttribute('open')).toBe(false);
   });
 
   it('should leave an offer in place and say why when the API refuses', async () => {
