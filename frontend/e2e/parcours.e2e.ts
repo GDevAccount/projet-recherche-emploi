@@ -63,6 +63,28 @@ test('un mot de passe faux est refusé, le bon ouvre la session', async () => {
   await expect(page.getByRole('button', { name: 'Lancer une recherche' })).toHaveCount(0);
 });
 
+test('un nouvel arrivant reçoit la visite guidée, une seule fois', async () => {
+  const tour = page.locator('app-welcome-tour');
+  await expect(tour.getByRole('heading', { name: 'Tamis lit les annonces à votre place' })).toBeVisible();
+
+  for (const title of ['1. Dites-lui qui vous êtes', '2. Lancez une recherche', '3. Suivez vos candidatures']) {
+    await tour.getByRole('button', { name: 'Écran suivant' }).click();
+    await expect(tour.getByRole('heading', { name: title })).toBeVisible();
+  }
+  await page.keyboard.press('ArrowRight');
+  await expect(tour.getByRole('heading', { name: '4. Corrigez-le quand il se trompe' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(tour).toHaveCount(0);
+
+  // Vue une fois, elle ne revient qu'à la demande
+  await page.reload();
+  await expect(page.getByText('Deux choses avant la première recherche')).toBeVisible();
+  await expect(tour).toHaveCount(0);
+  await page.getByRole('button', { name: 'Comment ça marche' }).click();
+  await tour.getByRole('button', { name: 'Passer' }).click();
+  await expect(tour).toHaveCount(0);
+});
+
 test('le profil se complète : un CV, puis un poste recherché', async () => {
   await page.getByRole('link', { name: 'Compléter mon profil' }).click();
   await expect(page).toHaveURL(/\/profil$/);

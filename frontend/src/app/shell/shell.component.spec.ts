@@ -97,6 +97,93 @@ describe('ShellComponent', () => {
     expect(element().querySelector('a.cta')?.getAttribute('href')).toBe('/profil');
   });
 
+  describe('visite guidée', () => {
+    const tour = () => element().querySelector('app-welcome-tour');
+    const title = () => text(tour()!.querySelector('h2')!);
+
+    async function press(label: string): Promise<void> {
+      tour()!.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click();
+      await fixture.whenStable();
+    }
+
+    it('should open by itself for a newcomer, and walk through every screen with the arrows', async () => {
+      await openSession(GUEST);
+
+      expect(title()).toBe('Tamis lit les annonces à votre place');
+      expect(text(tour()!.querySelector('.app-eyebrow')!)).toBe('Comment ça marche · 1 / 5');
+      expect(tour()!.querySelector<HTMLButtonElement>('button[aria-label="Écran précédent"]')!.disabled).toBe(true);
+
+      await press('Écran suivant');
+      expect(title()).toBe('1. Dites-lui qui vous êtes');
+      await press('Écran suivant');
+      // Le quota de l'invité est rappelé là où il compte
+      expect(title()).toBe('2. Lancez une recherche');
+      expect(text(tour()!.querySelector('.quota')!)).toBe('Vous disposez de 2 recherches par jour.');
+      await press('Écran précédent');
+      expect(title()).toBe('1. Dites-lui qui vous êtes');
+      expect(tour()!.querySelector('.quota')).toBeNull();
+
+      // Les flèches du clavier aussi, sans dépasser le dernier écran
+      for (let step = 0; step < 6; step++) {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      }
+      await fixture.whenStable();
+      expect(title()).toBe('4. Corrigez-le quand il se trompe');
+      expect(tour()!.querySelector('button[aria-label="Écran suivant"]')).toBeNull();
+    });
+
+    it('should lead a newcomer to the profile at the end, and not come back', async () => {
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: '**', children: [] }]);
+      await openSession(GUEST);
+      await press('Écran 5');
+
+      const done = tour()!.querySelector<HTMLButtonElement>('button.done')!;
+      expect(text(done)).toBe('Compléter mon profil');
+      done.click();
+      await fixture.whenStable();
+
+      expect(tour()).toBeNull();
+      expect(router.url).toBe('/profil');
+      expect(localStorage.getItem('tour')).toBe('seen');
+    });
+
+    it('should not open again once seen, nor for a profile that is ready', async () => {
+      localStorage.setItem('tour', 'seen');
+      await openSession(GUEST);
+      expect(tour()).toBeNull();
+    });
+
+    it('should not impose itself on a user whose profile is ready', async () => {
+      await openSession({ ...GUEST, can_search: true });
+      expect(tour()).toBeNull();
+    });
+
+    it('should open again from the footer, and close with Escape or Passer', async () => {
+      await openSession({ ...GUEST, can_search: true, remaining_searches: null });
+      const reopen = [...element().querySelectorAll<HTMLButtonElement>('footer button')].find(
+        (button) => text(button) === 'Comment ça marche',
+      )!;
+
+      reopen.click();
+      await fixture.whenStable();
+      await press('Écran 3');
+      // Le propriétaire n'a pas de quota : rien à rappeler
+      expect(tour()!.querySelector('.quota')).toBeNull();
+      await press('Écran 5');
+      expect(text(tour()!.querySelector('button.done')!)).toBe("C'est parti");
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      await fixture.whenStable();
+      expect(tour()).toBeNull();
+
+      reopen.click();
+      await fixture.whenStable();
+      tour()!.querySelector<HTMLButtonElement>('button.skip')!.click();
+      await fixture.whenStable();
+      expect(tour()).toBeNull();
+    });
+  });
+
   it('should offer to launch a search when the API finds the profile ready', async () => {
     await openSession({ ...GUEST, can_search: true });
 

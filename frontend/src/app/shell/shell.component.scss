@@ -287,12 +287,22 @@ footer {
   font-size: 0.8125rem;
   color: var(--app-muted);
 
-  a {
+  a,
+  button {
     text-decoration: none;
 
     &:hover {
       color: var(--app-text);
       text-decoration: underline;
     }
+  }
+
+  button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
   }
 }

@@ -1,0 +1,94 @@
+<button
+  type="button"
+  class="backdrop"
+  aria-label="Fermer la visite"
+  tabindex="-1"
+  (click)="close()"
+></button>
+<section
+  #panel
+  class="panel"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="tour-title"
+  tabindex="-1"
+>
+  <header>
+    <span class="app-eyebrow">Comment ça marche · {{ index() + 1 }} / {{ slides.length }}</span>
+    <button type="button" class="skip" (click)="close()">Passer</button>
+  </header>
+
+  <div class="slide" aria-live="polite">
+    <span class="icon" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path [attr.d]="slide().icon" />
+      </svg>
+    </span>
+    <h2 id="tour-title">{{ slide().title }}</h2>
+    @for (line of slide().lines; track line) {
+      <p>{{ line }}</p>
+    }
+    @if (quota()) {
+      <p class="quota">{{ quota() }}</p>
+    }
+  </div>
+
+  <footer>
+    <button
+      type="button"
+      class="arrow"
+      aria-label="Écran précédent"
+      [disabled]="first()"
+      (click)="previous()"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M19 12H5M11 6l-6 6 6 6" />
+      </svg>
+    </button>
+
+    <div class="dots" role="group" aria-label="Écrans de la visite">
+      @for (item of slides; track item.title; let position = $index) {
+        <button
+          type="button"
+          [class.on]="position === index()"
+          [attr.aria-label]="'Écran ' + (position + 1)"
+          [attr.aria-current]="position === index() ? 'step' : null"
+          (click)="goTo(position)"
+        ></button>
+      }
+    </div>
+
+    @if (last()) {
+      <button type="button" class="done" (click)="close(!account().can_search)">
+        {{ account().can_search ? "C'est parti" : 'Compléter mon profil' }}
+      </button>
+    } @else {
+      <button type="button" class="arrow next" aria-label="Écran suivant" (click)="next()">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </button>
+    }
+  </footer>
+</section>
