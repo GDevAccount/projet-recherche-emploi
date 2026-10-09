@@ -2,7 +2,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { Job } from '../core/api.models';
+import { Account, Job } from '../core/api.models';
+import { SessionService } from '../core/session.service';
 import { JobsComponent } from './jobs.component';
 
 function job(id: number, values: Partial<Job> = {}): Job {
@@ -24,6 +25,18 @@ function job(id: number, values: Partial<Job> = {}): Job {
 }
 
 const NO_CONTENT = { status: 204, statusText: 'No Content' };
+
+const SEARCHING: Account = {
+  user_id: 2,
+  is_owner: false,
+  email: null,
+  name: null,
+  picture: null,
+  can_search: true,
+  search_running: true,
+  remaining_searches: 1,
+  max_searches_per_day: 2,
+};
 
 describe('JobsComponent', () => {
   let fixture: ComponentFixture<JobsComponent>;
@@ -82,6 +95,15 @@ describe('JobsComponent', () => {
 
     expect(text()).toContain("Pas encore d'offre");
     expect(element().querySelector('.board')).toBeNull();
+  });
+
+  it('should not invite to launch a search while one is running', async () => {
+    TestBed.inject(SessionService).open('preuve').subscribe();
+    http.expectOne('/api/session').flush(SEARCHING);
+    await serve([]);
+
+    expect(text()).toContain('Recherche en cours');
+    expect(text()).not.toContain('Lancez une recherche');
   });
 
   it('should split offers between to-do and applied, in the order of the API', async () => {

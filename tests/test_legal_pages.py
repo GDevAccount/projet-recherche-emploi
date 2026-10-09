@@ -22,6 +22,9 @@ def test_legal_page_is_plain_html_readable_without_javascript(path, title):
     assert f"<h1>{title}</h1>" in response.text
     assert "contact@exemple.fr" in response.text
     assert "<script" not in response.text
+    # Le thème sombre suit le système : sans JavaScript, la page ne connaît pas le choix fait dans l'application
+    assert "prefers-color-scheme: dark" in response.text
+    assert 'class="brand" href="/"' in response.text
     # Aucun champ de remplacement oublié dans le texte
     assert "{contact}" not in response.text and "{max_searches}" not in response.text
     assert "{inactive_months}" not in response.text

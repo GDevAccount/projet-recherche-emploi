@@ -27,18 +27,88 @@ PAGE_TEMPLATE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} · Tamis</title>
-<style>
-  body {{ max-width: 46rem; margin: 2rem auto; padding: 0 1rem; font: 1rem/1.6 system-ui, sans-serif; color: #222; }}
-  h1 {{ font-size: 1.8rem; }}
-  h2 {{ font-size: 1.2rem; margin-top: 2rem; }}
-  nav {{ margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd; }}
-</style>
+<meta name="theme-color" content="#f5f4ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0b0d" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/favicon.ico">
+<style>{style}</style>
 </head>
 <body>
+<header>
+  <a class="brand" href="/">
+    <span class="mark">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>
+      </svg>
+    </span>
+    Tamis
+  </a>
+</header>
+<main>
 {body}
+</main>
 <nav>{links}</nav>
 </body>
 </html>
+"""
+
+# Les couleurs sont celles du front (variables --app-* de frontend/src/styles.scss), recopiées : cette page est
+# servie même sans le front construit. Sans JavaScript, le thème sombre suit le réglage du système, pas le
+# choix fait dans l'application.
+PAGE_STYLE = """
+  :root {
+    color-scheme: light dark;
+    --accent: #a3e635; --accent-strong: #84cc16; --accent-ink: #1a2e05;
+    --bg: #f5f4ef; --surface: #ffffff; --text: #15171a; --muted: #666a72; --border: rgba(21, 23, 26, 0.1);
+    --link: #3f6212;
+    --shadow: 0 1px 2px rgba(21, 23, 26, 0.04), 0 16px 40px -18px rgba(21, 23, 26, 0.18);
+    --glow: radial-gradient(56rem 28rem at 88% -8%, rgba(163, 230, 53, 0.3), transparent 62%),
+      radial-gradient(40rem 24rem at -8% 6%, rgba(56, 189, 248, 0.14), transparent 60%);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0a0b0d; --surface: #131518; --text: #f2f3f5; --muted: #9aa0a8; --border: rgba(255, 255, 255, 0.09);
+      --link: #a3e635;
+      --shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 24px 48px -24px rgba(0, 0, 0, 0.7);
+      --glow: radial-gradient(56rem 28rem at 88% -8%, rgba(163, 230, 53, 0.17), transparent 62%),
+        radial-gradient(40rem 24rem at -8% 6%, rgba(56, 189, 248, 0.08), transparent 60%);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0; min-height: 100vh; padding: 0 1rem 3rem;
+    font: 1rem/1.65 system-ui, sans-serif; color: var(--text); background: var(--glow) no-repeat;
+  }
+  header, main, nav { max-width: 46rem; margin: 0 auto; }
+  header { padding: 1.5rem 0; }
+  .brand {
+    display: inline-flex; align-items: center; gap: 0.7rem;
+    font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; color: inherit; text-decoration: none;
+  }
+  .mark {
+    display: grid; place-items: center; width: 2.1rem; height: 2.1rem;
+    border-radius: 10px; background: var(--accent); color: var(--accent-ink);
+  }
+  .mark svg {
+    width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round;
+  }
+  main {
+    padding: clamp(1.5rem, 5vw, 3rem); border: 1px solid var(--border); border-radius: 20px;
+    background: var(--surface); box-shadow: var(--shadow); overflow-wrap: break-word;
+  }
+  h1, h2 { letter-spacing: -0.025em; line-height: 1.15; }
+  h1 { margin: 0 0 1.5rem; font-size: clamp(1.75rem, 5vw, 2.4rem); }
+  h2 { margin: 2.25rem 0 0.5rem; font-size: 1.2rem; }
+  p, ul { margin: 0.75rem 0; }
+  ul { padding-left: 1.25rem; }
+  li { margin: 0.35rem 0; }
+  li::marker { color: var(--accent-strong); }
+  a { color: var(--link); text-underline-offset: 3px; }
+  nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; padding: 1.5rem 0.25rem 0; font-size: 0.875rem; }
+  nav a { color: var(--muted); }
+  nav a:hover { color: var(--text); }
+  :focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+  ::selection { background: var(--accent); color: var(--accent-ink); }
 """
 
 
@@ -51,7 +121,7 @@ def render_legal_page(page: str, contact_email: str = "") -> str:
     links = ['<a href="/">Retour à l\'application</a>']
     links += [f'<a href="/{other}">{title}</a>' for other, title in LEGAL_PAGES.items() if other != page]
     return PAGE_TEMPLATE.format(
-        title=html.escape(LEGAL_PAGES[page]), body=markdown.markdown(text), links=" · ".join(links)
+        title=html.escape(LEGAL_PAGES[page]), style=PAGE_STYLE, body=markdown.markdown(text), links="".join(links)
     )
 
 

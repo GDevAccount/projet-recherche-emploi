@@ -6,8 +6,13 @@
   @if (!all.length) {
     <section class="blank">
       <span class="orb"></span>
-      <h2>Pas encore d'offre</h2>
-      <p>Lancez une recherche : les annonces qui correspondent à votre profil arriveront ici.</p>
+      @if (run.busy()) {
+        <h2>Recherche en cours</h2>
+        <p>Les annonces qui correspondent à votre profil arriveront ici dès qu'elle sera terminée.</p>
+      } @else {
+        <h2>Pas encore d'offre</h2>
+        <p>Lancez une recherche : les annonces qui correspondent à votre profil arriveront ici.</p>
+      }
     </section>
   } @else {
     <section class="stats" aria-label="Avancement">

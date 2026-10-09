@@ -29,6 +29,7 @@ function contractOf(job: Job): string {
 })
 export class JobsComponent {
   private readonly jobService = inject(JobService);
+  protected readonly run = inject(SearchRunService);
 
   // undefined : en cours de lecture
   protected readonly jobs = signal<Job[] | undefined>(undefined);
@@ -68,10 +69,9 @@ export class JobsComponent {
   protected readonly filtered = computed(() => this.visible().length !== this.total());
 
   constructor() {
-    const run = inject(SearchRunService);
     // À l'ouverture, puis après chaque recherche : elle a pu ajouter des offres
     effect(() => {
-      run.completed();
+      this.run.completed();
       this.load();
     });
   }
