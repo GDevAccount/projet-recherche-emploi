@@ -428,6 +428,50 @@ def test_guest_accounts_left_unused_too_long_are_deleted(container, valid_pdf):
     assert container.account.delete_inactive_accounts(now) == 0
 
 
+def make_inactive_guest(container, email, now):
+    with container.database.session() as session:
+        users = UserRepository(session)
+        user_id = users.get_or_create_user_id(email)
+        last_seen = now - timedelta(days=INACTIVE_ACCOUNT_DAYS + 1)
+        users.record_activity(user_id, last_seen, datetime.now(UTC) + timedelta(days=1))
+    return user_id
+
+
+def guest_emails(container):
+    with container.database.session() as session:
+        return {user.email for user in UserRepository(session).list_users()} - {None}
+
+
+def test_inactive_accounts_are_deleted_at_most_once_a_day(container):
+    # Une machine mise en veille ne redémarre pas : la suppression ne peut pas compter sur le démarrage
+    now = datetime(2026, 10, 9, 8, tzinfo=UTC)
+    make_inactive_guest(container, "alice@exemple.fr", now)
+
+    container.account.delete_inactive_accounts_if_due(now)
+    assert guest_emails(container) == set()
+
+    make_inactive_guest(container, "bob@exemple.fr", now)
+    container.account.delete_inactive_accounts_if_due(now + timedelta(hours=10))
+    assert guest_emails(container) == {"bob@exemple.fr"}
+
+    container.account.delete_inactive_accounts_if_due(now + timedelta(days=1))
+    assert guest_emails(container) == set()
+
+
+def test_failed_deletion_of_inactive_accounts_does_not_reach_the_caller(container, monkeypatch):
+    now = datetime(2026, 10, 9, 8, tzinfo=UTC)
+    make_inactive_guest(container, "alice@exemple.fr", now)
+    with monkeypatch.context() as patch:
+        patch.setattr(container.database, "purge_user_from_backups", lambda user_id: 1 / 0)
+        # La requête qui a déclenché la suppression n'a pas à échouer avec elle
+        container.account.delete_inactive_accounts_if_due(now)
+
+    # Retentée le lendemain
+    make_inactive_guest(container, "bob@exemple.fr", now + timedelta(days=1))
+    container.account.delete_inactive_accounts_if_due(now + timedelta(days=1))
+    assert guest_emails(container) == set()
+
+
 RAW_CV = "Alice Martin\nalice.martin@exemple.fr - 06 12 34 56 78\n12 rue des Lilas, 75011 Paris\nIngénieure IA, Python"
 ANONYMOUS_CV = "[nom] [nom]\n[e-mail] - [téléphone]\n[adresse], 75011 Paris\nIngénieure IA, Python"
 

@@ -79,7 +79,7 @@ La même commande a d'autres usages :
 | `uv run projet-recherche-emploi` (ou `search`) | Lance une recherche pour le propriétaire |
 | `uv run projet-recherche-emploi graph` | Génère le schéma du graph dans `graph.png` |
 | `uv run projet-recherche-emploi migrate` | Crée la base ou l'amène à la dernière version du schéma |
-| `uv run projet-recherche-emploi purge` | Supprime les comptes d'invités inactifs depuis trop longtemps. Le serveur le fait aussi à chaque démarrage |
+| `uv run projet-recherche-emploi purge` | Supprime les comptes d'invités inactifs depuis trop longtemps. Le serveur le fait aussi, une fois par jour |
 | `uv run projet-recherche-emploi api` | Sert l'application en développement sur `http://127.0.0.1:8000`, avec la documentation de l'[API](#api) |
 | `uv run projet-recherche-emploi serve` | Sert l'application en ligne, sur le port 8000 de toutes les interfaces, sans la documentation de l'API |
 
@@ -189,7 +189,9 @@ fly volumes create data --region cdg --size 1    # volume monté sur /data (CV e
 fly secrets set TAVILY_API_KEY=... OPENAI_API_KEY=... APP_PASSWORD=... AUTH_COOKIE_SECRET=...
 ```
 
-Une nouvelle version est publiée automatiquement à chaque push sur la branche `main`, par le workflow GitHub Actions `.github/workflows/fly-deploy.yml`. Il lance d'abord le linter et les tests, côté Python et côté front, puis le build du front : si l'un échoue, rien n'est publié. Il les lance aussi sur chaque pull request, sans rien publier. Le déroulement se suit dans l'onglet **Actions** du dépôt. L'instance redémarre à chaque déploiement : le volume `/data` est conservé, mais une recherche en cours est interrompue.
+Une nouvelle version est publiée automatiquement à chaque push sur la branche `main`, par le workflow GitHub Actions `.github/workflows/fly-deploy.yml`. Il lance d'abord le linter et les tests, côté Python et côté front, puis le build du front et les tests de bout en bout : si l'un échoue, rien n'est publié. Il les lance aussi sur chaque pull request, sans rien publier. Le déroulement se suit dans l'onglet **Actions** du dépôt. L'instance redémarre à chaque déploiement : le volume `/data` est conservé, mais une recherche en cours est interrompue.
+
+Sans visite, la machine est mise en veille (`auto_stop_machines = 'suspend'` dans `fly.toml`) : elle ne coûte rien pendant ce temps et reprend en une seconde à la visite suivante, sans redémarrer. Un vrai démarrage, de plusieurs secondes, n'a lieu qu'après un déploiement ou si Fly.io a dû écarter son instantané.
 
 Ce workflow lit aussi la clé de licence PrimeNG dans le secret `PRIMEUI_LICENSE` (voir [Front Angular](#front-angular)). Il a besoin d'un jeton Fly.io, enregistré une seule fois comme secret `FLY_API_TOKEN` du dépôt GitHub :
 

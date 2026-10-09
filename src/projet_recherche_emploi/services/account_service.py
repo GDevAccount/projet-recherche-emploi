@@ -1,5 +1,6 @@
 import logging
-from datetime import UTC, datetime, timedelta
+import threading
+from datetime import UTC, date, datetime, timedelta
 
 from projet_recherche_emploi.config import INACTIVE_ACCOUNT_DAYS
 from projet_recherche_emploi.data.cv_storage import CvStorage
@@ -21,6 +22,8 @@ class AccountService:
         self.database = database
         self.cv_storage = cv_storage
         self.search = search
+        self._last_purge_day: date | None = None
+        self._purge_lock = threading.Lock()
 
     def delete_account(self, user_id: int) -> None:
         """Efface tout ce que l'application garde de l'utilisateur : CV, recherches, offres, rejets, adresse.
@@ -43,6 +46,23 @@ class AccountService:
             UserRepository(session).forget_user(user_id)
         # Les copies d'avant migration contiennent encore ses données : elles restent, sans lui
         self.database.purge_user_from_backups(user_id)
+
+    def delete_inactive_accounts_if_due(self, now: datetime | None = None) -> None:
+        """Supprime les comptes inactifs, au plus une fois par jour.
+
+        Faute de tâche planifiée, c'est le démarrage et chaque requête identifiée qui passent par ici : une
+        machine mise en veille reprend sans redémarrer, le démarrage seul ne suffirait pas. Un échec est
+        journalisé sans interrompre l'appelant, et retenté le lendemain ou au redémarrage suivant.
+        """
+        now = now or datetime.now(UTC)
+        with self._purge_lock:
+            if self._last_purge_day == now.date():
+                return
+            self._last_purge_day = now.date()
+        try:
+            self.delete_inactive_accounts(now)
+        except Exception:
+            logger.exception("La suppression des comptes inactifs a échoué")
 
     def delete_inactive_accounts(self, now: datetime | None = None) -> int:
         """Supprime les comptes d'invités sans activité depuis INACTIVE_ACCOUNT_DAYS, et renvoie leur nombre.
