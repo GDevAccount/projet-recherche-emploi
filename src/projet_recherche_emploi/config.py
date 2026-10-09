@@ -71,7 +71,7 @@ REMOTE_JOB_SITES = [
     "jobgether.com",
 ]
 
-FILTER_MODEL = "gpt-5-mini"
+FILTER_MODEL = "gpt-6-luna"
 MAX_PAGE_CHARS = 8000
 
 # Recherches enregistrées en base à sa création, modifiables ensuite.
