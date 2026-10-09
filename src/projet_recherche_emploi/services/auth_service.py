@@ -11,7 +11,7 @@ from typing import Literal
 
 from projet_recherche_emploi.config import DEFAULT_USER_ID, SESSION_DAYS, Settings
 from projet_recherche_emploi.data.database import Database
-from projet_recherche_emploi.data.user_repository import UserRepository
+from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConfigurationError
 
 # Valeur de ALLOWED_EMAILS qui ouvre l'application à tout compte Google

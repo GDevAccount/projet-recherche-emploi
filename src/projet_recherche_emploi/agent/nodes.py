@@ -14,10 +14,10 @@ from projet_recherche_emploi.agent.ports import (
 from projet_recherche_emploi.agent.state import JobSearchState
 from projet_recherche_emploi.config import DEFAULT_USER_ID, FULL_REMOTE_MODE, TRAINING_CONTRACTS
 from projet_recherche_emploi.data.database import Database
-from projet_recherche_emploi.data.job_repository import JobRepository
 from projet_recherche_emploi.data.models import SearchQuery
-from projet_recherche_emploi.data.query_repository import QueryRepository
-from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
+from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
+from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
 
 logger = logging.getLogger(__name__)
 

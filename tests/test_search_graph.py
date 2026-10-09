@@ -16,10 +16,11 @@ from projet_recherche_emploi.agent.nodes import (
 )
 from projet_recherche_emploi.agent.ports import JobEvaluation, SearchCriteria
 from projet_recherche_emploi.config import MAX_PAGE_CHARS
-from projet_recherche_emploi.data.cv_storage import CvStorage
-from projet_recherche_emploi.data.job_repository import JobRepository
-from projet_recherche_emploi.data.query_repository import QueryRepository
-from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
+from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
+from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
+from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
+from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.errors import InvalidInputError
 from projet_recherche_emploi.schemas import SearchProgress
 
@@ -28,9 +29,11 @@ BOB = 2
 
 
 @pytest.fixture
-def graph(container, monkeypatch):
-    # Le texte du CV est remplacé par le nom du fichier, pour voir quel CV le filtre a lu
-    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: f"CV:{self.path_for(user_id).name}")
+def graph(container):
+    # Chaque utilisateur a un CV qui porte son identifiant, pour voir lequel le filtre a lu
+    with container.database.session() as session:
+        for user_id in (ALICE, BOB):
+            CvTextRepository(session, user_id).save(f"CV de {user_id}")
     return container.graph
 
 
@@ -41,7 +44,7 @@ def test_search_uses_the_queries_and_cv_of_its_user(graph, container, evaluator)
     result = graph.invoke({"user_id": BOB})
 
     assert {job["query"] for job in result["jobs"]} == {"recherche de bob"}
-    assert [cv for cv, _ in evaluator.evaluated] == ["CV:2.pdf", "CV:2.pdf"]
+    assert [cv for cv, _ in evaluator.evaluated] == ["CV de 2", "CV de 2"]
     with container.database.session() as session:
         assert [job.url for job in JobRepository(session, BOB).list_jobs()] == [
             "https://x/offre d'emploi recherche de bob CDI/0"
@@ -106,7 +109,7 @@ def test_search_without_user_is_for_the_default_user(graph, container, evaluator
 
     with container.database.session() as session:
         assert result["inserted_count"] == len(JobRepository(session, ALICE).list_jobs()) > 0
-    assert {cv for cv, _ in evaluator.evaluated} == {"CV:cv.pdf"}
+    assert {cv for cv, _ in evaluator.evaluated} == {"CV de 1"}
 
 
 def test_openai_evaluator_sends_the_cv_and_the_truncated_page_to_the_model():
@@ -149,38 +152,15 @@ def test_openai_evaluator_sends_the_cv_and_the_truncated_page_to_the_model():
     assert "extrait seul" in second
 
 
-def test_default_user_keeps_the_original_cv_location(tmp_path):
-    storage = CvStorage(tmp_path)
-
-    assert storage.path_for(ALICE) == tmp_path / "cv.pdf"
-    assert storage.path_for(BOB) == tmp_path / "cv" / "2.pdf"
+def test_pdf_reader_returns_the_text_of_a_cv(valid_pdf):
+    assert CvPdfReader().read_text(valid_pdf).strip()
 
 
-def test_saving_a_cv_creates_the_user_folder(tmp_path, valid_pdf):
-    storage = CvStorage(tmp_path)
-    assert storage.updated_at(BOB) is None
-
-    storage.save(BOB, valid_pdf)
-
-    assert storage.read_text(BOB)
-    assert storage.updated_at(BOB).tzinfo is not None
-    assert storage.updated_at(ALICE) is None
-
-
-def test_refused_cv_writes_nothing(tmp_path):
-    storage = CvStorage(tmp_path)
-
-    # Un PDF sans texte est refusé avant toute écriture : le dossier n'est même pas créé
+def test_pdf_reader_refuses_a_file_without_text_or_that_is_not_a_pdf():
     with pytest.raises(InvalidInputError):
-        storage.save(BOB, blank_pdf())
+        CvPdfReader().read_text(blank_pdf())
     with pytest.raises(InvalidInputError):
-        storage.save(BOB, b"pas un PDF")
-    assert not (tmp_path / "cv").exists()
-
-
-def test_reading_a_missing_cv_is_a_user_error(tmp_path):
-    with pytest.raises(InvalidInputError):
-        CvStorage(tmp_path).read_text(BOB)
+        CvPdfReader().read_text(b"pas un PDF")
 
 
 @pytest.mark.parametrize(

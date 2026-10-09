@@ -7,10 +7,10 @@ from alembic.runtime.migration import MigrationContext
 
 from projet_recherche_emploi.config import DEFAULT_QUERIES, DEFAULT_USER_ID
 from projet_recherche_emploi.data.database import Database
-from projet_recherche_emploi.data.job_repository import JobRepository
 from projet_recherche_emploi.data.models import Base
-from projet_recherche_emploi.data.query_repository import QueryRepository
-from projet_recherche_emploi.data.user_repository import UserRepository
+from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
+from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 
 TABLES = {"jobs", "rejected_jobs", "search_queries", "users", "search_runs"}
 

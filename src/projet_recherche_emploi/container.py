@@ -14,11 +14,13 @@ from projet_recherche_emploi.agent.graph import build_graph
 from projet_recherche_emploi.agent.nodes import SearchNodes
 from projet_recherche_emploi.agent.ports import JobEvaluator, JobSearchEngine
 from projet_recherche_emploi.config import Settings
-from projet_recherche_emploi.data.cv_storage import CvStorage
+from projet_recherche_emploi.data.cv_ingestion.anonymizer import CvAnonymizer
+from projet_recherche_emploi.data.cv_ingestion.ingestion import CvIngestion
+from projet_recherche_emploi.data.cv_ingestion.legacy_files import absorb_legacy_cv_files
+from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.services.account_service import AccountService
 from projet_recherche_emploi.services.auth_service import AuthService
-from projet_recherche_emploi.services.cv_anonymizer import CvAnonymizer
 from projet_recherche_emploi.services.cv_service import CvService
 from projet_recherche_emploi.services.job_service import JobService
 from projet_recherche_emploi.services.query_service import QueryService
@@ -34,16 +36,16 @@ class Container:
     ):
         self.settings = settings
         self.database = Database(settings.db_path)
-        self.cv_storage = CvStorage(settings.data_dir)
+        self.cv_ingestion = CvIngestion(CvPdfReader(), CvAnonymizer())
         self._search_engine = search_engine or TavilyJobSearch()
         self._evaluator = evaluator or OpenAIJobEvaluator()
 
         self.auth = AuthService(settings, self.database)
         self.jobs = JobService(self.database)
         self.queries = QueryService(self.database)
-        self.cv = CvService(self.database, self.cv_storage, CvAnonymizer())
-        self.search = SearchService(self.database, self.cv_storage, lambda: self.graph)
-        self.account = AccountService(self.database, self.cv_storage, self.search)
+        self.cv = CvService(self.database, self.cv_ingestion)
+        self.search = SearchService(self.database, lambda: self.graph)
+        self.account = AccountService(self.database, self.search)
 
     @cached_property
     def graph(self) -> CompiledStateGraph:
@@ -60,6 +62,8 @@ def build_container(
     """Construit l'application et met sa base à jour."""
     container = Container(settings or Settings(), search_engine, evaluator)
     container.database.migrate()
+    # L'application ne garde plus le PDF d'un CV : ceux d'avant sont repris en base, puis supprimés
+    absorb_legacy_cv_files(container.database, container.cv_ingestion, container.settings.data_dir)
     return container
 
 

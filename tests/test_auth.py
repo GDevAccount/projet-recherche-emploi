@@ -4,8 +4,8 @@ import pytest
 from helpers import job
 
 from projet_recherche_emploi.config import DEFAULT_USER_ID, Settings
-from projet_recherche_emploi.data.job_repository import JobRepository
-from projet_recherche_emploi.data.user_repository import UserRepository
+from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConfigurationError
 from projet_recherche_emploi.services.auth_service import AuthService
 

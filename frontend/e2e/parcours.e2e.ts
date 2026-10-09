@@ -3,8 +3,8 @@ import { expect, Page, test } from '@playwright/test';
 // Le même que dans tests/e2e_server.py
 const PASSWORD = 'mot-de-passe-e2e';
 const QUERY = 'dresseur de licornes';
-// Le CV versionné à la racine sert de PDF valide, comme dans les tests Python
-const CV_PATH = '../cv.pdf';
+// Le PDF valide des tests Python
+const CV_PATH = '../tests/fixtures/cv.pdf';
 
 // Un seul parcours, dans l'ordre : chaque étape part de l'état laissé par la précédente
 test.describe.configure({ mode: 'serial' });

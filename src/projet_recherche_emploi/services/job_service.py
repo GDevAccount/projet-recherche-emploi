@@ -1,8 +1,8 @@
 from collections.abc import Iterable
 
 from projet_recherche_emploi.data.database import Database
-from projet_recherche_emploi.data.job_repository import JobRepository
-from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
+from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.errors import NotFoundError
 from projet_recherche_emploi.schemas import JobRead, RejectedJobRead
 
