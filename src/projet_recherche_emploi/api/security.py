@@ -28,6 +28,9 @@ SESSION_COOKIE_PATH = "/api"
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 # Méthodes qui ne modifient rien : une requête forgée par un autre site n'y gagne rien
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+# Au sortir d'une mise en veille, l'horloge de la machine retarde de quelques secondes : sans cette marge,
+# un jeton Google tout juste émis serait refusé comme « émis dans le futur »
+CLOCK_SKEW_SECONDS = 10
 
 BearerCredentials = Annotated[HTTPAuthorizationCredentials | None, Depends(HTTPBearer(auto_error=False))]
 SessionToken = Annotated[str | None, Depends(APIKeyCookie(name=SESSION_COOKIE, auto_error=False))]
@@ -54,7 +57,9 @@ class GoogleIdentityVerifier:
     def verify(self, token: str) -> Identity | None:
         try:
             # Vérifie la signature de Google, l'expiration, et que le jeton a été émis pour cette application
-            claims = id_token.verify_oauth2_token(token, google_requests.Request(), self.client_id)
+            claims = id_token.verify_oauth2_token(
+                token, google_requests.Request(), self.client_id, clock_skew_in_seconds=CLOCK_SKEW_SECONDS
+            )
         except (ValueError, GoogleAuthError):
             return None
         return Identity(claims.get("email"), claims.get("email_verified"), claims.get("name"), claims.get("picture"))
@@ -93,6 +98,18 @@ def get_current_caller(
     session_token: SessionToken,
 ) -> Caller:
     """Renvoie l'appelant de la requête, prouvé par l'en-tête Authorization ou par le cookie de session."""
+    caller = _identify(request, container, credentials, session_token)
+    # Après l'identification : elle vient de dater l'activité de l'appelant, qui n'est donc pas supprimé
+    container.account.delete_inactive_accounts_if_due()
+    return caller
+
+
+def _identify(
+    request: Request,
+    container: Container,
+    credentials: HTTPAuthorizationCredentials | None,
+    session_token: str | None,
+) -> Caller:
     _require_protection(container)
     if credentials is not None:
         return _caller_from_credentials(request, container, credentials.credentials)

@@ -14,9 +14,13 @@ FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
 
 WORKDIR /app
 
+# Le code est compilé ici, une fois : au démarrage à froid, rien de ce que Python écrirait sur le disque
+# n'a survécu à l'arrêt précédent, et il recompilerait tout avant de servir
+ENV UV_COMPILE_BYTECODE=1
+
 COPY pyproject.toml uv.lock .python-version README.md ./
 COPY src ./src
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev && uv run --no-sync python -m compileall -q src
 
 # Emplacement par défaut de FRONTEND_DIR (config.py)
 COPY --from=frontend /frontend/dist ./frontend/dist

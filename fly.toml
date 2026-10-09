@@ -11,7 +11,9 @@ primary_region = 'cdg'
 [http_service]
   internal_port = 8000
   force_https = true
-  auto_stop_machines = 'stop'
+  # En veille plutôt qu'arrêtée : la machine reprend en une seconde, sans relancer Python. Elle ne redémarre
+  # vraiment qu'à un déploiement ou si Fly a perdu son instantané
+  auto_stop_machines = 'suspend'
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']

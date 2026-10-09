@@ -1,5 +1,6 @@
 import json
 import time
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import FakeEvaluator, FakeSearchEngine
@@ -12,6 +13,7 @@ from projet_recherche_emploi.config import (
     CONTRACT_TYPES,
     DEFAULT_QUERIES,
     DEFAULT_USER_ID,
+    INACTIVE_ACCOUNT_DAYS,
     MAX_SEARCHES_PER_DAY,
     SESSION_DAYS,
     Settings,
@@ -19,6 +21,7 @@ from projet_recherche_emploi.config import (
 from projet_recherche_emploi.container import build_container
 from projet_recherche_emploi.data.cv_storage import CvStorage
 from projet_recherche_emploi.data.job_repository import JobRepository
+from projet_recherche_emploi.data.user_repository import UserRepository
 
 ALICE = {"Authorization": "Bearer jeton-alice"}
 BOB = {"Authorization": "Bearer jeton-bob"}
@@ -537,6 +540,34 @@ def test_password_account_has_no_profile(tmp_path):
     account = client.get("/api/me", headers=PASSWORD).json()
 
     assert (account["email"], account["name"], account["picture"]) == (None, None, None)
+
+
+def test_a_visit_deletes_the_guest_accounts_left_unused_too_long(client):
+    # Pas seulement au démarrage : une machine mise en veille reprend sans redémarrer
+    container = client.app.state.container
+    long_ago = datetime.now(UTC) - timedelta(days=INACTIVE_ACCOUNT_DAYS + 1)
+    with container.database.session() as session:
+        users = UserRepository(session)
+        alice_id = users.get_or_create_user_id("alice@exemple.fr")
+        users.record_activity(alice_id, long_ago, datetime.now(UTC) + timedelta(days=1))
+
+    assert client.get("/api/me", headers=BOB).status_code == 200
+
+    with container.database.session() as session:
+        emails = {user.id: user.email for user in UserRepository(session).list_users()}
+    assert emails[alice_id] is None
+
+
+def test_a_guest_coming_back_after_a_long_time_keeps_the_account(client):
+    container = client.app.state.container
+    long_ago = datetime.now(UTC) - timedelta(days=INACTIVE_ACCOUNT_DAYS + 1)
+    with container.database.session() as session:
+        users = UserRepository(session)
+        alice_id = users.get_or_create_user_id("alice@exemple.fr")
+        users.record_activity(alice_id, long_ago, datetime.now(UTC) + timedelta(days=1))
+
+    # Sa visite date son activité avant que la suppression ne passe
+    assert client.get("/api/me", headers=ALICE).json()["user_id"] == alice_id
 
 
 def test_deleting_an_account_erases_it_and_closes_the_session(client, valid_pdf):

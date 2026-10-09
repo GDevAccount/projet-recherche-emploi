@@ -6,8 +6,6 @@ partagé entre machines, et le front appelle l'API sans changer d'origine.
 Se lance avec : projet-recherche-emploi serve (en ligne), ou projet-recherche-emploi api (développement)
 """
 
-import logging
-
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,8 +28,6 @@ from projet_recherche_emploi.errors import (
     QuotaExceededError,
 )
 
-logger = logging.getLogger(__name__)
-
 API_PREFIX = "/api"
 
 STATUS_CODES = {
@@ -53,7 +49,7 @@ def create_app(
         container = get_container()
         # Une connexion à moitié réglée arrête le serveur au lieu de refuser tout le monde une fois en ligne
         container.auth.check_configuration()
-        _delete_inactive_accounts(container)
+        container.account.delete_inactive_accounts_if_due()
     settings = container.settings
 
     # La documentation décrit toutes les routes : elle n'est servie qu'en développement
@@ -95,15 +91,6 @@ def create_app(
     # En dernier : le front reçoit toute adresse que l'API et les pages publiques n'ont pas prise
     app.router.routes.extend(build_frontend_routes(settings))
     return app
-
-
-def _delete_inactive_accounts(container: Container) -> None:
-    # Au démarrage, faute de tâche planifiée : l'instance s'arrête quand elle ne sert pas, donc redémarre souvent.
-    # Un échec ici ne doit pas empêcher de servir : il sera retenté au démarrage suivant
-    try:
-        container.account.delete_inactive_accounts()
-    except Exception:
-        logger.exception("La suppression des comptes inactifs a échoué")
 
 
 def create_server_app() -> FastAPI:
