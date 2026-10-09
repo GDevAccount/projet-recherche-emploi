@@ -164,31 +164,35 @@ test('les pages écartées sont listées avec leur motif', async () => {
   await expect(rejected).toContainText('hors profil');
 });
 
-test('le thème choisi est gardé après rechargement', async () => {
-  await page.getByRole('button', { name: 'Passer au thème sombre' }).click();
+test('le thème est sombre au départ, et le choix du clair est gardé après rechargement', async () => {
+  // Le navigateur de test annonce un système clair : le thème sombre ne vient pas de lui
   await expect(page.locator('html')).toHaveClass(/app-dark/);
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0a0b0d');
+
+  await page.getByRole('button', { name: 'Passer au thème clair' }).click();
+  await expect(page.locator('html')).toHaveClass(/app-light/);
 
   await page.reload();
-  await expect(page.locator('html')).toHaveClass(/app-dark/);
-  await expect(page.getByRole('button', { name: 'Passer au thème clair' })).toBeVisible();
+  await expect(page.locator('html')).toHaveClass(/app-light/);
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f5f4ef');
+  await expect(page.getByRole('button', { name: 'Passer au thème sombre' })).toBeVisible();
 });
 
 test('les pages légales prennent le thème choisi dans le site, pas celui du système', async () => {
-  // Le navigateur de test annonce un système clair : seul le choix fait dans le site explique le fond sombre
+  // Le site est en thème clair, le système annoncé sombre : seul le choix fait dans le site explique le fond clair
+  await page.emulateMedia({ colorScheme: 'dark' });
   await page.getByRole('link', { name: 'Règles de confidentialité' }).last().click();
   await expect(page.getByRole('heading', { level: 1, name: 'Règles de confidentialité' })).toBeVisible();
-  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(10, 11, 13)');
-
-  await page.goto('/offres');
-  await page.getByRole('button', { name: 'Passer au thème clair' }).click();
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await page.goto('/conditions');
   await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(245, 244, 239)');
 
-  // Retour au site, en thème sombre, pour la suite du parcours
+  // Retour au thème sombre, sous un système clair
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto('/offres');
   await page.getByRole('button', { name: 'Passer au thème sombre' }).click();
+  await page.goto('/conditions');
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(10, 11, 13)');
+
+  await page.goto('/offres');
 });
 
 test('la déconnexion ferme la session', async () => {

@@ -29,7 +29,7 @@ describe('ShellComponent', () => {
 
   beforeEach(async () => {
     localStorage.clear();
-    document.documentElement.classList.remove(DARK_CLASS);
+    document.documentElement.classList.remove(DARK_CLASS, LIGHT_CLASS);
     await TestBed.configureTestingModule({
       imports: [ShellComponent],
       providers: [
@@ -136,18 +136,28 @@ describe('ShellComponent', () => {
     expect(text(link)).toBe('A');
   });
 
-  it('should switch theme and remember the choice', async () => {
+  it('should start in the dark theme, then switch and remember the choice', async () => {
     await openSession(GUEST);
-    // Le thème clair se dit aussi : les pages légales s'y fient pour ne pas suivre un système sombre
-    expect(document.documentElement.classList.contains(LIGHT_CLASS)).toBe(true);
+    // Sombre d'office, sans choix enregistré et quel que soit le système
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
+    expect(localStorage.getItem('theme')).toBeNull();
 
-    element().querySelector<HTMLButtonElement>('button[aria-label="Passer au thème sombre"]')!.click();
+    element().querySelector<HTMLButtonElement>('button[aria-label="Passer au thème clair"]')!.click();
     await fixture.whenStable();
 
-    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
-    expect(document.documentElement.classList.contains(LIGHT_CLASS)).toBe(false);
-    expect(localStorage.getItem('theme')).toBe('dark');
-    expect(element().querySelector('button[aria-label="Passer au thème clair"]')).toBeTruthy();
+    // Le thème clair se dit aussi : les pages légales s'y fient pour quitter le thème sombre
+    expect(document.documentElement.classList.contains(LIGHT_CLASS)).toBe(true);
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(false);
+    expect(localStorage.getItem('theme')).toBe('light');
+    expect(element().querySelector('button[aria-label="Passer au thème sombre"]')).toBeTruthy();
+  });
+
+  it('should keep the light theme once chosen', async () => {
+    localStorage.setItem('theme', 'light');
+    await openSession(GUEST);
+
+    expect(document.documentElement.classList.contains(LIGHT_CLASS)).toBe(true);
+    expect(element().querySelector('button[aria-label="Passer au thème sombre"]')).toBeTruthy();
   });
 
   it('should close the session and go back to the login screen', async () => {
