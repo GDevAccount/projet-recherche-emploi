@@ -5,6 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
   AccountUsage,
   EvaluationGroup,
+  OutcomeGroup,
   PageEvaluation,
   SearchRun,
   SearchStats,
@@ -23,6 +24,21 @@ function group(label: string, values: Partial<EvaluationGroup> = {}): Evaluation
     input_tokens: 40000,
     output_tokens: 4000,
     model_cost_usd: 0.0061,
+    ...values,
+  };
+}
+
+function outcome(label: string, values: Partial<OutcomeGroup> = {}): OutcomeGroup {
+  return {
+    label,
+    kept: 20,
+    applied: 8,
+    refused: 1,
+    interviews: 2,
+    pending: 9,
+    deleted: 3,
+    applied_rate: 0.4,
+    interview_rate: 0.25,
     ...values,
   };
 }
@@ -49,6 +65,11 @@ function stats(values: Partial<SearchStats> = {}): SearchStats {
     by_site: [group('indeed.com'), group('apec.fr', { evaluated: 5, kept: 0 })],
     by_page_kind: [group('offre')],
     by_text: [group('Page entière', { evaluated: 30 }), group('Extrait seul', { evaluated: 7 })],
+    outcomes: outcome('Toutes les offres'),
+    outcomes_by_query: [outcome('ingénieur IA'), outcome('AI engineer', { kept: 10, applied: 0, interviews: 0, pending: 6, deleted: 4, applied_rate: 0 })],
+    outcomes_by_site: [outcome('indeed.com')],
+    outcomes_by_prompt: [outcome('a1b2c3d4e5f6')],
+    cost_per_application_usd: 0.015,
     by_search: [],
     corrections: [],
     delete_reasons: [],
@@ -350,6 +371,27 @@ describe('TrackingComponent', () => {
 
     expect(text()).toContain("Réservé aux administrateurs de l'instance.");
     expect(element().querySelector('.tiles')).toBeNull();
+  });
+
+  it('should show what became of the kept offers, and group them on demand', async () => {
+    await serve(stats());
+
+    const card = element().querySelector('app-outcomes-card')!;
+    expect(text(card.querySelector('header div'))).toBe(
+      'Ce que deviennent les offres retenues 40 % mènent à une candidature ' +
+        '8 candidatures sur 20 offres retenues · 2 entretiens · 0,015 $ par candidature',
+    );
+    const rows = () => [...card.querySelectorAll('.outcomes li')].map((row) => text(row));
+    expect(rows()).toEqual(['ingénieur IA 8 sur 20 40 %', 'AI engineer 0 sur 10 0 %']);
+    // Les parts d'une ligne : entretiens, candidatures sans entretien, à traiter, supprimées
+    const parts = [...card.querySelectorAll<HTMLElement>('.outcomes li:first-child .stack span')];
+    expect(parts.map((part) => part.style.width)).toEqual(['10%', '30%', '45%', '15%']);
+
+    [...card.querySelectorAll('.tabs button')].find((button) => text(button) === 'Par site')!.dispatchEvent(
+      new Event('click'),
+    );
+    await fixture.whenStable();
+    expect(rows()).toEqual(['indeed.com 8 sur 20 40 %']);
   });
 
   it('should show what each search sent to the engine brought back', async () => {

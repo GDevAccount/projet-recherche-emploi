@@ -190,6 +190,11 @@ test('le suivi montre le bilan des recherches et le détail de leurs pages', asy
   await expect(pages.filter({ hasText: 'Retenue' }).first()).toBeVisible();
   await expect(pages.filter({ hasText: 'Écartée' }).first()).toContainText('en défaut : compétences');
 
+  // Les candidatures déclarées plus haut se retrouvent dans le devenir des offres retenues
+  const outcomes = page.locator('app-outcomes-card');
+  await expect(outcomes.locator('header')).toContainText('mènent à une candidature');
+  await expect(outcomes.locator('.outcomes li').filter({ hasText: QUERY })).toContainText('sur');
+
   // Deux recherches ont envoyé les mêmes textes : chacun compte deux appels, dont le second n'a rien ramené
   const searches = page.locator('app-yield-card .searches li');
   await expect(searches.first()).toContainText('2 appels');

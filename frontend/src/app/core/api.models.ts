@@ -224,12 +224,37 @@ export interface SearchStats {
   by_site: EvaluationGroup[];
   by_page_kind: EvaluationGroup[];
   by_text: EvaluationGroup[];
+  /** Devenir de toutes les offres retenues, puis par poste recherché, par site et par version du prompt */
+  outcomes: OutcomeGroup;
+  outcomes_by_query: OutcomeGroup[];
+  outcomes_by_site: OutcomeGroup[];
+  outcomes_by_prompt: OutcomeGroup[];
+  /** null sans candidature née d'une recherche suivie */
+  cost_per_application_usd: number | null;
   /** Rendement de chaque texte envoyé au moteur de recherche, le moins rentable en premier */
   by_search: SearchYield[];
   /** Corrections du tri par version du prompt, la plus récente en premier */
   corrections: CorrectionStats[];
   /** Motifs des suppressions d'offres, le plus fréquent en premier */
   delete_reasons: ReasonCount[];
+}
+
+/**
+ * Ce que sont devenues des offres retenues par le tri. Elles se partagent entre entretiens, candidatures sans
+ * entretien (applied - interviews), offres à traiter et offres supprimées sans candidature.
+ */
+export interface OutcomeGroup {
+  label: string;
+  kept: number;
+  /** Candidatures envoyées, quelle que soit leur suite */
+  applied: number;
+  /** Parmi elles, celles que l'employeur a refusées */
+  refused: number;
+  interviews: number;
+  pending: number;
+  deleted: number;
+  applied_rate: number | null;
+  interview_rate: number | null;
 }
 
 /** Ce qu'un texte envoyé au moteur de recherche a rapporté, tous lancements réunis. */

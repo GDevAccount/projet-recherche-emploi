@@ -270,6 +270,26 @@ class SearchYield(BaseModel):
     cost_per_kept_usd: float | None
 
 
+class OutcomeGroup(BaseModel):
+    """Ce que sont devenues des offres retenues par le tri : c'est ce qui dit s'il retient les bonnes.
+
+    Les offres se partagent en quatre : entretien obtenu, candidature envoyée sans entretien, encore à
+    traiter, supprimée sans candidature. Une page que l'utilisateur a remise lui-même n'y figure pas.
+    """
+
+    label: str
+    kept: int
+    # Candidatures envoyées, quelle que soit leur suite, et parmi elles celles refusées par l'employeur
+    applied: int
+    refused: int
+    interviews: int
+    pending: int
+    deleted: int
+    # Parts des offres retenues qui ont mené à une candidature, et des candidatures à un entretien
+    applied_rate: float | None
+    interview_rate: float | None
+
+
 class CorrectionStats(BaseModel):
     """Ce que l'utilisateur a corrigé du tri rendu avec une version du prompt.
 
@@ -326,6 +346,13 @@ class SearchStats(BaseModel):
     by_page_kind: list[EvaluationGroup]
     # Selon le texte lu par le modèle : page entière, page tronquée, ou extrait du moteur de recherche
     by_text: list[EvaluationGroup]
+    # Devenir de toutes les offres retenues, puis par poste recherché, par site et par version du prompt
+    outcomes: OutcomeGroup
+    outcomes_by_query: list[OutcomeGroup]
+    outcomes_by_site: list[OutcomeGroup]
+    outcomes_by_prompt: list[OutcomeGroup]
+    # Coût total rapporté aux candidatures nées des recherches suivies ; None sans candidature ou sans coût connu
+    cost_per_application_usd: float | None
     # Rendement de chaque texte envoyé au moteur de recherche, le moins rentable en premier
     by_search: list[SearchYield]
     # Corrections du tri par version du prompt, la plus récente en premier

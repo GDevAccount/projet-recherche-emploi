@@ -180,6 +180,42 @@ def test_guest_is_stopped_at_the_daily_quota_before_the_graph_runs(search, graph
     assert search.remaining_searches(CAROL) == MAX_SEARCHES_PER_DAY
 
 
+def test_outcomes_say_what_became_of_the_kept_offers(container, ready_users):
+    container.queries.add_query(BOB, "CDI", "autre recherche")
+    container.search.run_search(BOB)
+    first, second = sorted(container.jobs.list_jobs(BOB), key=lambda job: job.query)
+    [rejected, _] = container.jobs.list_rejected_jobs(BOB)
+    empty = container.search.get_stats(BOB)
+    assert (empty.outcomes.kept, empty.outcomes.pending, empty.outcomes.applied_rate) == (2, 2, 0.0)
+    assert (empty.outcomes.interview_rate, empty.cost_per_application_usd) == (None, None)
+
+    # Une candidature menée jusqu'à l'entretien, une offre supprimée, et une page remise par l'utilisateur
+    container.jobs.set_status(BOB, first.id, "applied")
+    container.jobs.set_status(BOB, first.id, "interview")
+    container.jobs.delete_job(BOB, second.id, "not_my_job")
+    container.jobs.restore_rejected_job(BOB, rejected.url)
+    stats = container.search.get_stats(BOB)
+
+    # La page remise n'a pas été retenue par le tri : elle ne compte pas
+    total = stats.outcomes
+    assert (total.label, total.kept, total.applied) == ("Toutes les offres", 2, 1)
+    assert (total.interviews, total.refused) == (1, 0)
+    assert (total.pending, total.deleted, total.applied_rate, total.interview_rate) == (0, 1, 0.5, 1.0)
+    assert [(group.label, group.kept, group.applied, group.deleted) for group in stats.outcomes_by_query] == [
+        ("autre recherche", 1, 1, 0),
+        ("une recherche", 1, 0, 1),
+    ]
+    assert [(group.label, group.kept, group.applied) for group in stats.outcomes_by_site] == [("x", 2, 1)]
+    assert [(group.label, group.kept) for group in stats.outcomes_by_prompt] == [(prompt_version(), 2)]
+    assert stats.cost_per_application_usd == stats.cost_usd
+
+    # Un refus de l'employeur reste une candidature, et l'entretien obtenu reste compté
+    container.jobs.set_status(BOB, first.id, "rejected")
+    refused = container.search.get_stats(BOB).outcomes
+    assert (refused.applied, refused.refused, refused.interviews) == (1, 1, 1)
+    assert container.search.get_stats(CAROL).outcomes.kept == 0
+
+
 def test_engine_calls_say_what_became_of_their_pages():
     def page(search_index: int) -> dict:
         return {"search_index": search_index}
