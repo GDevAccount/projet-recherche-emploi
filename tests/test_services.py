@@ -352,6 +352,17 @@ def test_rejected_page_tells_why_it_was_rejected(container):
         return page.motive, page.failed_criteria
 
     assert motives(is_real_offer=False, matches_search=False) == ("Pas une offre valable", ["Pas une offre valable"])
+    # Une page qui n'est pas une offre porte sa nature, et rien d'autre
+    for page_kind, motive in [
+        ("liste d'offres", "Liste ou page de résultats"),
+        ("article", "Article"),
+        ("fiche métier", "Fiche métier"),
+        ("page d'accueil", "Page d'accueil"),
+        ("offre expirée", "Offre expirée"),
+        ("formation", "Contrat non recherché"),
+        ("autre", "Pas une offre valable"),
+    ]:
+        assert motives(is_real_offer=False, page_kind=page_kind, matches_search=False) == (motive, [motive])
     # Le motif est le premier critère en défaut, la liste les donne tous
     assert motives(matches_search=False, matches_skills=False, matches_level=True) == (
         "Autre métier que ceux recherchés",

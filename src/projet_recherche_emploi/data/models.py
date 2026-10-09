@@ -88,6 +88,8 @@ class RejectedJob(Base):
     contract_type: Mapped[str | None] = mapped_column(Text)
     query: Mapped[str | None] = mapped_column(Text)
     is_real_offer: Mapped[bool] = mapped_column(IntBool)
+    # Nature de la page (PageKind), vide pour les pages rejetées avant qu'elle soit enregistrée
+    page_kind: Mapped[str | None] = mapped_column(Text)
     matches_cv: Mapped[bool] = mapped_column(IntBool)
     # Détail du verdict, vide pour les pages rejetées avant qu'il soit enregistré critère par critère.
     # matches_cv réunit les compétences et le niveau.

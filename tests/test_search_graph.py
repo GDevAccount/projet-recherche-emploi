@@ -120,7 +120,7 @@ def test_openai_evaluator_sends_the_cv_and_the_truncated_page_to_the_model():
             def evaluate(prompt):
                 prompts.append(prompt.to_string())
                 return schema(
-                    is_real_offer=True,
+                    page_kind="offre",
                     matches_search=True,
                     matches_skills=False,
                     matches_level=True,
@@ -241,7 +241,7 @@ def test_accepted_areas_are_those_of_every_search_together(container):
 
 def evaluation(**facts) -> JobEvaluation:
     return JobEvaluation(
-        is_real_offer=True, matches_search=True, matches_skills=True, matches_level=True, reason="ok", **facts
+        page_kind="offre", matches_search=True, matches_skills=True, matches_level=True, reason="ok", **facts
     )
 
 
@@ -420,6 +420,22 @@ def test_internship_found_by_a_search_for_a_permanent_job_is_rejected(graph, con
         rejected = RejectedJobRepository(session, BOB).list_rejected_jobs()
         assert {page.matches_contract for page in rejected} == {False}
         assert "Contrat non recherché (stage). ok" in {page.reject_reason for page in rejected}
+
+
+def test_a_page_that_is_not_an_offer_is_rejected_with_its_kind(graph, container, evaluator):
+    evaluator.page_kind = "liste d'offres"
+    container.queries.add_query(BOB, "CDI", "ingénieur IA")
+
+    graph.invoke({"user_id": BOB})
+
+    with container.database.session() as session:
+        assert JobRepository(session, BOB).list_jobs() == []
+        rejected = RejectedJobRepository(session, BOB).list_rejected_jobs()
+        assert rejected and {(page.is_real_offer, page.page_kind) for page in rejected} == {(False, "liste d'offres")}
+    assert {page.motive for page in container.jobs.list_rejected_jobs(BOB)} == {"Liste ou page de résultats"}
+    # Ce n'est pas un rejet dû aux recherches : en ajouter une ne la fait pas réévaluer
+    container.queries.add_query(BOB, "CDI", "data engineer")
+    assert len(container.jobs.list_rejected_jobs(BOB)) == len(rejected)
 
 
 @pytest.mark.parametrize(

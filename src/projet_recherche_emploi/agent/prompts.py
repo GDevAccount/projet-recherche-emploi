@@ -31,10 +31,15 @@ FILTER_PROMPT = ChatPromptTemplate.from_messages(
             "Postes que le candidat recherche (les phrases qu'il a saisies dans un moteur de recherche) :\n"
             "{sought_jobs}\n\n"
             "Pour la page fournie, détermine :\n"
-            "- is_real_offer : vrai seulement si la page décrit UNE offre d'emploi ou mission précise "
-            "(un poste, une entreprise ou un client, des missions). Faux pour une liste ou une page de "
-            "résultats de recherche regroupant plusieurs offres, un article, une fiche métier, une "
-            "formation, une page d'accueil ou une offre expirée.\n"
+            "- page_kind : la nature de la page. « offre » seulement si elle décrit UNE offre d'emploi ou "
+            "mission précise, encore ouverte (un poste, une entreprise ou un client, des missions). Sinon : "
+            "« liste d'offres » pour une liste ou une page de résultats de recherche regroupant plusieurs "
+            "offres ; « offre expirée » pour une offre précise qui n'est plus ouverte (pourvue, retirée, "
+            "candidatures closes) ; « formation » pour une formation, une école ou un cours, et non un "
+            "poste ; « fiche métier » pour la description générale d'un métier ou de ses salaires ; "
+            "« article » pour un article, un billet de blog ou une actualité ; « page d'accueil » pour "
+            "l'accueil d'un site ou la présentation d'une entreprise ; « autre » pour tout le reste "
+            "(page d'erreur, page de connexion, profil d'une personne).\n"
             "- contract_type : le type de contrat écrit sur la page (CDI, freelance, CDD, alternance ou stage). "
             "Une mission pour indépendant ou en portage salarial est un freelance. "
             "null si la page ne le dit pas ou n'est pas une offre : ne pas le deviner.\n"
@@ -69,7 +74,7 @@ FILTER_PROMPT = ChatPromptTemplate.from_messages(
             "- reason : une ou deux phrases courtes en français, écrites pour le candidat : ce qui fait que "
             "l'offre lui convient, ou ce qui l'écarte (pas une offre, autre métier, compétences, niveau). "
             "Ne pas réciter les faits lus sur la page ni les noms des champs ci-dessus.\n\n"
-            "Si is_real_offer est faux, mettre faux à matches_search, matches_skills et matches_level.",
+            "Si page_kind n'est pas « offre », mettre faux à matches_search, matches_skills et matches_level.",
         ),
         ("human", "Titre : {title}\nURL : {url}\n\nContenu de la page :\n{page}"),
     ]
