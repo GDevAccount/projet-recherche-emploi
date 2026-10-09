@@ -1,6 +1,6 @@
 import pytest
 
-from projet_recherche_emploi.services.cv_anonymizer import CvAnonymizer
+from projet_recherche_emploi.data.cv_ingestion.anonymizer import CvAnonymizer
 
 
 @pytest.fixture

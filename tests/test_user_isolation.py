@@ -3,11 +3,11 @@ from datetime import UTC, datetime
 from helpers import job, rejected_job
 
 from projet_recherche_emploi.config import DEFAULT_QUERIES
-from projet_recherche_emploi.data.cv_text_repository import CvTextRepository
-from projet_recherche_emploi.data.job_repository import JobRepository
-from projet_recherche_emploi.data.query_repository import QueryRepository
-from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
-from projet_recherche_emploi.data.search_run_repository import SearchRunRepository
+from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
+from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
+from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
+from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
 
 ALICE = 1
 BOB = 2
@@ -191,6 +191,11 @@ def test_each_user_has_their_own_cv_text(session):
     bob.save("Nouveau CV de Bob")
 
     assert (alice.get_content(), bob.get_content()) == ("CV d'Alice", "Nouveau CV de Bob")
+    deposited_at = datetime(2026, 1, 2, tzinfo=UTC)
+    bob.save("Nouveau CV de Bob", deposited_at)
+    assert bob.get_updated_at() == deposited_at
+    assert alice.get_updated_at() != deposited_at
     assert bob.delete() is True
     assert bob.delete() is False
     assert (alice.get_content(), bob.get_content()) == ("CV d'Alice", None)
+    assert alice.get_updated_at() is not None and bob.get_updated_at() is None

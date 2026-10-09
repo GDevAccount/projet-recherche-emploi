@@ -47,13 +47,13 @@ uv run projet-recherche-emploi api
 
 L'application s'ouvre à l'adresse `http://127.0.0.1:8000`, et la documentation de l'API à `http://127.0.0.1:8000/docs`.
 
-La commande doit être lancée depuis la racine : `cv.pdf` et `jobs.db` sont cherchés ou créés dans le dossier courant, et le front construit dans `frontend/dist/`. Sans ce build, seule l'API répond.
+La commande doit être lancée depuis la racine : `jobs.db` est cherché ou créé dans le dossier courant, et le front construit dans `frontend/dist/`. Sans ce build, seule l'API répond.
 
 ## Utiliser l'application
 
 L'application a trois rubriques, **Offres**, **Rejets** et **Profil**, un thème clair ou sombre, et un bouton « Lancer une recherche » visible partout.
 
-1. **Déposer son CV.** Dans la rubrique Profil, glisser un PDF sur la carte « CV », ou cliquer pour le choisir, puis « Enregistrer ce CV ». Il remplace le précédent. Les pages rejetées avec l'ancien CV sont alors oubliées : elles seront réévaluées à la prochaine recherche.
+1. **Déposer son CV.** Dans la rubrique Profil, glisser un PDF sur la carte « CV », ou cliquer pour le choisir, puis « Enregistrer ce CV ». Seul son texte est gardé, sans vos coordonnées : le fichier n'est pas conservé. Il remplace le précédent. Les pages rejetées avec l'ancien CV sont alors oubliées : elles seront réévaluées à la prochaine recherche.
 2. **Choisir les postes recherchés.** La carte « Postes recherchés » liste les recherches enregistrées. Chacune associe un type de contrat à une phrase de recherche, par exemple « ingénieur IA générative LLM RAG », et à un lieu : une ville, un département ou une région, « télétravail complet », ou toute la France. La phrase envoyée au moteur de recherche est précédée de « offre d'emploi » et suivie du type de contrat et du lieu, sauf si elle les contient déjà : sans ces mots, une phrase courte ramène des listes d'offres plutôt que des annonces. Une recherche en télétravail complet est lancée deux fois : en français sur les sites d'emploi habituels, puis en anglais (« AI engineer remote job ») sur ces sites et sur des sites d'offres en télétravail à l'international. Elle consomme donc deux recherches Tavily. La phrase nomme le métier visé, suivi de ses spécialités : le filtre ne retient que les offres de l'un des métiers recherchés, même si le CV en couvre d'autres. Une phrase qui ne cite qu'une technologie (« langchain langgraph ») ne dit pas quel métier retenir : préférer « développeur d'agents IA LangChain LangGraph ». Pour trouver aussi les annonces rédigées en anglais, enregistrer une seconde recherche avec l'intitulé anglais. Une offre est retenue si son lieu de travail convient à l'une au moins des recherches enregistrées : une recherche pour toute la France ouvre donc tout le pays, et « télétravail complet » ne retient que les postes 100 % à distance, que l'employeur soit en France ou à l'étranger, sauf si l'annonce réserve le poste aux résidents d'un autre pays. Sans recherche « télétravail complet », un poste à distance n'est retenu que si l'employeur se trouve dans l'un des lieux recherchés. Le formulaire en ajoute une, la croix en supprime une.
 3. **Lancer une recherche.** Le bouton « Lancer une recherche » apparaît dès qu'un CV et au moins une recherche sont enregistrés. Un panneau suit alors la recherche en direct, ce qui peut prendre quelques minutes : les quatre étapes du graph, le nombre de pages trouvées, à évaluer, évaluées, retenues et écartées, et un journal où chaque page évaluée apparaît avec son verdict. Il se termine par le nombre de nouvelles offres. Fermer la page n'arrête pas la recherche : elle va au bout sur le serveur.
 4. **Suivre ses candidatures.** La rubrique Offres présente les offres en deux colonnes, « À traiter » et « Postulées », de la plus récente à la plus ancienne. Chaque carte donne le site, le titre, le contrat et le lieu que le modèle a lus sur l'annonce (ou « non précisé » si elle ne le dit pas), et la raison pour laquelle l'offre a été retenue. Le lieu vaut « Remote » pour un poste en télétravail complet, par exemple « Remote (Los Angeles, États-Unis) ». Le bouton « J'ai postulé », ou un glisser-déposer vers la colonne « Postulées », enregistre la candidature et sa date. Au-dessus, des chiffres clés, un champ de recherche (sur le titre, le lieu et la raison, par exemple pour retrouver une entreprise ou une ville) et un filtre par contrat.
@@ -283,7 +283,7 @@ La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/)
 |---|---|
 | `searchJobs` | Lance une recherche Tavily par poste recherché enregistré, limitée aux sites d'emploi et aux annonces de la dernière semaine, puis supprime les doublons. |
 | `FilterDuplicates` | Écarte les pages dont l'URL est déjà en base, offres supprimées et pages rejetées comprises, pour ne pas les faire évaluer à nouveau. |
-| `FilterJobs` | Lit le CV (PDF) et demande à un modèle OpenAI, pour chaque page restante, ce qu'elle dit (vraie offre ou non, contrat, lieu, mode de travail) et trois avis : le métier est-il l'un de ceux des recherches enregistrées, le CV couvre-t-il les compétences principales, le niveau d'expérience est-il compatible. Le graph applique ensuite les règles de contrat et de lieu : une offre n'est retenue que si tous les critères sont remplis. |
+| `FilterJobs` | Lit le texte du CV, enregistré sans coordonnées, et demande à un modèle OpenAI, pour chaque page restante, ce qu'elle dit (vraie offre ou non, contrat, lieu, mode de travail) et trois avis : le métier est-il l'un de ceux des recherches enregistrées, le CV couvre-t-il les compétences principales, le niveau d'expérience est-il compatible. Le graph applique ensuite les règles de contrat et de lieu : une offre n'est retenue que si tous les critères sont remplis. |
 | `InsertJobs` | Enregistre les offres retenues et les pages rejetées dans la base SQLite `jobs.db`. |
 
 ## Base de données
@@ -350,7 +350,7 @@ Table `users`, les comptes (connexion Google) :
 | `created_at` | Date de la première connexion (UTC) |
 | `last_seen_at` | Date de la dernière requête identifiée (UTC), au jour près. Un compte d'invité sans activité depuis `INACTIVE_ACCOUNT_DAYS` est supprimé |
 
-Table `cv_texts`, le texte du CV de chaque utilisateur, coordonnées retirées. C'est ce texte que le filtre envoie à OpenAI, pas le PDF. Il est remplacé à chaque dépôt d'un CV :
+Table `cv_texts`, le texte du CV de chaque utilisateur, coordonnées retirées. C'est tout ce que l'application garde d'un CV : le PDF déposé est lu une fois, puis oublié. Ce texte est envoyé à OpenAI par le filtre, sa date dit depuis quand le CV est en place, et il est remplacé à chaque dépôt :
 
 | Colonne | Contenu |
 |---|---|
@@ -388,7 +388,6 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 |---|---|---|
 | Dossier de la base et du CV (`DATA_DIR`) | variable d'environnement | dossier courant |
 | Nom de la base (`DB_FILE_NAME`) | `src/projet_recherche_emploi/config.py` | `jobs.db` |
-| Emplacement du CV (`CvStorage.path_for`) | `src/projet_recherche_emploi/data/cv_storage.py` | `cv.pdf` pour l'utilisateur 1, `cv/<identifiant>.pdf` pour les autres |
 | Dossier du front Angular construit (`FRONTEND_DIR`) | variable d'environnement | `frontend/dist/frontend/browser` |
 | Mot de passe de l'application (`APP_PASSWORD`) | variable d'environnement | aucun |
 | Connexion Google (`GOOGLE_CLIENT_ID`, `OWNER_EMAIL`, `ALLOWED_EMAILS`…) | variables d'environnement | désactivée |
@@ -453,7 +452,6 @@ src/projet_recherche_emploi/
 │   ├── account_service.py # suppression d'un compte et de tout ce qu'il contient
 │   ├── auth_service.py    # adresse Google -> utilisateur, mot de passe de l'instance, jeton de session
 │   ├── search_service.py  # conditions préalables, quota journalier et lancement d'une recherche
-│   ├── cv_anonymizer.py   # retire d'un CV les coordonnées et le nom, avant que son texte soit enregistré
 │   ├── cv_service.py      # enregistrement du CV et de son texte sans coordonnées, oubli des rejets de l'ancien
 │   ├── job_service.py     # offres retenues et pages rejetées
 │   └── query_service.py   # postes recherchés
@@ -468,13 +466,18 @@ src/projet_recherche_emploi/
     ├── database.py      # sessions, transactions, application des migrations
     ├── models.py        # tables (SQLAlchemy)
     ├── migrations/      # migrations Alembic
-    ├── job_repository.py           # table des offres : insertion, lecture, suivi des candidatures, suppression
-    ├── rejected_job_repository.py  # table des pages rejetées : insertion, lecture, vidage
-    ├── query_repository.py         # table des postes recherchés : lecture, ajout, suppression
-    ├── search_run_repository.py    # table des lancements de recherche (quota journalier)
-    ├── user_repository.py          # table des comptes
-    ├── cv_text_repository.py       # table du texte des CV, coordonnées retirées
-    └── cv_storage.py               # lecture et enregistrement des CV en PDF
+    ├── repositories/    # un dépôt par table
+    │   ├── job_repository.py           # offres : insertion, lecture, suivi des candidatures, suppression
+    │   ├── rejected_job_repository.py  # pages rejetées : insertion, lecture, vidage
+    │   ├── query_repository.py         # postes recherchés : lecture, ajout, suppression
+    │   ├── search_run_repository.py    # lancements de recherche (quota journalier)
+    │   ├── user_repository.py          # comptes
+    │   └── cv_text_repository.py       # texte des CV, coordonnées retirées, et date du dépôt
+    └── cv_ingestion/    # du PDF déposé au texte enregistré : le PDF n'est pas conservé
+        ├── ingestion.py     # lit le PDF, retire les coordonnées, enregistre le texte
+        ├── pdf_reader.py    # texte d'un PDF, refus d'un fichier illisible ou sans texte
+        ├── anonymizer.py    # retire d'un CV les coordonnées et le nom
+        └── legacy_files.py  # reprise en base, puis suppression, des PDF gardés par les versions précédentes
 
 frontend/src/
 ├── environments/        # adresse de l'API, clé de licence PrimeNG reçue au build

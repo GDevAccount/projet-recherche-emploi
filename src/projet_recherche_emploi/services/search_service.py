@@ -5,10 +5,10 @@ from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from projet_recherche_emploi.config import DEFAULT_USER_ID, LOCAL_TIMEZONE, MAX_SEARCHES_PER_DAY
-from projet_recherche_emploi.data.cv_storage import CvStorage
 from projet_recherche_emploi.data.database import Database
-from projet_recherche_emploi.data.query_repository import QueryRepository
-from projet_recherche_emploi.data.search_run_repository import SearchRunRepository
+from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
+from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
+from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
 from projet_recherche_emploi.errors import ConflictError, InvalidInputError, QuotaExceededError
 from projet_recherche_emploi.schemas import SearchProgress, SearchSummary
 
@@ -46,9 +46,8 @@ class RunningSearch:
 
 
 class SearchService:
-    def __init__(self, database: Database, cv_storage: CvStorage, get_graph: Callable[[], SearchGraph]):
+    def __init__(self, database: Database, get_graph: Callable[[], SearchGraph]):
         self.database = database
-        self.cv_storage = cv_storage
         # Le graph n'est construit qu'à la première recherche
         self._get_graph = get_graph
         # Utilisateurs dont une recherche tourne. En mémoire : un redémarrage interrompt les recherches, et vide ceci
@@ -73,7 +72,8 @@ class SearchService:
         """Dit si l'utilisateur a ce qu'il faut pour lancer une recherche : un CV et au moins un poste recherché."""
         with self.database.session() as session:
             has_queries = bool(QueryRepository(session, user_id).list_queries())
-        return has_queries and self.cv_storage.updated_at(user_id) is not None
+            has_cv = CvTextRepository(session, user_id).get_updated_at() is not None
+        return has_queries and has_cv
 
     def stream_search(self, user_id: int) -> Iterator[SearchProgress | SearchSummary]:
         """Lance la recherche de l'utilisateur et renvoie son déroulement : l'avancement, puis le bilan.

@@ -1,4 +1,5 @@
 import gc
+import os
 import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
@@ -12,11 +13,12 @@ from projet_recherche_emploi.config import (
     INACTIVE_ACCOUNT_DAYS,
     MAX_SEARCHES_PER_DAY,
 )
-from projet_recherche_emploi.data.cv_storage import CvStorage
-from projet_recherche_emploi.data.cv_text_repository import CvTextRepository
-from projet_recherche_emploi.data.job_repository import JobRepository
-from projet_recherche_emploi.data.rejected_job_repository import RejectedJobRepository
-from projet_recherche_emploi.data.user_repository import UserRepository
+from projet_recherche_emploi.data.cv_ingestion.legacy_files import absorb_legacy_cv_files
+from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
+from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
+from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
+from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
 from projet_recherche_emploi.schemas import SearchProgress, SearchSummary
 from projet_recherche_emploi.services import cv_service
@@ -52,7 +54,7 @@ def graph():
 
 @pytest.fixture
 def search(container, graph):
-    return SearchService(container.database, container.cv_storage, lambda: graph)
+    return SearchService(container.database, lambda: graph)
 
 
 @pytest.fixture
@@ -105,7 +107,7 @@ def test_guest_is_stopped_at_the_daily_quota_before_the_graph_runs(search, graph
 
 
 def test_failed_search_still_counts(container, ready_users):
-    search = SearchService(container.database, container.cv_storage, BrokenGraph)
+    search = SearchService(container.database, BrokenGraph)
 
     with pytest.raises(RuntimeError):
         search.run_search(BOB)
@@ -132,7 +134,7 @@ def test_second_search_is_refused_while_the_first_runs_without_using_the_quota(s
 
 
 def test_search_that_fails_or_is_never_read_does_not_block_the_next_one(container, search, ready_users):
-    broken = SearchService(container.database, container.cv_storage, BrokenGraph)
+    broken = SearchService(container.database, BrokenGraph)
     with pytest.raises(RuntimeError):
         broken.run_search(DEFAULT_USER_ID)
     assert not broken.is_running(DEFAULT_USER_ID)
@@ -329,7 +331,6 @@ def test_deleting_an_account_leaves_nothing_behind(container, valid_pdf):
     assert container.jobs.list_jobs(user_id) == [] and container.jobs.list_rejected_jobs(user_id) == []
     assert container.queries.list_queries(user_id) == []
     assert container.cv.get_status(user_id).updated_at is None
-    assert not container.cv_storage.path_for(user_id).exists()
     assert stored_cv_text(container, user_id) is None
     # Le quota repart de zéro : les lancements sont effacés aussi
     assert container.search.remaining_searches(user_id) == MAX_SEARCHES_PER_DAY
@@ -418,8 +419,8 @@ def test_guest_accounts_left_unused_too_long_are_deleted(container, valid_pdf):
 
     assert container.account.delete_inactive_accounts(now) == 1
 
-    assert container.queries.list_queries(alice) == [] and not container.cv_storage.path_for(alice).exists()
-    assert len(container.queries.list_queries(bob)) == 1 and container.cv_storage.path_for(bob).exists()
+    assert container.queries.list_queries(alice) == [] and container.cv.get_status(alice).updated_at is None
+    assert len(container.queries.list_queries(bob)) == 1 and container.cv.get_status(bob).updated_at is not None
     assert container.queries.list_queries(DEFAULT_USER_ID)
     with container.database.session() as session:
         emails = {user.id: user.email for user in UserRepository(session).list_users()}
@@ -482,38 +483,73 @@ def stored_cv_text(container, user_id: int) -> str | None:
 
 
 def test_saved_cv_is_stored_without_its_contact_details_and_read_from_the_database(container, valid_pdf, monkeypatch):
-    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: RAW_CV)
+    monkeypatch.setattr(CvPdfReader, "read_text", lambda self, data: RAW_CV)
 
     container.cv.save_cv(BOB, valid_pdf, ["Alice Martin"])
 
     assert stored_cv_text(container, BOB) == ANONYMOUS_CV
     assert stored_cv_text(container, CAROL) is None
-    # La lecture ne repasse pas par le PDF : c'est le texte enregistré qui part au modèle
-    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: pytest.fail("le PDF a été relu"))
+    # Le PDF n'a pas été gardé : c'est le texte enregistré qui part au modèle
+    monkeypatch.setattr(CvPdfReader, "read_text", lambda self, data: pytest.fail("un PDF a été lu"))
     assert container.cv.read_text(BOB) == ANONYMOUS_CV
 
 
 def test_new_cv_replaces_the_stored_text(container, valid_pdf, monkeypatch):
-    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: RAW_CV)
+    monkeypatch.setattr(CvPdfReader, "read_text", lambda self, data: RAW_CV)
     container.cv.save_cv(BOB, valid_pdf)
 
-    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: "Nouveau CV, bob@exemple.fr")
+    monkeypatch.setattr(CvPdfReader, "read_text", lambda self, data: "Nouveau CV, bob@exemple.fr")
     container.cv.save_cv(BOB, valid_pdf)
 
     assert container.cv.read_text(BOB) == "Nouveau CV, [e-mail]"
 
 
-def test_cv_saved_before_its_text_was_stored_is_anonymized_at_first_reading(container, valid_pdf, monkeypatch):
-    # Le PDF est en place, sans texte en base : c'est l'état d'un CV déposé avant cette table
-    container.cv_storage.save(BOB, valid_pdf)
-    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: RAW_CV)
-    assert stored_cv_text(container, BOB) is None
+def legacy_pdf(settings, user_id: int, data: bytes):
+    """Écrit un CV là où l'application gardait les PDF, avant de n'en conserver que le texte."""
+    path = settings.data_dir / "cv.pdf" if user_id == DEFAULT_USER_ID else settings.data_dir / "cv" / f"{user_id}.pdf"
+    path.parent.mkdir(exist_ok=True)
+    path.write_bytes(data)
+    return path
 
-    text = container.cv.read_text(BOB)
+
+def test_cv_kept_as_a_pdf_is_moved_into_the_database_then_deleted(container, settings, valid_pdf, monkeypatch):
+    owner_file = legacy_pdf(settings, DEFAULT_USER_ID, valid_pdf)
+    bob_file = legacy_pdf(settings, BOB, valid_pdf)
+    deposited_at = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+    os.utime(bob_file, (deposited_at.timestamp(), deposited_at.timestamp()))
+    monkeypatch.setattr(CvPdfReader, "read_text", lambda self, data: RAW_CV)
+
+    assert absorb_legacy_cv_files(container.database, container.cv_ingestion, settings.data_dir) == 2
 
     # Sans le nom de l'utilisateur, inconnu à cet instant, le reste est tout de même retiré
-    assert text == ANONYMOUS_CV.replace("[nom] [nom]", "Alice Martin")
-    assert stored_cv_text(container, BOB) == text
+    assert stored_cv_text(container, BOB) == ANONYMOUS_CV.replace("[nom] [nom]", "Alice Martin")
+    assert stored_cv_text(container, DEFAULT_USER_ID) == stored_cv_text(container, BOB)
+    # Le CV garde la date de son dépôt, pas celle de la reprise
+    assert container.cv.get_status(BOB).updated_at == deposited_at
+    assert not owner_file.exists() and not bob_file.exists() and not bob_file.parent.exists()
+    assert absorb_legacy_cv_files(container.database, container.cv_ingestion, settings.data_dir) == 0
+
+
+def test_pdf_of_a_cv_already_in_the_database_is_deleted_without_being_read(container, settings, valid_pdf, monkeypatch):
+    monkeypatch.setattr(CvPdfReader, "read_text", lambda self, data: RAW_CV)
+    container.cv.save_cv(BOB, valid_pdf, ["Alice Martin"])
+    bob_file = legacy_pdf(settings, BOB, valid_pdf)
+    monkeypatch.setattr(CvPdfReader, "read_text", lambda self, data: pytest.fail("un PDF a été lu"))
+
+    assert absorb_legacy_cv_files(container.database, container.cv_ingestion, settings.data_dir) == 1
+
+    # Le texte en place, où le nom avait été retiré, n'est pas remplacé
+    assert stored_cv_text(container, BOB) == ANONYMOUS_CV
+    assert not bob_file.exists()
+
+
+def test_unreadable_pdf_left_on_disk_is_deleted_too(container, settings):
+    bob_file = legacy_pdf(settings, BOB, b"pas un PDF")
+
+    assert absorb_legacy_cv_files(container.database, container.cv_ingestion, settings.data_dir) == 1
+
+    assert stored_cv_text(container, BOB) is None
+    assert not bob_file.exists()
 
 
 def test_reading_the_cv_of_a_user_who_has_none_is_a_user_error(container):
@@ -522,7 +558,7 @@ def test_reading_the_cv_of_a_user_who_has_none_is_a_user_error(container):
 
 
 def test_search_sends_the_anonymized_cv_to_the_model(container, evaluator, valid_pdf, monkeypatch):
-    monkeypatch.setattr(CvStorage, "read_text", lambda self, user_id: RAW_CV)
+    monkeypatch.setattr(CvPdfReader, "read_text", lambda self, data: RAW_CV)
     container.cv.save_cv(BOB, valid_pdf, ["Alice Martin"])
     container.queries.add_query(BOB, "CDI", "data engineer")
 

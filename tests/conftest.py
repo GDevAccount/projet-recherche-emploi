@@ -108,5 +108,5 @@ def container(settings, search_engine, evaluator):
 
 @pytest.fixture
 def valid_pdf():
-    # Le CV versionné à la racine sert de PDF valide
-    return (Path(__file__).parents[1] / "cv.pdf").read_bytes()
+    # Un vrai CV, avec du texte : le PDF valide des tests
+    return (Path(__file__).parent / "fixtures" / "cv.pdf").read_bytes()
