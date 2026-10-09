@@ -263,6 +263,30 @@ def test_week_starts_on_monday_in_paris():
     assert start_of_local_week(datetime(2026, 10, 11, 21, 30, tzinfo=UTC)).isoformat() == "2026-10-05"
 
 
+def test_guest_seen_on_another_day_has_returned(container):
+    with container.database.session() as session:
+        users = UserRepository(session)
+        alice, bob = (users.get_or_create_user_id(f"{name}@exemple.fr") for name in ("alice", "bob"))
+        # Alice est revenue trois jours après la création de son compte, Bob ne l'a jamais rouvert
+        long_ago = datetime.now(UTC) - timedelta(days=30)
+        users.record_activity(alice, datetime.now(UTC) + timedelta(days=3), datetime.now(UTC) + timedelta(days=1))
+        users.record_activity(bob, long_ago, datetime.now(UTC) + timedelta(days=1))
+
+    journeys = container.usage.get_journeys()
+
+    # Le dernier vu en premier
+    assert [(account.email, account.returned) for account in journeys.accounts if not account.is_owner] == [
+        ("alice@exemple.fr", True),
+        ("bob@exemple.fr", False),
+    ]
+    assert (journeys.guests, journeys.steps[-1].label, journeys.steps[-1].count) == (2, "Revenu un autre jour", 1)
+    # Sans invité, aucune part ne se calcule
+    container.account.delete_account(alice)
+    container.account.delete_account(bob)
+    empty = container.usage.get_journeys()
+    assert (empty.guests, {step.rate for step in empty.steps}, len(empty.accounts)) == (0, {None}, 1)
+
+
 def test_budget_projects_the_month_from_the_days_elapsed(container, ready_users):
     container.usage.monthly_budget_usd = 0.02
     container.search.run_search(BOB)

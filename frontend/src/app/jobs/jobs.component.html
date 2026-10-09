@@ -25,9 +25,12 @@
       @if (run.busy()) {
         <h2>Recherche en cours</h2>
         <p>Les annonces qui correspondent à votre profil arriveront ici dès qu'elle sera terminée.</p>
-      } @else {
+      } @else if (canSearch()) {
         <h2>Pas encore d'offre</h2>
         <p>Lancez une recherche : les annonces qui correspondent à votre profil arriveront ici.</p>
+      } @else {
+        <h2>Pas encore d'offre</h2>
+        <p>Une fois votre profil complété, lancez une recherche : les annonces qui lui correspondent arriveront ici.</p>
       }
     </section>
   } @else {

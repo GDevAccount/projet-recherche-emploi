@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from projet_recherche_emploi.api.security import AdminId, Services
-from projet_recherche_emploi.schemas import AlertTest, BudgetOverview, HealthOverview, UsageOverview
+from projet_recherche_emploi.schemas import AlertTest, BudgetOverview, HealthOverview, JourneyOverview, UsageOverview
 
 router = APIRouter(tags=["administration"])
 
@@ -55,3 +55,12 @@ def get_budget(admin_id: AdminId, services: Services) -> BudgetOverview:
     Réservé aux administrateurs. Seuls des montants en sortent.
     """
     return services.usage.get_budget()
+
+
+@router.get("/admin/journeys")
+def get_journeys(admin_id: AdminId, services: Services) -> JourneyOverview:
+    """Parcours des invités : combien déposent un CV, lancent une recherche, postulent et reviennent.
+
+    Réservé aux administrateurs. Pour chaque compte, son adresse et des nombres : aucun poste, aucune offre.
+    """
+    return services.usage.get_journeys()

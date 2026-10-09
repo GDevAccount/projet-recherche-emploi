@@ -153,6 +153,7 @@ def test_config_leaks_no_secret(tmp_path):
         ("POST", "/api/admin/alerts/test"),
         ("GET", "/api/admin/budget"),
         ("POST", "/api/client-errors"),
+        ("GET", "/api/admin/journeys"),
     ],
 )
 def test_every_data_route_requires_an_identity(client, method, path):
@@ -336,7 +337,7 @@ def test_search_tracking_is_for_administrators_only(client, valid_pdf):
 
     # Un invité n'y a pas accès, pas même pour ses propres recherches
     paths = ("/api/searches", "/api/searches/stats", f"/api/searches/{run['id']}/evaluations", "/api/admin/usage")
-    for path in (*paths, "/api/admin/health", "/api/admin/budget"):
+    for path in (*paths, "/api/admin/health", "/api/admin/budget", "/api/admin/journeys"):
         response = client.get(path, headers=ALICE)
         assert response.status_code == 403 and "sk-" not in response.text
     # Il lance toujours les siennes
@@ -513,6 +514,53 @@ def test_front_reports_its_errors_without_their_message(client):
         ("/offres", "TypeError", "main-5UFRYBOQ.js:1:23456"),
         (None, "Error", None),
     }
+
+
+def test_administrator_follows_how_far_each_guest_goes(tmp_path, valid_pdf):
+    client = make_client(
+        tmp_path,
+        google_client_id="id.apps.googleusercontent.com",
+        owner_email="proprietaire@exemple.fr",
+        allowed_emails="alice@exemple.fr,bob@exemple.fr,carol@exemple.fr",
+        auth_cookie_secret=SECRET,
+    )
+    carol = {"Authorization": "Bearer jeton-carol"}
+    # Alice va jusqu'à la candidature, Bob s'arrête au CV, Carol ne fait que se connecter
+    for headers in (ALICE, BOB):
+        client.put("/api/cv", headers=headers, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    client.get("/api/me", headers=carol)
+    client.post("/api/queries", headers=ALICE, json=QUERY)
+    client.post("/api/searches", headers=ALICE)
+    [job] = client.get("/api/jobs", headers=ALICE).json()
+    client.patch(f"/api/jobs/{job['id']}", headers=ALICE, json={"status": "applied"})
+
+    journeys = client.get("/api/admin/journeys", headers=OWNER).json()
+
+    assert journeys["guests"] == 3
+    assert [(step["label"], step["count"], step["rate"]) for step in journeys["steps"]] == [
+        ("Compte créé", 3, 1.0),
+        ("CV déposé", 2, 0.6667),
+        ("Poste recherché saisi", 1, 0.3333),
+        ("Recherche lancée", 1, 0.3333),
+        ("Offre retenue", 1, 0.3333),
+        ("Candidature envoyée", 1, 0.3333),
+        ("Revenu un autre jour", 0, 0.0),
+    ]
+    accounts = {account["email"]: account for account in journeys["accounts"]}
+    alice = accounts["alice@exemple.fr"]
+    assert (alice["has_cv"], alice["queries"], alice["runs"], alice["kept"], alice["applied"]) == (True, 1, 1, 1, 1)
+    assert (alice["interviews"], alice["corrections"], alice["returned"], alice["is_owner"]) == (0, 0, False, False)
+    assert (accounts["bob@exemple.fr"]["has_cv"], accounts["bob@exemple.fr"]["runs"]) == (True, 0)
+    assert (accounts["carol@exemple.fr"]["has_cv"], accounts["carol@exemple.fr"]["queries"]) == (False, 0)
+    # Le propriétaire a sa ligne, sans compter parmi les invités ; ses postes par défaut y sont
+    assert (accounts[None]["is_owner"], accounts[None]["queries"]) == (True, len(DEFAULT_QUERIES))
+    # Des nombres et une adresse : rien de ce qu'Alice cherche ni des pages trouvées pour elle
+    assert "data engineer" not in json.dumps(journeys) and "https://x/" not in json.dumps(journeys)
+
+    # Un compte supprimé quitte le parcours
+    assert client.delete("/api/me", headers=BOB).status_code == 204
+    after = client.get("/api/admin/journeys", headers=OWNER).json()
+    assert after["guests"] == 2 and "bob" not in json.dumps(after)
 
 
 def test_administrator_reads_the_budget_of_the_month(tmp_path, valid_pdf):

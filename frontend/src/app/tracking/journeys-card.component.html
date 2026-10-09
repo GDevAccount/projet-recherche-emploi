@@ -1,0 +1,85 @@
+<section class="app-card">
+  <header>
+    <span class="app-eyebrow">Parcours des invités</span>
+    @if (journeys(); as journeys) {
+      <h2>
+        <strong>{{ journeys.guests | count }}</strong>
+        {{ journeys.guests > 1 ? 'invités' : 'invité' }}
+      </h2>
+    }
+    <p>
+      Jusqu'où vont les personnes que vous invitez. Un invité qui postule aux offres retenues et qui
+      revient un autre jour, c'est la preuve que l'application lui sert.
+    </p>
+  </header>
+
+  @if (error()) {
+    <p class="hint">{{ error() }}</p>
+  } @else if (journeys(); as journeys) {
+    @if (journeys.guests) {
+      <ol class="steps">
+        @for (step of journeys.steps; track step.label) {
+          <li>
+            <span class="label">{{ step.label }}</span>
+            <span class="track"><span [style.width.%]="(step.rate ?? 0) * 100"></span></span>
+            <span class="value">
+              <strong>{{ step.count | count }}</strong>
+              <small>{{ step.rate | share }}</small>
+            </span>
+          </li>
+        }
+      </ol>
+    } @else {
+      <p class="hint">
+        Aucun invité pour l'instant. Les personnes que vous ajoutez à <code>ALLOWED_EMAILS</code>
+        apparaîtront ici dès leur première connexion.
+      </p>
+    }
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Compte</th>
+            <th scope="col" class="extra">CV</th>
+            <th scope="col" class="number extra">Postes</th>
+            <th scope="col" class="number">Recherches</th>
+            <th scope="col" class="number extra">Offres</th>
+            <th scope="col" class="number">Candidatures</th>
+            <th scope="col" class="number extra">Entretiens</th>
+            <th scope="col" class="number extra">Corrections</th>
+            <th scope="col" class="number extra">Dernière visite</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (account of journeys.accounts; track account.user_id) {
+            <tr>
+              <th scope="row">
+                {{ nameOf(account) }}
+                @if (account.returned) {
+                  <small>revenu</small>
+                }
+              </th>
+              <td class="extra">{{ account.has_cv ? 'Déposé' : '—' }}</td>
+              <td class="number extra">{{ account.queries | count }}</td>
+              <td class="number">{{ account.runs | count }}</td>
+              <td class="number extra">{{ account.kept | count }}</td>
+              <td class="number">
+                <strong>{{ account.applied | count }}</strong>
+              </td>
+              <td class="number extra">{{ account.interviews | count }}</td>
+              <td class="number extra">{{ account.corrections | count }}</td>
+              <td class="number extra">{{ (account.last_seen_at | parisDate: 'day') || '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <small class="note">
+      Des nombres seulement : ni les postes recherchés, ni les offres d'un autre compte. Un compte
+      supprimé quitte ce tableau.
+    </small>
+  } @else {
+    <p class="hint">Chargement du parcours des invités…</p>
+  }
+</section>

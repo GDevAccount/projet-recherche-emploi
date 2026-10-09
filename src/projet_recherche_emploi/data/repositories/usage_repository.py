@@ -3,7 +3,15 @@ from datetime import datetime
 from sqlalchemy import Row, func, insert, literal, null, select
 from sqlalchemy.orm import Session
 
-from projet_recherche_emploi.data.models import ArchivedUsage, SearchRun, UtcDateTime
+from projet_recherche_emploi.data.models import (
+    ArchivedUsage,
+    Correction,
+    CvText,
+    Job,
+    SearchQuery,
+    SearchRun,
+    UtcDateTime,
+)
 
 # Compteurs d'un lancement additionnés par compte
 SUMMED_COLUMNS = (
@@ -87,4 +95,29 @@ class UsageRepository:
         )
         if since is not None:
             statement = statement.where(ArchivedUsage.month >= since.strftime(MONTH_FORMAT))
+        return list(self.session.execute(statement))
+
+    def list_accounts_with_cv(self) -> set[int]:
+        """Renvoie les comptes qui ont un CV en place."""
+        return set(self.session.scalars(select(CvText.user_id)))
+
+    def count_queries(self) -> list[Row]:
+        """Renvoie, par compte, le nombre de postes recherchés enregistrés."""
+        statement = select(SearchQuery.user_id, func.count().label("queries")).group_by(SearchQuery.user_id)
+        return list(self.session.execute(statement))
+
+    def count_jobs(self) -> list[Row]:
+        """Renvoie, par compte, le nombre d'offres retenues, supprimées comprises, de candidatures et d'entretiens."""
+        statement = select(
+            Job.user_id,
+            func.count().label("kept"),
+            # count ne compte que les dates renseignées
+            func.count(Job.applied_at).label("applied"),
+            func.count(Job.interview_at).label("interviews"),
+        ).group_by(Job.user_id)
+        return list(self.session.execute(statement))
+
+    def count_corrections(self) -> list[Row]:
+        """Renvoie, par compte, le nombre de corrections du tri."""
+        statement = select(Correction.user_id, func.count().label("corrections")).group_by(Correction.user_id)
         return list(self.session.execute(statement))

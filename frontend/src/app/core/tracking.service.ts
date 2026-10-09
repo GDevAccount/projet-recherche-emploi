@@ -7,6 +7,7 @@ import {
   AlertTest,
   BudgetOverview,
   HealthOverview,
+  JourneyOverview,
   PageEvaluation,
   SearchRun,
   SearchStats,
@@ -48,6 +49,11 @@ export class TrackingService {
   /** Dépense du mois en cours sur tous les comptes, sa projection et le budget de l'instance. */
   getBudget(): Observable<BudgetOverview> {
     return this.http.get<BudgetOverview>(`${environment.apiUrl}/admin/budget`);
+  }
+
+  /** Où en est chaque compte, et combien d'invités ont franchi chaque étape du parcours. */
+  getJourneys(): Observable<JourneyOverview> {
+    return this.http.get<JourneyOverview>(`${environment.apiUrl}/admin/journeys`);
   }
 
   /** Envoie une alerte d'essai, et dit si elle est partie. */

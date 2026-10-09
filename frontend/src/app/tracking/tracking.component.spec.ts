@@ -7,6 +7,7 @@ import {
   BudgetOverview,
   EvaluationGroup,
   HealthOverview,
+  JourneyOverview,
   OutcomeGroup,
   PageEvaluation,
   SearchRun,
@@ -228,6 +229,10 @@ function budget(values: Partial<BudgetOverview> = {}): BudgetOverview {
   };
 }
 
+function journeys(values: Partial<JourneyOverview> = {}): JourneyOverview {
+  return { guests: 0, steps: [], accounts: [], ...values };
+}
+
 function week(start: string, values: Partial<WeekStats> = {}): WeekStats {
   return {
     start,
@@ -264,6 +269,10 @@ describe('TrackingComponent', () => {
   let spending = budget();
   beforeEach(() => (spending = budget()));
 
+  /** Ce que l'API répond pour le parcours des invités : un test le change avant d'appeler serve. */
+  let guests = journeys();
+  beforeEach(() => (guests = journeys()));
+
   function element(): HTMLElement {
     return fixture.nativeElement as HTMLElement;
   }
@@ -296,6 +305,7 @@ describe('TrackingComponent', () => {
     await fixture.whenStable();
     http.expectOne({ method: 'GET', url: '/api/admin/health?days=7' }).flush(state);
     http.expectOne({ method: 'GET', url: '/api/admin/budget' }).flush(spending);
+    http.expectOne({ method: 'GET', url: '/api/admin/journeys' }).flush(guests);
     await fixture.whenStable();
     if (served.runs) {
       http.expectOne({ method: 'GET', url: '/api/admin/usage?days=30' }).flush(overview);
@@ -578,6 +588,73 @@ describe('TrackingComponent', () => {
     expect(card.querySelector('.verdict')).toBeNull();
     expect(text(card.querySelector('.note'))).toContain('seul le moteur de recherche est compté');
     expect(text(card.querySelector('.note'))).toContain('MONTHLY_BUDGET_USD');
+  });
+
+  it('should show how far the guests go, and where each account stands', async () => {
+    guests = journeys({
+      guests: 4,
+      steps: [
+        { label: 'Compte créé', count: 4, rate: 1 },
+        { label: 'Recherche lancée', count: 2, rate: 0.5 },
+        { label: 'Candidature envoyée', count: 1, rate: 0.25 },
+      ],
+      accounts: [
+        {
+          user_id: 2,
+          email: 'alice@exemple.fr',
+          is_owner: false,
+          created_at: '2026-10-01T08:00:00Z',
+          last_seen_at: '2026-10-08T00:00:00Z',
+          has_cv: true,
+          queries: 2,
+          runs: 5,
+          kept: 9,
+          applied: 3,
+          interviews: 1,
+          corrections: 4,
+          returned: true,
+        },
+        {
+          user_id: 1,
+          email: null,
+          is_owner: true,
+          created_at: '2026-09-01T08:00:00Z',
+          last_seen_at: null,
+          has_cv: false,
+          queries: 0,
+          runs: 0,
+          kept: 0,
+          applied: 0,
+          interviews: 0,
+          corrections: 0,
+          returned: false,
+        },
+      ],
+    });
+    await serve(stats({ runs: 0 }), []);
+
+    const card = element().querySelector('app-journeys-card')!;
+    expect(text(card.querySelector('h2'))).toBe('4 invités');
+    expect([...card.querySelectorAll('.steps li')].map((step) => text(step))).toEqual([
+      'Compte créé 4 100 %',
+      'Recherche lancée 2 50 %',
+      'Candidature envoyée 1 25 %',
+    ]);
+    const widths = [...card.querySelectorAll('.steps .track span')].map((bar) => (bar as HTMLElement).style.width);
+    expect(widths).toEqual(['100%', '50%', '25%']);
+    expect([...card.querySelectorAll('tbody tr')].map((row) => text(row))).toEqual([
+      'alice@exemple.fr revenu Déposé 2 5 9 3 1 4 8 oct.',
+      'Propriétaire — 0 0 0 0 0 0 —',
+    ]);
+  });
+
+  it('should say when nobody has been invited yet', async () => {
+    await serve(stats({ runs: 0 }), []);
+
+    const card = element().querySelector('app-journeys-card')!;
+    expect(text(card.querySelector('h2'))).toBe('0 invité');
+    expect(card.querySelector('.steps')).toBeNull();
+    expect(text(card)).toContain("Aucun invité pour l'instant");
   });
 
   it('should draw the last weeks, one chart for each measure', async () => {

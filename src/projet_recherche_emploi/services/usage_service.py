@@ -6,7 +6,14 @@ from projet_recherche_emploi.config import DEFAULT_PLAN, DEFAULT_USER_ID, LOCAL_
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.repositories.usage_repository import UsageRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
-from projet_recherche_emploi.schemas import AccountUsage, BudgetOverview, UsageOverview
+from projet_recherche_emploi.schemas import (
+    AccountJourney,
+    AccountUsage,
+    BudgetOverview,
+    JourneyOverview,
+    JourneyStep,
+    UsageOverview,
+)
 from projet_recherche_emploi.services.search_costs import (
     COST_DECIMALS,
     model_cost_usd,
@@ -70,6 +77,61 @@ class UsageService:
             over_budget=bool(budget) and spent > budget,
             projected_over_budget=bool(budget) and projected > budget,
         )
+
+    def get_journeys(self) -> JourneyOverview:
+        """Renvoie où en est chaque compte, et combien d'invités ont franchi chaque étape du parcours.
+
+        C'est ce qui dit si l'application sert à d'autres que son propriétaire : un invité qui postule aux
+        offres retenues et qui revient. Des nombres seulement : ni poste, ni offre, ni page d'un compte.
+        """
+        timezone = ZoneInfo(LOCAL_TIMEZONE)
+        with self.database.session() as session:
+            usage = UsageRepository(session)
+            with_cv = usage.list_accounts_with_cv()
+            queries = {row.user_id: row.queries for row in usage.count_queries()}
+            jobs = {row.user_id: row for row in usage.count_jobs()}
+            corrections = {row.user_id: row.corrections for row in usage.count_corrections()}
+            runs: dict[int, int] = {}
+            for row in usage.summarize_runs():
+                runs[row.user_id] = runs.get(row.user_id, 0) + row.runs
+            accounts = [
+                AccountJourney(
+                    user_id=user.id,
+                    email=user.email,
+                    is_owner=user.id == DEFAULT_USER_ID,
+                    created_at=user.created_at,
+                    last_seen_at=user.last_seen_at,
+                    has_cv=user.id in with_cv,
+                    queries=queries.get(user.id, 0),
+                    runs=runs.get(user.id, 0),
+                    kept=jobs[user.id].kept if user.id in jobs else 0,
+                    applied=jobs[user.id].applied if user.id in jobs else 0,
+                    interviews=jobs[user.id].interviews if user.id in jobs else 0,
+                    corrections=corrections.get(user.id, 0),
+                    returned=user.last_seen_at is not None
+                    and user.last_seen_at.astimezone(timezone).date() > user.created_at.astimezone(timezone).date(),
+                )
+                for user in UserRepository(session).list_users()
+                # Une ligne sans adresse est un compte supprimé, sauf celle du propriétaire
+                if user.email is not None or user.id == DEFAULT_USER_ID
+            ]
+        accounts.sort(key=lambda account: (account.last_seen_at or account.created_at, account.user_id), reverse=True)
+
+        guests = [account for account in accounts if not account.is_owner]
+        reached = {
+            "Compte créé": lambda account: True,
+            "CV déposé": lambda account: account.has_cv,
+            "Poste recherché saisi": lambda account: account.queries > 0,
+            "Recherche lancée": lambda account: account.runs > 0,
+            "Offre retenue": lambda account: account.kept > 0,
+            "Candidature envoyée": lambda account: account.applied > 0,
+            "Revenu un autre jour": lambda account: account.returned,
+        }
+        steps = []
+        for label, has_reached in reached.items():
+            count = sum(has_reached(account) for account in guests)
+            steps.append(JourneyStep(label=label, count=count, rate=round(count / len(guests), 4) if guests else None))
+        return JourneyOverview(guests=len(guests), steps=steps, accounts=accounts)
 
     def list_unpriced_models(self, since: datetime | None = None) -> list[str]:
         """Renvoie les modèles qui ont évalué des pages depuis cette date et dont le tarif manque.

@@ -1,0 +1,179 @@
+:host {
+  display: block;
+}
+
+header {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+
+  h2 {
+    margin: 0;
+    font-family: var(--app-font);
+    font-size: 0.9375rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--app-muted);
+
+    strong {
+      margin-right: 0.35rem;
+      font-family: var(--app-display);
+      font-size: 2.75rem;
+      font-weight: 650;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      color: var(--app-text);
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  p {
+    max-width: 46rem;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--app-muted);
+  }
+}
+
+.hint {
+  margin: 0 0 1.25rem;
+  font-size: 0.875rem;
+  color: var(--app-muted);
+}
+
+.steps {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: 12rem minmax(0, 1fr) 6.5rem;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.875rem;
+
+    @media (max-width: 44rem) {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.25rem 1rem;
+
+      .track {
+        grid-column: 1 / -1;
+        grid-row: 2;
+      }
+    }
+  }
+}
+
+.label {
+  font-weight: 550;
+}
+
+.track {
+  height: 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-muted), transparent 86%);
+
+  span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--app-accent-strong);
+  }
+}
+
+.value {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+
+  small {
+    margin-left: 0.4rem;
+    font-size: 0.75rem;
+    color: var(--app-muted);
+  }
+}
+
+// Le tableau défile dans sa carte sur un petit écran : la page, elle, ne défile jamais de côté
+.scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+th,
+td {
+  padding: 0.65rem 0.75rem;
+  border-top: 1px solid var(--app-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+thead th {
+  border-top: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--app-muted);
+}
+
+tbody th {
+  font-weight: 600;
+
+  small {
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-accent), transparent 82%);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: color-mix(in srgb, var(--app-accent-strong), var(--app-text) 45%);
+  }
+}
+
+td {
+  color: var(--app-muted);
+
+  strong {
+    color: var(--app-text);
+  }
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.note {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+}
+
+// Sur un téléphone, il reste le compte, ses recherches et ses candidatures
+@media (max-width: 44rem) {
+  .extra {
+    display: none;
+  }
+
+  tbody th {
+    max-width: 7rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  thead th {
+    font-size: 0.6875rem;
+  }
+
+  th,
+  td {
+    padding-inline: 0.4rem;
+  }
+}

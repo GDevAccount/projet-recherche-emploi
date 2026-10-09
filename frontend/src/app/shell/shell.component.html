@@ -68,6 +68,11 @@
         <h1>Vos offres, <em>triées pour vous.</em></h1>
         @if (account.can_search) {
           <p>Votre profil est prêt : chaque recherche ne garde que les annonces qui lui correspondent.</p>
+        } @else if (onProfile()) {
+          <p>
+            Déposez votre CV et décrivez un poste recherché ci-dessous : vous pourrez alors lancer votre première
+            recherche.
+          </p>
         } @else {
           <p>Deux choses avant la première recherche : votre CV, et au moins un poste recherché.</p>
         }
@@ -89,7 +94,7 @@
             <small>Quota atteint pour aujourd'hui.</small>
           }
         </div>
-      } @else {
+      } @else if (!onProfile()) {
         <a class="cta" [routerLink]="profilePath">
           Compléter mon profil
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
