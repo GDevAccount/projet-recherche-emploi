@@ -31,6 +31,7 @@ PAGE_TEMPLATE = """<!doctype html>
 <meta name="theme-color" content="#0a0b0d" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/favicon.ico">
 <style>{style}</style>
+<script src="/theme-init.js"></script>
 </head>
 <body>
 <header>
@@ -52,11 +53,22 @@ PAGE_TEMPLATE = """<!doctype html>
 """
 
 # Les couleurs sont celles du front (variables --app-* de frontend/src/styles.scss), recopiées : cette page est
-# servie même sans le front construit. Sans JavaScript, le thème sombre suit le réglage du système, pas le
-# choix fait dans l'application.
-PAGE_STYLE = """
+# servie même sans le front construit.
+DARK_COLORS = """
+      color-scheme: dark;
+      --bg: #0a0b0d; --surface: #131518; --text: #f2f3f5; --muted: #9aa0a8; --border: rgba(255, 255, 255, 0.09);
+      --link: #a3e635;
+      --shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 24px 48px -24px rgba(0, 0, 0, 0.7);
+      --glow: radial-gradient(56rem 28rem at 88% -8%, rgba(163, 230, 53, 0.17), transparent 62%),
+        radial-gradient(40rem 24rem at -8% 6%, rgba(56, 189, 248, 0.08), transparent 60%);
+"""
+
+# Le thème est celui choisi dans l'application : theme-init.js, le script du front, pose « app-dark » ou
+# « app-light » sur <html>. Sans JavaScript, ou sans front construit, la page suit le réglage du système.
+PAGE_STYLE = (
+    """
   :root {
-    color-scheme: light dark;
+    color-scheme: light;
     --accent: #a3e635; --accent-strong: #84cc16; --accent-ink: #1a2e05;
     --bg: #f5f4ef; --surface: #ffffff; --text: #15171a; --muted: #666a72; --border: rgba(21, 23, 26, 0.1);
     --link: #3f6212;
@@ -64,14 +76,13 @@ PAGE_STYLE = """
     --glow: radial-gradient(56rem 28rem at 88% -8%, rgba(163, 230, 53, 0.3), transparent 62%),
       radial-gradient(40rem 24rem at -8% 6%, rgba(56, 189, 248, 0.14), transparent 60%);
   }
+  :root.app-dark {"""
+    + DARK_COLORS
+    + """  }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0a0b0d; --surface: #131518; --text: #f2f3f5; --muted: #9aa0a8; --border: rgba(255, 255, 255, 0.09);
-      --link: #a3e635;
-      --shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 24px 48px -24px rgba(0, 0, 0, 0.7);
-      --glow: radial-gradient(56rem 28rem at 88% -8%, rgba(163, 230, 53, 0.17), transparent 62%),
-        radial-gradient(40rem 24rem at -8% 6%, rgba(56, 189, 248, 0.08), transparent 60%);
-    }
+    :root:not(.app-light) {"""
+    + DARK_COLORS
+    + """    }
   }
   * { box-sizing: border-box; }
   html { background: var(--bg); }
@@ -110,6 +121,7 @@ PAGE_STYLE = """
   :focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
   ::selection { background: var(--accent); color: var(--accent-ink); }
 """
+)
 
 
 def render_legal_page(page: str, contact_email: str = "") -> str:

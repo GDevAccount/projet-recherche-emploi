@@ -3,6 +3,8 @@ import Aura from '@primeuix/themes/aura';
 
 /** Classe posée sur <html> en thème sombre : PrimeNG et styles.scss s'y accordent. */
 export const DARK_CLASS = 'app-dark';
+/** Classe posée en thème clair : les pages légales, hors d'Angular, s'en servent pour ne pas suivre le système. */
+export const LIGHT_CLASS = 'app-light';
 
 const shades = (color: string) =>
   Object.fromEntries(

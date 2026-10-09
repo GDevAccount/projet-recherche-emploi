@@ -1,7 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { Injectable, effect, inject, signal } from '@angular/core';
 
-import { DARK_CLASS } from './theme';
+import { DARK_CLASS, LIGHT_CLASS } from './theme';
 
 const STORAGE_KEY = 'theme';
 
@@ -18,7 +18,11 @@ export class ThemeService {
   readonly dark = this._dark.asReadonly();
 
   constructor() {
-    effect(() => this.document.documentElement.classList.toggle(DARK_CLASS, this._dark()));
+    effect(() => {
+      const classes = this.document.documentElement.classList;
+      classes.toggle(DARK_CLASS, this._dark());
+      classes.toggle(LIGHT_CLASS, !this._dark());
+    });
   }
 
   toggle(): void {

@@ -6,7 +6,7 @@ import { Router, provideRouter } from '@angular/router';
 import { Account } from '../core/api.models';
 import { FETCH } from '../core/search-run.service';
 import { SessionService } from '../core/session.service';
-import { DARK_CLASS } from '../core/theme';
+import { DARK_CLASS, LIGHT_CLASS } from '../core/theme';
 import { ShellComponent } from './shell.component';
 
 const GUEST: Account = {
@@ -138,11 +138,14 @@ describe('ShellComponent', () => {
 
   it('should switch theme and remember the choice', async () => {
     await openSession(GUEST);
+    // Le thème clair se dit aussi : les pages légales s'y fient pour ne pas suivre un système sombre
+    expect(document.documentElement.classList.contains(LIGHT_CLASS)).toBe(true);
 
     element().querySelector<HTMLButtonElement>('button[aria-label="Passer au thème sombre"]')!.click();
     await fixture.whenStable();
 
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
+    expect(document.documentElement.classList.contains(LIGHT_CLASS)).toBe(false);
     expect(localStorage.getItem('theme')).toBe('dark');
     expect(element().querySelector('button[aria-label="Passer au thème clair"]')).toBeTruthy();
   });
