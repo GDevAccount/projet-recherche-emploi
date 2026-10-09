@@ -137,6 +137,7 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/searches/stats"),
         ("GET", "/api/searches/1/evaluations"),
         ("GET", "/api/admin/usage"),
+        ("GET", "/api/admin/health"),
     ],
 )
 def test_every_data_route_requires_an_identity(client, method, path):
@@ -320,7 +321,7 @@ def test_search_tracking_is_for_administrators_only(client, valid_pdf):
 
     # Un invité n'y a pas accès, pas même pour ses propres recherches
     paths = ("/api/searches", "/api/searches/stats", f"/api/searches/{run['id']}/evaluations", "/api/admin/usage")
-    for path in paths:
+    for path in (*paths, "/api/admin/health"):
         response = client.get(path, headers=ALICE)
         assert response.status_code == 403 and "sk-" not in response.text
     # Il lance toujours les siennes
@@ -389,6 +390,65 @@ def test_administrator_sees_what_each_account_spends_and_nothing_else_of_them(tm
     # Revenue avec la même adresse, elle a un compte neuf, que rien ne relie à l'ancien
     client.get("/api/me", headers=ALICE)
     assert len(client.get("/api/admin/usage", headers=BOB).json()["accounts"]) == 2
+
+
+def test_health_reports_the_errors_of_every_account_without_their_content(tmp_path):
+    client = make_client(
+        tmp_path,
+        google_client_id="id.apps.googleusercontent.com",
+        owner_email="proprietaire@exemple.fr",
+        allowed_emails="alice@exemple.fr",
+        admin_emails="bob@exemple.fr",
+        auth_cookie_secret=SECRET,
+    )
+    empty = client.get("/api/admin/health", headers=BOB).json()
+    assert (empty["healthy"], empty["runs"], empty["failure_rate"], empty["server_errors"]) == (True, 0, None, [])
+
+    # Deux demandes refusées à Alice, une au propriétaire, puis une panne chez Alice
+    for headers in (ALICE, ALICE, OWNER):
+        assert client.post("/api/searches", headers=headers).status_code == 422
+
+    def broken_list(user_id):
+        raise RuntimeError("contenu-de-la-panne")
+
+    client.app.state.container.jobs.list_jobs = broken_list
+    # Le client de test relance d'ordinaire l'erreur du serveur au lieu de rendre sa réponse
+    fragile = TestClient(client.app, base_url="http://localhost", raise_server_exceptions=False)
+    assert fragile.get("/api/jobs", headers=ALICE).status_code == 500
+    assert client.patch("/api/jobs/41", headers=OWNER, json={"status": "applied"}).status_code == 404
+    crashed = fragile.get("/api/jobs", headers=ALICE)
+    assert crashed.status_code == 500 and "contenu-de-la-panne" not in crashed.text
+    assert crashed.json()["detail"].startswith("Le serveur a rencontré une erreur")
+    # Un appel sans identité ou sans droit n'est pas une erreur du serveur : il n'est pas compté
+    assert client.get("/api/jobs").status_code == 401
+    assert client.get("/api/admin/health", headers=ALICE).status_code == 403
+
+    health = client.get("/api/admin/health?days=30", headers=BOB).json()
+    assert (health["healthy"], health["failures"], health["refusals"]) == (False, 2, 4)
+    failure, refusal, missing = health["server_errors"]
+    # Le modèle de la route, pas l'adresse appelée
+    assert (missing["method"], missing["route"]) == ("PATCH", "/api/jobs/{job_id}")
+    assert failure | {"last_at": None} == {
+        "method": "GET",
+        "route": "/api/jobs",
+        "status_code": 500,
+        "error_type": "RuntimeError",
+        "is_failure": True,
+        "count": 2,
+        "accounts": 1,
+        "last_at": None,
+    }
+    assert (refusal["method"], refusal["route"], refusal["status_code"]) == ("POST", "/api/searches", 422)
+    assert (refusal["error_type"], refusal["is_failure"], refusal["count"]) == ("InvalidInputError", False, 3)
+    assert refusal["accounts"] == 2 and refusal["last_at"] is not None
+    # Ni le message de l'erreur, ni le compte qui l'a rencontrée
+    assert "contenu-de-la-panne" not in json.dumps(health) and "alice" not in json.dumps(health)
+    assert client.get("/api/admin/health?days=0", headers=BOB).status_code == 422
+
+    # Alice supprime son compte : les erreurs qu'elle a rencontrées partent avec lui
+    assert client.delete("/api/me", headers=ALICE).status_code == 204
+    after = client.get("/api/admin/health", headers=BOB).json()
+    assert (after["healthy"], after["failures"], after["refusals"]) == (True, 0, 2)
 
 
 def test_usage_can_be_limited_to_the_last_days(tmp_path, valid_pdf):

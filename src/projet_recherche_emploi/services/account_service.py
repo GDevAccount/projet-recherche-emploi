@@ -7,6 +7,7 @@ from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.engine_call_repository import EngineCallRepository
+from projet_recherche_emploi.data.repositories.health_repository import HealthRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
 from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
@@ -50,6 +51,7 @@ class AccountService:
             PageEvaluationRepository(session, user_id).delete_all()
             CorrectionRepository(session, user_id).delete_all()
             EngineCallRepository(session, user_id).delete_all()
+            HealthRepository(session).forget_user(user_id)
             UserRepository(session).forget_user(user_id)
         # Les copies d'avant migration contiennent encore ses données : elles restent, sans lui
         self.database.purge_user_from_backups(user_id)

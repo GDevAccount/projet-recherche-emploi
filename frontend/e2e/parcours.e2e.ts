@@ -179,6 +179,11 @@ test('le suivi montre le bilan des recherches et le détail de leurs pages', asy
   await page.getByRole('link', { name: 'Suivi', exact: true }).click();
   await expect(page).toHaveURL(/\/suivi$/);
 
+  // La santé de l'instance vient en premier : aucune recherche du parcours n'a échoué
+  const health = page.locator('app-health-card');
+  await expect(health.locator('.figures > div').first()).toContainText('0 sur 2');
+  await expect(health.locator('.figures > .bad')).toHaveCount(0);
+
   await expect(page.locator('app-tracking .tile').filter({ hasText: 'recherches' })).toBeVisible();
   await expect(page.getByText(/pages évaluées/).first()).toBeVisible();
   const runs = page.locator('app-run-list .row');

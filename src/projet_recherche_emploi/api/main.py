@@ -29,6 +29,7 @@ from projet_recherche_emploi.errors import (
 )
 
 API_PREFIX = "/api"
+INTERNAL_ERROR_MESSAGE = "Le serveur a rencontré une erreur. Réessayez dans un instant."
 
 STATUS_CODES = {
     InvalidInputError: status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -74,10 +75,23 @@ def create_app(
             allow_headers=["Authorization", "Content-Type"],
         )
 
+    def record_error(request: Request, error: Exception, status_code: int) -> None:
+        # Le type de l'erreur, jamais son message : il peut contenir ce que l'utilisateur a envoyé
+        user_id = getattr(request.state, "user_id", None)
+        route = route_template(request)
+        container.health.record_error(user_id, request.method, route, status_code, type(error).__name__)
+
     @app.exception_handler(AppError)
     def handle_app_error(request: Request, error: AppError) -> JSONResponse:
         status_code = STATUS_CODES.get(type(error), status.HTTP_400_BAD_REQUEST)
+        record_error(request, error, status_code)
         return JSONResponse({"detail": str(error)}, status_code=status_code)
+
+    @app.exception_handler(Exception)
+    def handle_unexpected_error(request: Request, error: Exception) -> JSONResponse:
+        # Les logs de l'hébergeur ne sont pas conservés : sans cette trace, la panne ne se verrait pas
+        record_error(request, error, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JSONResponse({"detail": INTERNAL_ERROR_MESSAGE}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @app.get(f"{API_PREFIX}/health", tags=["état"])
     def health() -> dict[str, str]:
@@ -91,6 +105,20 @@ def create_app(
     # En dernier : le front reçoit toute adresse que l'API et les pages publiques n'ont pas prise
     app.router.routes.extend(build_frontend_routes(settings))
     return app
+
+
+def route_template(request: Request) -> str | None:
+    """Renvoie le modèle de la route appelée (« /api/jobs/{job_id} »), ou None si aucune n'a été trouvée.
+
+    Jamais l'adresse elle-même, qui porte des identifiants.
+    """
+    route = request.scope.get("route")
+    if route is None:
+        return None
+    template = route.path.strip("/").split("/")
+    called = request.url.path.strip("/").split("/")
+    # Le modèle d'une route incluse ne porte pas le préfixe de son routeur : il se lit en tête de l'adresse
+    return "/" + "/".join(called[: len(called) - len(template)] + template)
 
 
 def create_server_app() -> FastAPI:

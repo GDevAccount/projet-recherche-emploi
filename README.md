@@ -95,7 +95,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/health` | État du serveur (sans connexion) |
 | `GET /api/config` | Ce qu'un front lit avant la connexion (sans connexion) : mode de connexion (`google` ou `password`), identifiant client Google, types de contrat, motifs proposés à la suppression d'une offre (`delete_reasons`) |
 | `GET /api/me` | Utilisateur de la requête (avec l'adresse, le nom et la photo de son compte Google), s'il est propriétaire (`is_owner`) ou administrateur (`is_admin`), recherches restantes aujourd'hui, s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché), et si l'une des siennes tourne déjà (`search_running`) |
-| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements, journal des pages évaluées, appels au moteur de recherche, corrections du tri et adresse sont effacés ; seule sa consommation reste, en totaux mensuels sans adresse (table `archived_usage`). Ils sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
+| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements, journal des pages évaluées, appels au moteur de recherche, corrections du tri, erreurs rencontrées et adresse sont effacés ; seule sa consommation reste, en totaux mensuels sans adresse (table `archived_usage`). Ils sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
 | `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer |
 | `GET /api/jobs` | Offres retenues |
 | `PATCH /api/jobs/{id}` | Changer l'état d'une candidature (`{"status": "applied"}` ; `todo`, `applied`, `interview` ou `rejected`). Renvoie l'offre mise à jour, avec la date de chaque étape et les états qu'elle peut prendre ensuite (`next_statuses`). Un état que l'offre ne peut pas prendre depuis le sien est refusé (422) |
@@ -105,10 +105,11 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/queries`, `POST /api/queries`, `DELETE /api/queries/{id}` | Postes recherchés |
 | `GET /api/cv`, `PUT /api/cv` | Date du CV en place, dépôt d'un CV (fichier PDF, champ `file`) |
 | `POST /api/searches` | Lancer une recherche, suivie en direct (Server-Sent Events : `progress`, puis `result` ou `error`). Chaque `progress` nomme son étape (`step` : `search`, `dedupe`, `evaluate` ou `save`) et porte, selon l'étape, un décompte (`done`, `total`), le nombre de pages trouvées et à évaluer (`found`, `new`), ou la page qui vient d'être évaluée et son verdict (`title`, `kept`). Refusé (409) si une recherche de l'utilisateur tourne déjà |
-| `GET /api/searches` | Réservée aux administrateurs (le propriétaire et `ADMIN_EMAILS` ; 403 pour un invité), comme les trois suivantes. Les 100 derniers lancements de l'appelant, avec leur bilan : état (`status` : `running`, `done`, `failed` ou `interrupted`), compteurs, durée totale (`duration_ms`) et de chaque étape en millisecondes, appels au moteur de recherche, jetons du modèle, modèle et version du prompt |
+| `GET /api/searches` | Réservée aux administrateurs (le propriétaire et `ADMIN_EMAILS` ; 403 pour un invité), comme les quatre suivantes. Les 100 derniers lancements de l'appelant, avec leur bilan : état (`status` : `running`, `done`, `failed` ou `interrupted`), compteurs, durée totale (`duration_ms`) et de chaque étape en millisecondes, appels au moteur de recherche, jetons du modèle, modèle et version du prompt |
 | `GET /api/searches/stats` | Synthèse de toutes les recherches suivies de l'appelant : volumes, jetons, coût en dollars (moteur de recherche, modèle, total, par offre retenue), durée moyenne, et répartition des pages évaluées par poste recherché (`by_query`), par site (`by_site`), par nature (`by_page_kind`) et selon le texte lu (`by_text` : page entière, page tronquée, extrait seul). `outcomes` dit ce que sont devenues les offres retenues par le tri, d'après l'état de chaque candidature : candidatures envoyées (`applied`), refusées par l'employeur (`refused`), entretiens (`interviews`), offres à traiter (`pending`), offres supprimées sans candidature (`deleted`), et les taux de candidature et d'entretien ; `outcomes_by_query`, `outcomes_by_site` et `outcomes_by_prompt` le détaillent par poste recherché, par site et par version du prompt, et `cost_per_application_usd` rapporte le coût total aux candidatures nées des recherches suivies. `by_search` donne le rendement de chaque texte envoyé au moteur de recherche, le moins rentable en premier : appels, pages rendues, en double dans le lancement (`repeated`), déjà connues (`known`), évaluées puis écartées (`rejected`), retenues (`kept`), coût des appels et coût par offre retenue. `corrections` compte, par version du prompt, les pages écartées remises dans les offres et les offres supprimées en reprochant quelque chose au tri, avec leurs taux ; `delete_reasons` compte les suppressions par motif |
 | `GET /api/searches/{id}/evaluations` | Pages évaluées pendant un lancement, retenues ou non : faits lus par le modèle, avis et règles du verdict, longueur du texte lu, jetons et durée de l'appel |
 | `GET /api/admin/usage` | Consommation de tous les comptes, le plus coûteux en premier : pour chacun, son adresse, ses lancements, ses appels, ses jetons et son coût en dollars et sa formule (`plan`, `free` tant qu'il n'y a pas de paiement) ; puis le total, et la part due aux invités (`guests_cost_usd`). Un compte supprimé y reste, sans adresse (`deleted`), avec ce qu'il avait consommé. `?days=30` limite le calcul aux derniers jours. Aucune page ni recherche d'un autre compte n'en sort |
+| `GET /api/admin/health` | Santé de l'instance, tous comptes réunis : recherches lancées, échouées (`failed_runs`, et `run_failures` par type d'erreur) ou coupées par un redémarrage (`interrupted_runs`), puis erreurs rendues par l'API hors d'une recherche (`server_errors`, par route et par type), séparées en pannes du serveur (`failures`, réponses 5xx) et en demandes refusées (`refusals`, 4xx). `incidents` additionne échecs, interruptions et pannes ; `healthy` est vrai quand il vaut zéro. `?days=30` limite le calcul aux derniers jours. Seuls des nombres, des routes et des types d'erreur en sortent : ni message, ni compte |
 
 L'appelant prouve son identité par un en-tête `Authorization: Bearer <jeton>`. La règle :
 
@@ -435,6 +436,17 @@ Table `corrections`, ce que l'utilisateur a corrigé du tri. Une ligne par page 
 | `model_reason` | Justification que le modèle avait donnée |
 | `search_run_id`, `model`, `prompt_version` | Lancement qui avait évalué la page, son modèle et son prompt ; vides si le journal ne connaît pas la page |
 | `created_at` | Date de la correction (UTC) |
+
+Table `server_errors`, les erreurs rendues par l'API hors d'une recherche : une demande refusée (CV illisible, quota atteint) ou une panne du serveur. Les erreurs de connexion (401, 403) et les demandes mal formées n'y sont pas. Une ligne y reste 90 jours (`SERVER_ERROR_DAYS`) :
+
+| Colonne | Contenu |
+|---|---|
+| `id` | Identifiant de la ligne |
+| `user_id` | Compte qui a rencontré l'erreur ; vide si l'appelant n'a pas été identifié |
+| `method`, `route` | Méthode et modèle de la route (`/api/jobs/{job_id}`), jamais l'adresse appelée |
+| `status_code` | Code HTTP rendu : à partir de 500, une panne du serveur |
+| `error_type` | Type de l'erreur, jamais son message |
+| `created_at` | Date de l'erreur (UTC) |
 
 Table `archived_usage`, la consommation des comptes supprimés. Elle est écrite à la suppression d'un compte, juste avant l'effacement de ses lancements, et n'est jamais vidée :
 

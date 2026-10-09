@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from projet_recherche_emploi.api.security import AdminId, Services
-from projet_recherche_emploi.schemas import UsageOverview
+from projet_recherche_emploi.schemas import HealthOverview, UsageOverview
 
 router = APIRouter(tags=["administration"])
 
@@ -23,3 +23,17 @@ def get_usage(
     sortent d'ici : aucune page ni recherche d'un autre compte.
     """
     return services.usage.get_overview(days)
+
+
+@router.get("/admin/health")
+def get_health(
+    admin_id: AdminId,
+    services: Services,
+    days: Annotated[int | None, Query(ge=1, le=MAX_USAGE_DAYS)] = None,
+) -> HealthOverview:
+    """Santé de l'instance : recherches échouées ou interrompues et erreurs de l'API, sur tous les comptes.
+
+    Réservé aux administrateurs. « days » limite le calcul aux derniers jours. Seuls des nombres, des routes
+    et des types d'erreur sortent d'ici : ni message d'erreur, ni compte, ni contenu.
+    """
+    return services.health.get_overview(days)

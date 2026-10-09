@@ -23,6 +23,10 @@ SESSION_DAYS = 30
 # Les règles de confidentialité affichent cette durée : elles suivent cette valeur.
 INACTIVE_ACCOUNT_DAYS = 365
 
+# Durée de conservation des erreurs rendues par l'API (table server_errors) : au-delà, elles ne disent plus rien
+# de la santé de l'instance. Les règles de confidentialité affichent cette durée : elles suivent cette valeur.
+SERVER_ERROR_DAYS = 90
+
 # Formule d'un compte (AccountPlan de schemas.py). Il n'y a pas encore de paiement : tout compte a celle-ci.
 # Elle est déjà gardée avec la consommation d'un compte supprimé, pour savoir plus tard ce que coûtaient
 # les comptes gratuits et les payants

@@ -6,6 +6,7 @@ from projet_recherche_emploi.config import DEFAULT_QUERIES
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.engine_call_repository import EngineCallRepository
+from projet_recherche_emploi.data.repositories.health_repository import HealthRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
 from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
@@ -215,6 +216,21 @@ def test_each_user_has_their_own_engine_calls(session):
     [saved] = EngineCallRepository(session, ALICE).list_all()
     assert (saved.search_run_id, saved.search_text, saved.found_count) == (1, "offre data engineer", 5)
     assert EngineCallRepository(session, ALICE).delete_all() == 1
+
+
+def test_forgetting_the_errors_of_a_user_leaves_those_of_the_others(session):
+    health = HealthRepository(session)
+    health.record_error(ALICE, "PUT", "/api/cv", 422, "InvalidInputError")
+    health.record_error(BOB, "PUT", "/api/cv", 422, "InvalidInputError")
+    health.record_error(None, "GET", None, 500, "KeyError")
+
+    assert health.forget_user(ALICE) == 1
+
+    # Celles de Bob et celle d'un appelant resté inconnu restent
+    assert sorted((row.error_type, row.count, row.accounts) for row in health.summarize_errors()) == [
+        ("InvalidInputError", 1, 1),
+        ("KeyError", 1, 0),
+    ]
 
 
 def test_looking_up_a_page_stays_within_its_user(session):

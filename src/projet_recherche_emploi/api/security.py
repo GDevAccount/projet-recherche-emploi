@@ -99,6 +99,8 @@ def get_current_caller(
 ) -> Caller:
     """Renvoie l'appelant de la requête, prouvé par l'en-tête Authorization ou par le cookie de session."""
     caller = _identify(request, container, credentials, session_token)
+    # Pour le suivi des erreurs : il dit quel compte a rencontré celle que cette requête va peut-être rendre
+    request.state.user_id = caller.user_id
     # Après l'identification : elle vient de dater l'activité de l'appelant, qui n'est donc pas supprimé
     container.account.delete_inactive_accounts_if_due()
     return caller

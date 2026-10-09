@@ -431,6 +431,57 @@ class UsageOverview(BaseModel):
     guests_cost_usd: float | None
 
 
+class RunFailureGroup(BaseModel):
+    """Recherches échouées sur une même erreur, tous comptes réunis."""
+
+    # Type de l'erreur, jamais son message
+    error_type: str
+    count: int
+    accounts: int
+    last_at: datetime | None
+
+
+class ServerErrorGroup(BaseModel):
+    """Erreurs d'un même type rendues par une même route de l'API, tous comptes réunis."""
+
+    method: str
+    # Modèle de la route, jamais l'adresse appelée ; None quand aucune route n'a été trouvée
+    route: str | None
+    status_code: int
+    error_type: str
+    # Vrai pour une panne du serveur, faux pour une demande qu'il a refusée
+    is_failure: bool
+    count: int
+    # Comptes identifiés qui l'ont rencontrée
+    accounts: int
+    last_at: datetime | None
+
+
+class HealthOverview(BaseModel):
+    """Santé de l'instance, pour les administrateurs : ce qui a échoué, sur tous les comptes, en nombres seulement."""
+
+    # Début de la période ; None quand tout l'historique est compté
+    since: datetime | None
+    # Recherches échouées ou interrompues et pannes du serveur ; une demande refusée n'est pas un incident
+    incidents: int
+    healthy: bool
+    runs: int
+    failed_runs: int
+    # Recherches coupées par un redémarrage du serveur
+    interrupted_runs: int
+    # Part des recherches échouées ou interrompues ; None sans recherche
+    failure_rate: float | None
+    interrupted_accounts: int
+    last_interrupted_at: datetime | None
+    # Recherches échouées par type d'erreur, le plus fréquent en premier
+    run_failures: list[RunFailureGroup]
+    # Réponses 5xx de l'API hors d'une recherche, puis demandes refusées (4xx)
+    failures: int
+    refusals: int
+    # Les pannes d'abord, puis le plus fréquent en premier
+    server_errors: list[ServerErrorGroup]
+
+
 class Account(BaseModel):
     user_id: int
     is_owner: bool

@@ -1,0 +1,241 @@
+:host {
+  display: block;
+
+  --down: #ef4444;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  margin-bottom: 1.25rem;
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.6rem 0 0;
+    font-family: var(--app-display);
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 650;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+
+    i {
+      flex: none;
+      width: 0.7rem;
+      height: 0.7rem;
+      border-radius: 50%;
+      background: var(--app-accent-strong);
+      box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--app-accent), transparent 78%);
+    }
+
+    &.down i {
+      background: var(--down);
+      box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--down), transparent 82%);
+    }
+  }
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+
+  button {
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: none;
+    color: var(--app-muted);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 550;
+    cursor: pointer;
+    transition:
+      color 0.15s,
+      border-color 0.15s,
+      background-color 0.15s;
+
+    &:hover {
+      border-color: var(--app-muted);
+      color: var(--app-text);
+    }
+
+    &.on {
+      border-color: var(--app-text);
+      background: var(--app-text);
+      color: var(--app-bg);
+    }
+  }
+}
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+
+  @media (max-width: 60rem) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  > div {
+    display: grid;
+    gap: 0.3rem;
+    min-width: 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+  }
+
+  dt {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--app-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--app-muted);
+  }
+
+  strong {
+    margin-right: 0.3rem;
+    font-family: var(--app-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--app-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bad {
+    border-color: color-mix(in srgb, var(--down), transparent 55%);
+    background: color-mix(in srgb, var(--down), transparent 93%);
+
+    strong {
+      color: var(--down);
+    }
+  }
+}
+
+h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin: 1.5rem 0 0.4rem;
+  font-family: var(--app-font);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--app-muted);
+
+  span {
+    font-weight: 400;
+  }
+}
+
+.hint {
+  margin: 1.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--app-muted);
+}
+
+// Le tableau défile dans sa carte sur un petit écran : la page, elle, ne défile jamais de côté
+.scroll {
+  overflow-x: auto;
+}
+
+// Largeurs fixes : les deux tableaux de la carte gardent ainsi leurs colonnes alignées
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.875rem;
+}
+
+.where {
+  width: 30%;
+}
+
+thead .number {
+  width: 6.5rem;
+}
+
+thead .date {
+  width: 10rem;
+}
+
+th,
+td {
+  padding: 0.65rem 0.75rem;
+  border-top: 1px solid var(--app-border);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+thead th {
+  border-top: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--app-muted);
+}
+
+tbody th {
+  font-weight: 600;
+}
+
+td {
+  color: var(--app-muted);
+
+  strong {
+    color: var(--app-text);
+  }
+}
+
+code {
+  font-size: 0.8125rem;
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.note {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+}
+
+// Sur un téléphone, il reste l'endroit, l'erreur et son nombre : les comptes et la date se lisent sur un écran plus large
+@media (max-width: 44rem) {
+  .extra {
+    display: none;
+  }
+
+  .where {
+    width: 36%;
+  }
+
+  thead .number {
+    width: 2.75rem;
+  }
+
+  code {
+    font-size: 0.75rem;
+  }
+
+  th,
+  td {
+    padding-inline: 0.4rem;
+  }
+}

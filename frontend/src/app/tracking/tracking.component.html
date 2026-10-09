@@ -3,6 +3,8 @@
 }
 
 @if (stats(); as stats) {
+  <!-- Avant tout le reste, et même sans recherche de l'administrateur : elle parle de tous les comptes -->
+  <app-health-card [version]="version()" />
   @if (!stats.runs) {
     <section class="blank">
       <h2>Aucune recherche suivie</h2>
