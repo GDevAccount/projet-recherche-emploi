@@ -47,6 +47,16 @@ class RejectedJobRepository:
         )
         return list(self.session.scalars(statement))
 
+    def get_rejected_job(self, url: str) -> RejectedJob | None:
+        """Renvoie la page rejetée à cette adresse, ou None si elle est inconnue."""
+        statement = select(RejectedJob).where(RejectedJob.user_id == self.user_id, RejectedJob.url == url)
+        return self.session.scalar(statement)
+
+    def delete_rejected_job(self, url: str) -> bool:
+        """Oublie le rejet de cette page, et renvoie faux si elle est inconnue."""
+        statement = delete(RejectedJob).where(RejectedJob.user_id == self.user_id, RejectedJob.url == url)
+        return self.session.execute(statement).rowcount == 1
+
     def list_known_urls(self) -> set[str]:
         """Renvoie les URL de toutes les pages déjà rejetées."""
         return set(self.session.scalars(select(RejectedJob.url).where(RejectedJob.user_id == self.user_id)))

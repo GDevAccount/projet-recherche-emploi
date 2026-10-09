@@ -19,7 +19,8 @@
         </div>
         <p>
           Le motif est le premier critère en défaut. Une page écartée pour son métier, son contrat ou son lieu est
-          réévaluée quand vous ajoutez un poste recherché.
+          réévaluée quand vous ajoutez un poste recherché. Une page écartée à tort ? Remettez-la dans vos offres :
+          c'est aussi ce qui permet de mesurer le tri.
         </p>
       </header>
 
@@ -82,7 +83,7 @@
       }
       @if (filtered()) {
         <p class="result">
-          {{ visible().length }} sur {{ total() }}
+          {{ matching() }} sur {{ total() }}
           <button type="button" (click)="clearFilters()">Tout afficher</button>
         </p>
       }
@@ -91,7 +92,7 @@
     @if (listed().length) {
       <ol class="pages">
         @for (page of listed(); track page.url) {
-          <li>
+          <li [class.done]="restored().has(page.url)">
             <div class="head">
               <span class="motive">{{ page.motive }}</span>
               <time [attr.datetime]="page.created_at">{{ page.created_at | parisDate: 'day' }}</time>
@@ -125,6 +126,22 @@
                 <li class="also">aussi : {{ criterion }}</li>
               }
             </ul>
+            <!-- La page reste à sa place le temps de le dire : la confirmation se lit là où l'on a cliqué -->
+            @if (restored().has(page.url)) {
+              <p class="restored" role="status">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                  <path d="m5 12.5 4.5 4.5L19 7.5" stroke-linejoin="round" />
+                </svg>
+                <span>De retour dans vos <a [routerLink]="jobsPath">offres</a>, à traiter.</span>
+              </p>
+            } @else {
+              <button type="button" class="restore" [disabled]="busy().has(page.url)" (click)="restore(page)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                  <path d="M4 12h13M11 6l6 6-6 6" stroke-linejoin="round" />
+                </svg>
+                C'était une bonne offre
+              </button>
+            }
           </li>
         }
       </ol>

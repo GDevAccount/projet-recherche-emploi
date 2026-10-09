@@ -25,8 +25,13 @@ export class JobService {
     return this.http.get<RejectedJob[]>(`${environment.apiUrl}/rejected-jobs`);
   }
 
-  /** Supprime une offre : elle ne reviendra pas aux recherches suivantes. */
-  delete(id: number): Observable<void> {
-    return this.http.delete<void>(`${this.url}/${id}`);
+  /** Remet une page écartée dans les offres. L'API renvoie l'offre créée, à traiter. */
+  restore(url: string): Observable<Job> {
+    return this.http.post<Job>(`${environment.apiUrl}/rejected-jobs/restore`, { url });
+  }
+
+  /** Supprime une offre : elle ne reviendra pas aux recherches suivantes. Le motif est l'un de ceux de l'API. */
+  delete(id: number, reason?: string): Observable<void> {
+    return this.http.delete<void>(`${this.url}/${id}`, { params: reason ? { reason } : {} });
   }
 }

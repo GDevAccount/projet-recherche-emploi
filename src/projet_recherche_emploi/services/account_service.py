@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from projet_recherche_emploi.config import DEFAULT_PLAN, INACTIVE_ACCOUNT_DAYS
 from projet_recherche_emploi.data.database import Database
+from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
 from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
@@ -46,6 +47,7 @@ class AccountService:
             UsageRepository(session).archive_account(user_id, DEFAULT_PLAN, datetime.now(UTC))
             SearchRunRepository(session, user_id).delete_all()
             PageEvaluationRepository(session, user_id).delete_all()
+            CorrectionRepository(session, user_id).delete_all()
             UserRepository(session).forget_user(user_id)
         # Les copies d'avant migration contiennent encore ses données : elles restent, sans lui
         self.database.purge_user_from_backups(user_id)

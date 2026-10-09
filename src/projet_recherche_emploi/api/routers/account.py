@@ -10,7 +10,7 @@ from projet_recherche_emploi.api.security import (
 )
 from projet_recherche_emploi.config import CONTRACT_TYPES, DEFAULT_USER_ID, MAX_SEARCHES_PER_DAY
 from projet_recherche_emploi.container import Container
-from projet_recherche_emploi.schemas import Account, AppConfig
+from projet_recherche_emploi.schemas import DELETE_REASONS, Account, AppConfig, DeleteReasonOption
 
 router = APIRouter(tags=["compte"])
 
@@ -22,6 +22,7 @@ def get_config(services: Services) -> AppConfig:
         login_mode=services.auth.login_mode,
         google_client_id=services.settings.google_client_id or None,
         contract_types=CONTRACT_TYPES,
+        delete_reasons=[DeleteReasonOption(code=code, label=label) for code, label in DELETE_REASONS.items()],
     )
 
 

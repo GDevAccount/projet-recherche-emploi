@@ -9,11 +9,14 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Message } from 'primeng/message';
+import { catchError, map, of } from 'rxjs';
 
 import { apiErrorMessage } from '../core/api-error';
 import { Job, JobStatus } from '../core/api.models';
+import { ConfigService } from '../core/config.service';
 import { JobService } from '../core/job.service';
 import { SearchRunService } from '../core/search-run.service';
 import { normalize } from '../core/text';
@@ -54,6 +57,18 @@ export class JobsComponent {
   protected readonly dropTarget = signal<JobStatus | null>(null);
   /** Offre dont la corbeille a été cliquée : la fenêtre demande quoi en faire */
   protected readonly discarding = signal<Job | null>(null);
+  /** Second temps de la fenêtre : le motif de la suppression */
+  protected readonly askingWhy = signal(false);
+  /** Motifs proposés par l'API ; aucun si elle ne les a pas donnés, et la suppression se fait alors sans demander */
+  protected readonly reasons = toSignal(
+    inject(ConfigService)
+      .getConfig()
+      .pipe(
+        map((config) => config.delete_reasons),
+        catchError(() => of([])),
+      ),
+    { initialValue: [] },
+  );
   protected readonly error = signal('');
 
   protected readonly total = computed(() => this.jobs()?.length ?? 0);
@@ -140,7 +155,20 @@ export class JobsComponent {
       dialog.close();
     } else {
       dialog.removeAttribute('open');
-      this.discarding.set(null);
+      this.discardClosed();
+    }
+  }
+
+  protected discardClosed(): void {
+    this.discarding.set(null);
+    this.askingWhy.set(false);
+  }
+
+  protected askWhy(job: Job): void {
+    if (this.reasons().length) {
+      this.askingWhy.set(true);
+    } else {
+      this.remove(job);
     }
   }
 
@@ -149,10 +177,10 @@ export class JobsComponent {
     this.setStatus(job, 'rejected');
   }
 
-  protected remove(job: Job): void {
+  protected remove(job: Job, reason?: string): void {
     this.closeDiscard();
     this.start(job.id);
-    this.jobService.delete(job.id).subscribe({
+    this.jobService.delete(job.id, reason).subscribe({
       next: () => {
         this.jobs.update((jobs) => jobs?.filter((other) => other.id !== job.id));
         this.finish(job.id);

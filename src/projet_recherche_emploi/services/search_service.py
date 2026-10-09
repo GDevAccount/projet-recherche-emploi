@@ -7,14 +7,21 @@ from zoneinfo import ZoneInfo
 
 from projet_recherche_emploi.config import DEFAULT_USER_ID, LOCAL_TIMEZONE, MAX_SEARCHES_PER_DAY, OFFER_PAGE_KIND
 from projet_recherche_emploi.data.database import Database
+from projet_recherche_emploi.data.models import Correction
+from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
 from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
 from projet_recherche_emploi.schemas import (
+    DELETE_REASON_NOT_GIVEN,
+    DELETE_REASONS,
+    DELETE_REASONS_WITHOUT_ERROR,
+    CorrectionStats,
     EvaluationGroup,
     PageEvaluationRead,
+    ReasonCount,
     SearchProgress,
     SearchRunRead,
     SearchStats,
@@ -128,6 +135,63 @@ def group_evaluations(
         for label, pages in groups.items()
     ]
     return sorted(summaries, key=lambda group: (-group.evaluated, group.label))
+
+
+def rate(part: int, whole: int) -> float | None:
+    """Renvoie la part d'un ensemble, ou None s'il est vide."""
+    return round(part / whole, 4) if whole else None
+
+
+def summarize_corrections(
+    corrections: list[Correction], evaluations: Iterable[PageEvaluationRead], runs: Iterable[SearchRunRead]
+) -> list[CorrectionStats]:
+    """Compte les corrections par version du prompt, la plus récente en premier."""
+    # Les lancements arrivent du plus récent au plus ancien : l'ordre des versions est celui de leur dernier usage
+    versions = {run.id: run.prompt_version for run in runs}
+    order = list(dict.fromkeys(versions.values()))
+    judged: dict[str | None, list[bool]] = {}
+    for evaluation in evaluations:
+        judged.setdefault(versions.get(evaluation.search_run_id), []).append(evaluation.kept)
+    corrected: dict[str | None, list[Correction]] = {}
+    for correction in corrections:
+        corrected.setdefault(correction.prompt_version, []).append(correction)
+
+    stats = []
+    for version in [*order, *(version for version in corrected if version not in order)]:
+        if version not in corrected:
+            continue
+        verdicts = judged.get(version, [])
+        deleted = [correction for correction in corrected[version] if correction.kind == "deleted"]
+        wrongly_kept = sum(
+            correction.reason is not None and correction.reason not in DELETE_REASONS_WITHOUT_ERROR
+            for correction in deleted
+        )
+        restored = len(corrected[version]) - len(deleted)
+        kept = sum(verdicts)
+        stats.append(
+            CorrectionStats(
+                prompt_version=version,
+                evaluated=len(verdicts),
+                kept=kept,
+                rejected=len(verdicts) - kept,
+                restored=restored,
+                wrongly_kept=wrongly_kept,
+                other_deleted=len(deleted) - wrongly_kept,
+                restored_rate=rate(restored, len(verdicts) - kept),
+                wrongly_kept_rate=rate(wrongly_kept, kept),
+            )
+        )
+    return stats
+
+
+def count_delete_reasons(corrections: Iterable[Correction]) -> list[ReasonCount]:
+    """Compte les suppressions d'offres par motif, le plus fréquent en premier."""
+    counts: dict[str, int] = {}
+    for correction in corrections:
+        if correction.kind == "deleted":
+            label = DELETE_REASONS.get(correction.reason, DELETE_REASON_NOT_GIVEN)
+            counts[label] = counts.get(label, 0) + 1
+    return [ReasonCount(label=label, count=count) for label, count in sorted(counts.items(), key=lambda item: -item[1])]
 
 
 class RunningSearch:
@@ -258,6 +322,10 @@ class SearchService:
             runs = [SearchRunRead.model_validate(row) for row in run_rows]
             evaluation_rows = PageEvaluationRepository(session, user_id).list_all()
             evaluations = [PageEvaluationRead.model_validate(row) for row in evaluation_rows]
+            corrections = CorrectionRepository(session, user_id).list_all()
+            # Lus tant que la session est ouverte : la synthèse n'en garde que des nombres
+            correction_stats = summarize_corrections(corrections, evaluations, runs)
+            delete_reasons = count_delete_reasons(corrections)
         # Un lancement d'avant le suivi n'a que sa date : il n'entre pas dans la synthèse
         runs = [run for run in self._describe_runs(user_id, runs) if run.status is not None]
         models = {run.id: run.model for run in runs}
@@ -294,6 +362,8 @@ class SearchService:
             by_site=group_evaluations(evaluations, lambda page: site_of(page.url)),
             by_page_kind=group_evaluations(evaluations, lambda page: page.page_kind),
             by_text=group_evaluations(evaluations, text_read),
+            corrections=correction_stats,
+            delete_reasons=delete_reasons,
         )
 
     def _stream(self, user_id: int, run_id: int) -> Iterator[SearchProgress | SearchSummary]:

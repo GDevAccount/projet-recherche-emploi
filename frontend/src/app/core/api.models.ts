@@ -7,6 +7,13 @@ export interface AppConfig {
   login_mode: LoginMode | null;
   google_client_id: string | null;
   contract_types: string[];
+  /** Motifs proposés à la suppression d'une offre, dans l'ordre où les présenter */
+  delete_reasons: DeleteReasonOption[];
+}
+
+export interface DeleteReasonOption {
+  code: string;
+  label: string;
 }
 
 export interface Account {
@@ -217,6 +224,32 @@ export interface SearchStats {
   by_site: EvaluationGroup[];
   by_page_kind: EvaluationGroup[];
   by_text: EvaluationGroup[];
+  /** Corrections du tri par version du prompt, la plus récente en premier */
+  corrections: CorrectionStats[];
+  /** Motifs des suppressions d'offres, le plus fréquent en premier */
+  delete_reasons: ReasonCount[];
+}
+
+/** Ce que l'utilisateur a corrigé du tri rendu avec une version du prompt. Les taux sont des planchers. */
+export interface CorrectionStats {
+  /** null : pages évaluées avant le suivi */
+  prompt_version: string | null;
+  evaluated: number;
+  kept: number;
+  rejected: number;
+  /** Pages écartées remises dans les offres */
+  restored: number;
+  /** Offres supprimées en reprochant quelque chose au tri */
+  wrongly_kept: number;
+  /** Offres supprimées sans motif, ou qui n'intéressaient pas */
+  other_deleted: number;
+  restored_rate: number | null;
+  wrongly_kept_rate: number | null;
+}
+
+export interface ReasonCount {
+  label: string;
+  count: number;
 }
 
 export type AccountPlan = 'free' | 'paid';

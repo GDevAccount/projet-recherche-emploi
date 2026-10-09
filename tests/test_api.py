@@ -23,6 +23,7 @@ from projet_recherche_emploi.container import build_container
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
+from projet_recherche_emploi.schemas import DELETE_REASONS
 
 ALICE = {"Authorization": "Bearer jeton-alice"}
 BOB = {"Authorization": "Bearer jeton-bob"}
@@ -89,6 +90,7 @@ def test_config_tells_the_front_how_to_log_in(client, tmp_path):
         "login_mode": "google",
         "google_client_id": "id.apps.googleusercontent.com",
         "contract_types": CONTRACT_TYPES,
+        "delete_reasons": [{"code": code, "label": label} for code, label in DELETE_REASONS.items()],
     }
 
     with_password = make_client(tmp_path / "mot-de-passe", app_password="sesame").get("/api/config").json()
@@ -124,6 +126,7 @@ def test_config_leaks_no_secret(tmp_path):
         ("PATCH", "/api/jobs/1"),
         ("DELETE", "/api/jobs/1"),
         ("GET", "/api/rejected-jobs"),
+        ("POST", "/api/rejected-jobs/restore"),
         ("GET", "/api/queries"),
         ("POST", "/api/queries"),
         ("DELETE", "/api/queries/1"),
@@ -276,6 +279,20 @@ def test_search_is_streamed_then_counted(client, valid_pdf):
         "Compétences insuffisantes",
         ["Compétences insuffisantes"],
     )
+
+    # L'utilisateur corrige le tri : la page écartée devient une offre à traiter, et l'offre retenue est supprimée
+    restoration = {"url": rejected["url"]}
+    assert client.post("/api/rejected-jobs/restore", headers=BOB, json=restoration).status_code == 404
+    restored = client.post("/api/rejected-jobs/restore", headers=ALICE, json=restoration)
+    assert restored.status_code == 200 and (restored.json()["url"], restored.json()["status"]) == (
+        rejected["url"],
+        "todo",
+    )
+    assert client.get("/api/rejected-jobs", headers=ALICE).json() == []
+    assert client.post("/api/rejected-jobs/restore", headers=ALICE, json=restoration).status_code == 404
+    [kept_id] = [saved["id"] for saved in client.get("/api/jobs", headers=ALICE).json() if saved["url"] in saved_urls]
+    assert client.delete(f"/api/jobs/{kept_id}?reason=inconnu", headers=ALICE).status_code == 422
+    assert client.delete(f"/api/jobs/{kept_id}?reason=not_my_job", headers=ALICE).status_code == 204
 
     # Le refus n'avait pas entamé le quota, la recherche si
     assert client.get("/api/me", headers=ALICE).json()["remaining_searches"] == MAX_SEARCHES_PER_DAY - 1

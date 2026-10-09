@@ -163,8 +163,17 @@
 }
 
 <!-- closedby : un clic hors de la fenêtre la ferme, dans les navigateurs qui le savent ; Échap et « Annuler » partout -->
-<dialog #dialog class="discard" closedby="any" aria-labelledby="discard-title" (close)="discarding.set(null)">
+<dialog #dialog class="discard" closedby="any" aria-labelledby="discard-title" (close)="discardClosed()">
   @if (discarding(); as job) {
+    @if (askingWhy()) {
+      <h2 id="discard-title">Pourquoi la supprimer ?</h2>
+      <p class="subject">{{ job.title }}</p>
+      @for (reason of reasons(); track reason.code) {
+        <button type="button" class="choice reason" (click)="remove(job, reason.code)">{{ reason.label }}</button>
+      }
+      <p class="why">Votre réponse sert à mesurer si le tri se trompe, et sur quoi.</p>
+      <button type="button" class="cancel" (click)="remove(job)">Supprimer sans préciser</button>
+    } @else {
     <h2 id="discard-title">Que faire de cette offre ?</h2>
     <p class="subject">{{ job.title }}</p>
 
@@ -174,10 +183,11 @@
         <span>Elle est rangée dans vos candidatures refusées, où vous la retrouverez.</span>
       </button>
     }
-    <button type="button" class="choice danger" (click)="remove(job)">
+    <button type="button" class="choice danger" (click)="askWhy(job)">
       <strong>Supprimer cette annonce</strong>
       <span>Elle disparaît de vos offres et ne reviendra pas aux prochaines recherches.</span>
     </button>
     <button type="button" class="cancel" (click)="closeDiscard()">Annuler</button>
+    }
   }
 </dialog>

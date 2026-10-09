@@ -4,6 +4,7 @@ import { Pipe, PipeTransform } from '@angular/core';
 export const UNKNOWN = '—';
 
 const NUMBER = new Intl.NumberFormat('fr-FR');
+// Une décimale au plus : les secondes d'une durée, les points d'un pourcentage
 const SECONDS = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
 
 function decimals(digits: number): Intl.NumberFormat {
@@ -46,6 +47,14 @@ export class DurationPipe implements PipeTransform {
     }
     const rounded = Math.round(seconds);
     return `${Math.floor(rounded / 60)} min ${rounded % 60} s`;
+  }
+}
+
+/** Part entre 0 et 1, en pourcentage : « 12,5 % ». */
+@Pipe({ name: 'share' })
+export class SharePipe implements PipeTransform {
+  transform(value: number | null | undefined): string {
+    return value === null || value === undefined ? UNKNOWN : `${SECONDS.format(value * 100)} %`;
   }
 }
 
