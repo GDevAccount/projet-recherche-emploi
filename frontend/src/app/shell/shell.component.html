@@ -117,7 +117,12 @@
   <router-outlet />
 </main>
 
+@if (touring() && account(); as account) {
+  <app-welcome-tour [account]="account" (closed)="closeTour($event)" />
+}
+
 <footer>
+  <button type="button" (click)="openTour()">Comment ça marche</button>
   <a href="/confidentialite">Règles de confidentialité</a>
   <a href="/conditions">Conditions d'utilisation</a>
 </footer>
