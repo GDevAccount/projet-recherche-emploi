@@ -5,7 +5,6 @@ envoie au modèle, et sa date dit depuis quand le CV est en place.
 """
 
 from collections.abc import Iterable
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -19,18 +18,11 @@ class CvIngestion:
         self.pdf_reader = pdf_reader
         self.anonymizer = anonymizer
 
-    def ingest(
-        self,
-        session: Session,
-        user_id: int,
-        data: bytes,
-        names: Iterable[str] = (),
-        updated_at: datetime | None = None,
-    ) -> None:
+    def ingest(self, session: Session, user_id: int, data: bytes, names: Iterable[str] = ()) -> None:
         """Enregistre le texte de ce PDF, sans ses coordonnées, à la place du CV de l'utilisateur.
 
         Le PDF est lu avant toute écriture : un fichier refusé laisse le CV en place. « names » donne les noms
         connus de l'utilisateur, à retirer aussi. Comme un dépôt, ne valide pas la transaction.
         """
         content = self.anonymizer.anonymize(self.pdf_reader.read_text(data), names)
-        CvTextRepository(session, user_id).save(content, updated_at)
+        CvTextRepository(session, user_id).save(content)

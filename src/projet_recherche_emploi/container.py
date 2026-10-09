@@ -16,7 +16,6 @@ from projet_recherche_emploi.agent.ports import JobEvaluator, JobSearchEngine
 from projet_recherche_emploi.config import Settings
 from projet_recherche_emploi.data.cv_ingestion.anonymizer import CvAnonymizer
 from projet_recherche_emploi.data.cv_ingestion.ingestion import CvIngestion
-from projet_recherche_emploi.data.cv_ingestion.legacy_files import absorb_legacy_cv_files
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.services.account_service import AccountService
@@ -62,8 +61,6 @@ def build_container(
     """Construit l'application et met sa base à jour."""
     container = Container(settings or Settings(), search_engine, evaluator)
     container.database.migrate()
-    # L'application ne garde plus le PDF d'un CV : ceux d'avant sont repris en base, puis supprimés
-    absorb_legacy_cv_files(container.database, container.cv_ingestion, container.settings.data_dir)
     return container
 
 

@@ -21,12 +21,14 @@ class CvTextRepository:
         """Renvoie la date du dernier dépôt du CV de l'utilisateur, ou None s'il n'en a pas."""
         return self.session.scalar(select(CvText.updated_at).where(CvText.user_id == self.user_id))
 
-    def save(self, content: str, updated_at: datetime | None = None) -> None:
-        """Enregistre le texte du CV de l'utilisateur, à la place du précédent, daté de maintenant par défaut."""
-        date = updated_at or func.current_timestamp()
-        statement = insert(CvText).values(user_id=self.user_id, content=content, updated_at=date)
+    def save(self, content: str) -> None:
+        """Enregistre le texte du CV de l'utilisateur, à la place du précédent, daté de maintenant."""
+        statement = insert(CvText).values(user_id=self.user_id, content=content)
         self.session.execute(
-            statement.on_conflict_do_update(index_elements=["user_id"], set_={"content": content, "updated_at": date})
+            statement.on_conflict_do_update(
+                index_elements=["user_id"],
+                set_={"content": content, "updated_at": func.current_timestamp()},
+            )
         )
 
     def delete(self) -> bool:
