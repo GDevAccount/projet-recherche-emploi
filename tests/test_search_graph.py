@@ -457,6 +457,7 @@ def test_every_evaluated_page_is_logged_with_what_was_read_and_what_it_cost(cont
     assert (run.search_calls, run.input_tokens, run.output_tokens) == (1, 2000, 100)
     assert run.finished_at >= run.created_at and len(run.prompt_version) == 12
     assert all(duration is not None for duration in (run.search_ms, run.dedupe_ms, run.evaluate_ms, run.save_ms))
+    assert run.duration_ms == run.search_ms + run.dedupe_ms + run.evaluate_ms + run.save_ms
 
     evaluations = container.search.list_evaluations(BOB, run.id)
     assert {page.search_run_id for page in evaluations} == {run.id}

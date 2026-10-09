@@ -1,0 +1,138 @@
+<section class="app-card">
+  <header>
+    <span class="app-eyebrow">Recherches</span>
+    <p>La plus récente en premier. Ouvrez une recherche pour voir ses mesures et chaque page évaluée.</p>
+  </header>
+
+  <ol class="runs">
+    @for (run of listed(); track run.id) {
+      <li [class.open]="opened().has(run.id)">
+        <button
+          type="button"
+          class="row"
+          [disabled]="!run.status"
+          [attr.aria-expanded]="opened().has(run.id)"
+          (click)="toggle(run)"
+        >
+          <time [attr.datetime]="run.created_at">{{ run.created_at | parisDate: 'time' }}</time>
+          <span class="status" [class]="run.status ?? 'untracked'">{{ statusLabel(run) }}</span>
+          <span class="counts">
+            @if (run.found_count !== null) {
+              {{ run.found_count }} trouvées
+              <!-- Une recherche arrêtée en route n'a pas les compteurs des étapes suivantes -->
+              @if (run.new_count !== null) {
+                · {{ run.new_count }} nouvelles
+              }
+              @if (run.kept_count !== null) {
+                · <strong>{{ run.kept_count }} retenues</strong>
+              }
+            } @else if (!run.status) {
+              Lancée avant le suivi
+            }
+          </span>
+          <span class="duration">{{ run.duration_ms | duration }}</span>
+          <strong class="cost">{{ run.cost_usd | usd }}</strong>
+        </button>
+
+        @if (opened().has(run.id)) {
+          <div class="detail">
+            <dl>
+              <div>
+                <dt>Étapes</dt>
+                <dd>
+                  Recherche Tavily {{ run.search_ms | duration }} ({{ run.search_calls | count }}
+                  {{ (run.search_calls ?? 0) > 1 ? 'appels' : 'appel' }}) · doublons {{ run.dedupe_ms | duration }} ·
+                  évaluation {{ run.evaluate_ms | duration }} · enregistrement {{ run.save_ms | duration }}
+                </dd>
+              </div>
+              <div>
+                <dt>Jetons</dt>
+                <dd>
+                  {{ run.input_tokens | count }} lus, dont {{ run.cache_read_tokens | count }} relus en cache et
+                  {{ run.cache_write_tokens | count }} écrits en cache · {{ run.output_tokens | count }} écrits, dont
+                  {{ run.reasoning_tokens | count }} de raisonnement
+                </dd>
+              </div>
+              <div>
+                <dt>Coût</dt>
+                <dd>Tavily {{ run.search_cost_usd | usd }} · OpenAI {{ run.model_cost_usd | usd }}</dd>
+              </div>
+              <div>
+                <dt>Modèle</dt>
+                <dd>
+                  {{ run.model ?? '—' }} · prompt <code>{{ run.prompt_version ?? '—' }}</code>
+                  @if (run.error) {
+                    · erreur <code>{{ run.error }}</code>
+                  }
+                </dd>
+              </div>
+            </dl>
+
+            @if (errorOf(run)) {
+              <p class="hint">{{ errorOf(run) }}</p>
+            } @else if (pagesOf(run); as pages) {
+              @if (pages.length) {
+                <ol class="pages">
+                  @for (page of pages; track page.id) {
+                    <li>
+                      <div class="head">
+                        <span class="verdict" [class.kept]="page.kept">{{ page.kept ? 'Retenue' : 'Écartée' }}</span>
+                        <span class="call">
+                          {{ page.input_tokens | count }} + {{ page.output_tokens | count }} jetons ·
+                          {{ page.duration_ms | duration }} · {{ page.model_cost_usd | usd }}
+                        </span>
+                      </div>
+                      <h3>
+                        <a [href]="page.url" target="_blank" rel="noopener noreferrer">{{ page.title }}</a>
+                      </h3>
+                      @if (page.reason) {
+                        <p class="reason">{{ page.reason }}</p>
+                      }
+                      <ul class="facts">
+                        <li>{{ siteOf(page.url) }}</li>
+                        @if (page.page_kind) {
+                          <li>{{ page.page_kind }}</li>
+                        }
+                        @if (page.contract_type) {
+                          <li>{{ page.contract_type }}</li>
+                        }
+                        @if (place(page)) {
+                          <li>{{ place(page) }}</li>
+                        }
+                        @if (page.work_mode) {
+                          <li>{{ page.work_mode }}</li>
+                        }
+                        @if (page.query) {
+                          <li>via « {{ page.query }} »</li>
+                        }
+                        @if (failedCriteria(page)) {
+                          <li class="flag">en défaut : {{ failedCriteria(page) }}</li>
+                        }
+                        @if (page.full_page === false) {
+                          <li class="flag">extrait seul</li>
+                        } @else if (page.truncated) {
+                          <li class="flag">texte tronqué ({{ page.page_chars | count }} caractères)</li>
+                        }
+                      </ul>
+                    </li>
+                  }
+                </ol>
+              } @else {
+                <p class="hint">Aucune page n'a été évaluée pendant cette recherche.</p>
+              }
+            } @else {
+              <p class="hint">Chargement des pages évaluées…</p>
+            }
+          </div>
+        }
+      </li>
+    }
+  </ol>
+
+  @if (remaining()) {
+    <button type="button" class="more" (click)="showMore()">
+      Afficher la suite
+      <span>{{ remaining() }} {{ remaining() > 1 ? 'recherches restantes' : 'recherche restante' }}</span>
+    </button>
+  }
+</section>

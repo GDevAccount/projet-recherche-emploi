@@ -1,0 +1,386 @@
+:host {
+  display: grid;
+  // Sans ce minimum, une carte prendrait la largeur de son contenu le plus large, et la page défilerait de côté
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  // Trois teintes pour trois issues : le citron vert pour ce qui est retenu, deux gris pour ce qui ne l'est pas
+  --kept: var(--app-accent-strong);
+  --rejected: var(--app-muted);
+  --other: color-mix(in srgb, var(--app-muted), transparent 62%);
+}
+
+.error {
+  display: block;
+}
+
+.loading,
+.hint {
+  color: var(--app-muted);
+}
+
+.blank {
+  padding: clamp(2.5rem, 8vw, 5rem) 1.5rem;
+  border: 1.5px dashed var(--app-border);
+  border-radius: var(--app-radius);
+  text-align: center;
+
+  h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.75rem;
+  }
+
+  p {
+    max-width: 28rem;
+    margin: 0 auto;
+    color: var(--app-muted);
+  }
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+
+  @media (max-width: 60rem) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+}
+
+.tile {
+  display: grid;
+  align-content: center;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 1.1rem 1.35rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+
+  > strong {
+    font-family: var(--app-display);
+    font-size: clamp(1.6rem, 3.2vw, 2.4rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  > span {
+    font-size: 0.875rem;
+    color: var(--app-muted);
+  }
+
+  &.accent {
+    border-color: transparent;
+    background: var(--app-accent);
+    color: var(--app-accent-ink);
+    box-shadow: 0 18px 40px -20px rgba(132, 204, 22, 0.9);
+
+    > span {
+      color: inherit;
+      font-weight: 600;
+      opacity: 0.8;
+    }
+  }
+
+  @media (max-width: 60rem) {
+    padding: 0.9rem 1rem;
+  }
+}
+
+// Répartition du coût entre la recherche web et le modèle
+.spend {
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem 2rem;
+    margin-bottom: 1.25rem;
+
+    p {
+      max-width: 34rem;
+      margin: 0;
+      font-size: 0.875rem;
+      color: var(--app-muted);
+    }
+  }
+
+  .search {
+    background: var(--app-text);
+  }
+
+  .model {
+    background: var(--app-accent-strong);
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 2rem;
+    margin: 1.25rem 0 0;
+
+    @media (max-width: 40rem) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  dt {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+
+    i {
+      flex: none;
+      width: 0.7rem;
+      height: 0.7rem;
+      border-radius: 3px;
+    }
+  }
+
+  dd {
+    margin: 0.35rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--app-muted);
+
+    strong {
+      display: block;
+      font-family: var(--app-display);
+      font-size: 1.5rem;
+      line-height: 1.2;
+      color: var(--app-text);
+      font-variant-numeric: tabular-nums;
+    }
+  }
+}
+
+.split {
+  display: flex;
+  gap: 3px;
+  height: 0.9rem;
+
+  span {
+    min-width: 4px;
+    border-radius: 4px;
+  }
+
+  .model {
+    flex: 1;
+  }
+}
+
+// Répartition des pages évaluées
+.pages {
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+    margin-bottom: 1.25rem;
+
+    h2 {
+      margin: 0.6rem 0 0;
+      font-size: 1.5rem;
+
+      strong {
+        font-size: 2.75rem;
+        letter-spacing: -0.04em;
+      }
+    }
+  }
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+
+  button {
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: none;
+    color: var(--app-muted);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 550;
+    cursor: pointer;
+    transition:
+      color 0.15s,
+      border-color 0.15s,
+      background-color 0.15s;
+
+    &:hover {
+      border-color: var(--app-muted);
+      color: var(--app-text);
+    }
+
+    &.on {
+      border-color: var(--app-text);
+      background: var(--app-text);
+      color: var(--app-bg);
+    }
+  }
+}
+
+.kept {
+  background: var(--kept);
+}
+
+.rejected {
+  background: var(--rejected);
+}
+
+.other {
+  background: var(--other);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  i {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 3px;
+  }
+}
+
+.groups {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(9rem, 17rem) minmax(4rem, 1fr) 5.5rem 5rem;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: var(--app-radius-sm);
+
+    &:hover {
+      background: color-mix(in srgb, var(--app-surface-2), transparent 30%);
+    }
+
+    @media (max-width: 40rem) {
+      grid-template-columns: 1fr auto auto;
+      gap: 0.4rem 0.9rem;
+
+      .track {
+        grid-row: 2;
+        grid-column: 1 / -1;
+      }
+
+      // La place manque pour une phrase de recherche sur une ligne : elle passe à la suivante
+      .label {
+        white-space: normal;
+      }
+    }
+  }
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track {
+  height: 0.75rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--app-surface-2), transparent 30%);
+}
+
+.stack {
+  display: flex;
+  gap: 2px;
+  min-width: 6px;
+  height: 100%;
+  transition: width 0.4s ease;
+
+  span {
+    border-radius: 3px;
+  }
+}
+
+.value {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+
+  strong {
+    font-family: var(--app-display);
+    font-size: 1.125rem;
+  }
+
+  small {
+    font-size: 0.8125rem;
+    color: var(--app-muted);
+  }
+}
+
+.cost {
+  font-size: 0.8125rem;
+  text-align: right;
+  color: var(--app-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.note {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+}
+
+.more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.6rem;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: none;
+  color: var(--app-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--app-muted);
+  }
+
+  span {
+    font-weight: 400;
+    color: var(--app-muted);
+  }
+}

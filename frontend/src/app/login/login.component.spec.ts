@@ -9,7 +9,7 @@ import { LoginComponent } from './login.component';
 
 const ACCOUNT: Account = {
   user_id: 1,
-  is_owner: true,
+  is_owner: true, is_admin: true,
   email: null,
   name: null,
   picture: null,

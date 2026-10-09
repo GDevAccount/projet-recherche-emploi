@@ -11,7 +11,7 @@ import { SessionService } from './session.service';
 
 const ACCOUNT: Account = {
   user_id: 2,
-  is_owner: false,
+  is_owner: false, is_admin: false,
   email: null,
   name: null,
   picture: null,

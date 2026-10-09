@@ -164,6 +164,25 @@ test('les pages écartées sont listées avec leur motif', async () => {
   await expect(rejected).toContainText('hors profil');
 });
 
+test('le suivi montre le bilan des recherches et le détail de leurs pages', async () => {
+  // Le mot de passe de l'instance désigne le propriétaire : la rubrique lui est ouverte
+  await page.getByRole('link', { name: 'Suivi', exact: true }).click();
+  await expect(page).toHaveURL(/\/suivi$/);
+
+  await expect(page.locator('app-tracking .tile').filter({ hasText: 'recherches' })).toBeVisible();
+  await expect(page.getByText(/pages évaluées/).first()).toBeVisible();
+  const runs = page.locator('app-run-list .row');
+  await expect(runs.first()).toContainText('Terminée');
+
+  // La dernière recherche n'a retrouvé que des pages connues : c'est la première qui a évalué les siennes
+  await runs.last().click();
+  const pages = page.locator('app-run-list ol.pages > li');
+  await expect(pages.filter({ hasText: 'Retenue' }).first()).toBeVisible();
+  await expect(pages.filter({ hasText: 'Écartée' }).first()).toContainText('en défaut : compétences');
+
+  await expect(page.locator('app-usage-card tbody th').first()).toHaveText('Propriétaire');
+});
+
 test('le thème est sombre au départ, et le choix du clair est gardé après rechargement', async () => {
   // Le navigateur de test annonce un système clair : le thème sombre ne vient pas de lui
   await expect(page.locator('html')).toHaveClass(/app-dark/);

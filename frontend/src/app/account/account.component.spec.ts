@@ -10,7 +10,7 @@ import { AccountComponent } from './account.component';
 
 const ALICE: Account = {
   user_id: 2,
-  is_owner: false,
+  is_owner: false, is_admin: false,
   email: 'alice@exemple.fr',
   name: 'Alice Martin',
   picture: null,
@@ -72,7 +72,7 @@ describe('AccountComponent', () => {
   });
 
   it('should describe a session opened with the password', async () => {
-    await openSession({ ...ALICE, user_id: 1, is_owner: true, email: null, name: null });
+    await openSession({ ...ALICE, user_id: 1, is_owner: true, is_admin: true, email: null, name: null });
 
     expect(text()).toContain('Session ouverte avec le mot de passe de cette instance.');
     expect(text()).not.toContain('Votre adresse e-mail');

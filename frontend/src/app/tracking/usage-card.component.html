@@ -1,0 +1,73 @@
+<section class="app-card">
+  <header>
+    <div>
+      <span class="app-eyebrow">Consommation par compte</span>
+      @if (usage(); as usage) {
+        <h2>
+          <strong>{{ usage.cost_usd | usd }}</strong>
+          dont {{ usage.guests_cost_usd | usd }} pour les invités
+        </h2>
+      }
+    </div>
+    <div class="tabs" role="group" aria-label="Période">
+      @for (period of periods; track period.label) {
+        <button
+          type="button"
+          [class.on]="days() === period.days"
+          [attr.aria-pressed]="days() === period.days"
+          (click)="choose(period.days)"
+        >
+          {{ period.label }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="hint">{{ error() }}</p>
+  } @else if (usage(); as usage) {
+    @if (usage.accounts.length) {
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Compte</th>
+              <th scope="col" class="extra">Formule</th>
+              <th scope="col" class="number">Recherches</th>
+              <th scope="col" class="number extra">Offres retenues</th>
+              <th scope="col" class="number extra">Dernière recherche</th>
+              <th scope="col" class="number">Coût</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (account of usage.accounts; track account.user_id + '-' + account.deleted) {
+              <tr [class.deleted]="account.deleted">
+                <th scope="row">
+                  {{ nameOf(account) }}
+                  @if (account.is_owner && account.email) {
+                    <small>propriétaire</small>
+                  }
+                </th>
+                <td class="extra">{{ planOf(account) }}</td>
+                <td class="number">{{ account.runs | count }}</td>
+                <td class="number extra">{{ account.kept_count | count }}</td>
+                <td class="number extra">{{ (account.last_search_at | parisDate: 'day') || '—' }}</td>
+                <td class="number">
+                  <strong>{{ account.cost_usd | usd }}</strong>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <small class="note">
+        Un compte supprimé garde ses totaux, sans adresse. Ils sont conservés par mois : sur une période en jours,
+        son mois entamé compte en entier.
+      </small>
+    } @else {
+      <p class="hint">Aucune recherche sur cette période.</p>
+    }
+  } @else {
+    <p class="hint">Chargement de la consommation…</p>
+  }
+</section>
