@@ -95,7 +95,8 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/health` | État du serveur et de sa base, sans connexion : `{"status": "ok"}`, ou 503 et `{"status": "error"}` si la base ne répond pas. Accepte aussi `HEAD`, pour une sonde de disponibilité |
 | `GET /api/config` | Ce qu'un front lit avant la connexion (sans connexion) : mode de connexion (`google` ou `password`), identifiant client Google, types de contrat, motifs proposés à la suppression d'une offre (`delete_reasons`) |
 | `GET /api/me` | Utilisateur de la requête (avec l'adresse, le nom et la photo de son compte Google), s'il est propriétaire (`is_owner`) ou administrateur (`is_admin`), recherches restantes aujourd'hui, s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché), et si l'une des siennes tourne déjà (`search_running`) |
-| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements, journal des pages évaluées, appels au moteur de recherche, corrections du tri, erreurs rencontrées et adresse sont effacés ; seule sa consommation reste, en totaux mensuels sans adresse (table `archived_usage`). Ils sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
+| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements, journal des pages évaluées, appels au moteur de recherche, corrections du tri, erreurs rencontrées sur le serveur et dans le navigateur, et adresse sont effacés ; seule sa consommation reste, en totaux mensuels sans adresse (table `archived_usage`). Ils sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
+| `POST /api/client-errors` | Signaler une erreur survenue dans le navigateur, ce que le front fait de lui-même : `{"error_type": "TypeError", "route": "/offres", "source": "main-5UFRYBOQ.js:1:23456"}`. Seuls un nom de type, un écran sans paramètre et un fichier du front avec sa position sont acceptés (422 sinon) : jamais le message de l'erreur. Au-delà de 50 par compte et par jour, elle est ignorée. Répond 204 |
 | `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer |
 | `GET /api/jobs` | Offres retenues |
 | `PATCH /api/jobs/{id}` | Changer l'état d'une candidature (`{"status": "applied"}` ; `todo`, `applied`, `interview` ou `rejected`). Renvoie l'offre mise à jour, avec la date de chaque étape et les états qu'elle peut prendre ensuite (`next_statuses`). Un état que l'offre ne peut pas prendre depuis le sien est refusé (422) |
@@ -109,7 +110,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/searches/stats` | Synthèse de toutes les recherches suivies de l'appelant : volumes, jetons, coût en dollars (moteur de recherche, modèle, total, par offre retenue), durée moyenne, et répartition des pages évaluées par poste recherché (`by_query`), par site (`by_site`), par nature (`by_page_kind`) et selon le texte lu (`by_text` : page entière, page tronquée, extrait seul). `outcomes` dit ce que sont devenues les offres retenues par le tri, d'après l'état de chaque candidature : candidatures envoyées (`applied`), refusées par l'employeur (`refused`), entretiens (`interviews`), offres à traiter (`pending`), offres supprimées sans candidature (`deleted`), et les taux de candidature et d'entretien ; `outcomes_by_query`, `outcomes_by_site` et `outcomes_by_prompt` le détaillent par poste recherché, par site et par version du prompt, et `cost_per_application_usd` rapporte le coût total aux candidatures nées des recherches suivies. `weeks` donne les douze dernières semaines, du lundi au dimanche à l'heure de Paris, la plus ancienne en premier et celle en cours en dernier : recherches lancées et échouées, coût, pages trouvées et évaluées, part des pages déjà connues (`known_rate`), offres retenues et candidatures envoyées. `by_search` donne le rendement de chaque texte envoyé au moteur de recherche, le moins rentable en premier : appels, pages rendues, en double dans le lancement (`repeated`), déjà connues (`known`), évaluées puis écartées (`rejected`), retenues (`kept`), coût des appels et coût par offre retenue. `corrections` compte, par version du prompt, les pages écartées remises dans les offres et les offres supprimées en reprochant quelque chose au tri, avec leurs taux ; `delete_reasons` compte les suppressions par motif |
 | `GET /api/searches/{id}/evaluations` | Pages évaluées pendant un lancement, retenues ou non : faits lus par le modèle, avis et règles du verdict, longueur du texte lu, jetons et durée de l'appel |
 | `GET /api/admin/usage` | Consommation de tous les comptes, le plus coûteux en premier : pour chacun, son adresse, ses lancements, ses appels, ses jetons et son coût en dollars et sa formule (`plan`, `free` tant qu'il n'y a pas de paiement) ; puis le total, et la part due aux invités (`guests_cost_usd`). Un compte supprimé y reste, sans adresse (`deleted`), avec ce qu'il avait consommé. `?days=30` limite le calcul aux derniers jours. Aucune page ni recherche d'un autre compte n'en sort |
-| `GET /api/admin/health` | Santé de l'instance, tous comptes réunis : recherches lancées, échouées (`failed_runs`, et `run_failures` par type d'erreur) ou coupées par un redémarrage (`interrupted_runs`), puis erreurs rendues par l'API hors d'une recherche (`server_errors`, par route et par type), séparées en pannes du serveur (`failures`, réponses 5xx) et en demandes refusées (`refusals`, 4xx). `incidents` additionne échecs, interruptions et pannes ; `healthy` est vrai quand il vaut zéro. `?days=30` limite le calcul aux derniers jours. Seuls des nombres, des routes et des types d'erreur en sortent : ni message, ni compte. `alerts_enabled` dit si un incident prévient quelqu'un (`NTFY_TOPIC`) |
+| `GET /api/admin/health` | Santé de l'instance, tous comptes réunis : recherches lancées, échouées (`failed_runs`, et `run_failures` par type d'erreur) ou coupées par un redémarrage (`interrupted_runs`), puis erreurs rendues par l'API hors d'une recherche (`server_errors`, par route et par type), séparées en pannes du serveur (`failures`, réponses 5xx) et en demandes refusées (`refusals`, 4xx). Viennent ensuite les erreurs survenues dans le navigateur des utilisateurs (`client_failures`, et `client_errors` par écran, type et emplacement dans le code), et les modèles dont le tarif manque (`unpriced_models`). `incidents` additionne échecs, interruptions, pannes et erreurs du navigateur ; `healthy` est vrai quand il vaut zéro. `?days=30` limite le calcul aux derniers jours. Seuls des nombres, des routes et des types d'erreur en sortent : ni message, ni compte. `alerts_enabled` dit si un incident prévient quelqu'un (`NTFY_TOPIC`) |
 | `POST /api/admin/alerts/test` | Envoie une alerte d'essai et attend la réponse de ntfy : `{"sent": true}` si elle est partie, `false` sinon, ou si aucune alerte n'est réglée |
 | `GET /api/admin/budget` | Dépense du mois en cours à l'heure de Paris, tous comptes réunis (`spent_usd`), face au budget de l'instance (`budget_usd`, réglé par `MONTHLY_BUDGET_USD`) : moyenne par jour, dépense projetée en fin de mois au rythme des jours écoulés (`projected_usd`), jours restants, part des invités, et dépassement constaté (`over_budget`) ou annoncé (`projected_over_budget`). `partial` est vrai quand le tarif d'un modèle manque : seul le moteur de recherche est alors compté |
 
@@ -228,6 +229,8 @@ Sans réglage, un incident ne se voit que dans la rubrique Suivi. Avec un sujet 
 - d'une **recherche échouée**, avec le type de l'erreur, chez le propriétaire ou chez un invité ;
 - d'une **panne du serveur** hors d'une recherche (réponse 500), avec le type de l'erreur et la route ;
 - d'une **recherche coupée** par un redémarrage du serveur, au démarrage suivant ;
+- d'une **erreur dans le navigateur** d'un utilisateur connecté, avec son type et l'écran ;
+- d'un **tarif manquant** : le modèle qui évalue les pages n'est pas dans `MODEL_PRICES_USD`, donc coûts et budget ne le comptent plus, une fois par jour ;
 - d'un **coût anormal** : plus de 1 $ sur les dernières 24 heures, tous comptes réunis (`DAILY_COST_ALERT_USD`), une fois par jour ;
 - d'un **budget dépassé** (`MONTHLY_BUDGET_USD`, 10 $ par défaut), une fois dans le mois, ou **menacé** : à partir du 5 du mois, quand la dépense projetée en fin de mois le dépasse, une fois par semaine.
 
@@ -480,6 +483,17 @@ Table `server_errors`, les erreurs rendues par l'API hors d'une recherche : une 
 | `error_type` | Type de l'erreur, jamais son message |
 | `created_at` | Date de l'erreur (UTC) |
 
+Table `client_errors`, les erreurs survenues dans le navigateur d'un utilisateur connecté, signalées par le front. Une ligne y reste 90 jours, comme dans `server_errors` :
+
+| Colonne | Contenu |
+|---|---|
+| `id` | Identifiant de la ligne |
+| `user_id` | Compte qui a rencontré l'erreur |
+| `route` | Écran du front (`/offres`), sans paramètre |
+| `error_type` | Type de l'erreur, jamais son message |
+| `source` | Fichier du front et position dans ce fichier ; vide si le navigateur ne les dit pas |
+| `created_at` | Date de l'erreur (UTC) |
+
 Table `archived_usage`, la consommation des comptes supprimés. Elle est écrite à la suppression d'un compte, juste avant l'effacement de ses lancements, et n'est jamais vidée :
 
 | Colonne | Contenu |
@@ -531,6 +545,7 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 | Budget mensuel de l'instance en dollars, tous comptes réunis (`MONTHLY_BUDGET_USD`) | variable d'environnement | `10`, ou `0` pour ne pas en fixer |
 | Semaines montrées dans la rubrique Suivi (`WEEKS_SHOWN`) | `src/projet_recherche_emploi/config.py` | `12` |
 | Coût sur 24 heures qui déclenche une alerte (`DAILY_COST_ALERT_USD`) | `src/projet_recherche_emploi/config.py` | `1.0` |
+| Erreurs du navigateur gardées par compte et par jour (`CLIENT_ERRORS_PER_DAY`) | `src/projet_recherche_emploi/config.py` | `50` |
 | Délai avant de renvoyer une même alerte (`ALERT_QUIET_MINUTES`) | `src/projet_recherche_emploi/config.py` | `60` |
 | Sites interrogés (`JOB_SITES`) | `src/projet_recherche_emploi/config.py` | 24 sites d'emploi |
 | Sites ajoutés pour la variante en anglais d'une recherche en télétravail complet (`REMOTE_JOB_SITES`) | `src/projet_recherche_emploi/config.py` | 7 sites d'offres en télétravail |

@@ -223,8 +223,16 @@ def test_forgetting_the_errors_of_a_user_leaves_those_of_the_others(session):
     health.record_error(ALICE, "PUT", "/api/cv", 422, "InvalidInputError")
     health.record_error(BOB, "PUT", "/api/cv", 422, "InvalidInputError")
     health.record_error(None, "GET", None, 500, "KeyError")
+    health.record_client_error(ALICE, "/offres", "TypeError", "main.js:1:2")
+    health.record_client_error(BOB, "/offres", "TypeError", "main.js:1:2")
+    since = datetime(2000, 1, 1, tzinfo=UTC)
+    assert (health.count_client_errors(ALICE, since), health.count_client_errors(BOB, since)) == (1, 1)
 
-    assert health.forget_user(ALICE) == 1
+    assert health.forget_user(ALICE) == 2
+
+    assert (health.count_client_errors(ALICE, since), health.count_client_errors(BOB, since)) == (0, 1)
+    [left] = health.summarize_client_errors()
+    assert (left.error_type, left.count, left.accounts) == ("TypeError", 1, 1)
 
     # Celles de Bob et celle d'un appelant resté inconnu restent
     assert sorted((row.error_type, row.count, row.accounts) for row in health.summarize_errors()) == [

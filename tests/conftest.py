@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from projet_recherche_emploi.agent.ports import EvaluationUsage, JobEvaluation
-from projet_recherche_emploi.config import Settings
+from projet_recherche_emploi.config import MODEL_PRICES_USD, ModelPrice, Settings
 from projet_recherche_emploi.container import build_container
 from projet_recherche_emploi.data.database import Database
 
@@ -140,8 +140,12 @@ def notifier():
 
 
 @pytest.fixture
-def alerting(settings, search_engine, evaluator, notifier):
-    """Application dont les alertes arrivent, sans attendre, au faux destinataire."""
+def alerting(settings, search_engine, evaluator, notifier, monkeypatch):
+    """Application dont les alertes arrivent, sans attendre, au faux destinataire.
+
+    Le faux modèle y a un tarif, nul : sans lui, chaque recherche préviendrait d'un tarif manquant.
+    """
+    monkeypatch.setitem(MODEL_PRICES_USD, FakeEvaluator.model_name, ModelPrice(0, 0, 0, 0))
     container = build_container(settings, search_engine, evaluator, notifier)
     container.alerts.dispatch = lambda send: send()
     return container

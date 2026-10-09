@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import Row, delete, distinct, func, insert, literal, select
 from sqlalchemy.orm import Session
 
-from projet_recherche_emploi.data.models import SearchRun, ServerError
+from projet_recherche_emploi.data.models import ClientError, SearchRun, ServerError
 
 RUNNING = "running"
 
@@ -33,13 +33,48 @@ class HealthRepository:
             )
         )
 
+    def record_client_error(self, user_id: int, route: str | None, error_type: str, source: str | None) -> None:
+        """Enregistre une erreur survenue dans le navigateur de ce compte."""
+        self.session.execute(
+            insert(ClientError).values(user_id=user_id, route=route, error_type=error_type, source=source)
+        )
+
+    def count_client_errors(self, user_id: int, since: datetime) -> int:
+        """Renvoie le nombre d'erreurs du front signalées par ce compte depuis cette date."""
+        statement = select(func.count()).where(ClientError.user_id == user_id, ClientError.created_at >= since)
+        return self.session.scalar(statement)
+
     def delete_errors_before(self, limit: datetime) -> int:
-        """Efface les erreurs antérieures à cette date, et renvoie leur nombre."""
-        return self.session.execute(delete(ServerError).where(ServerError.created_at < limit)).rowcount
+        """Efface les erreurs du serveur et du front antérieures à cette date, et renvoie leur nombre."""
+        return sum(
+            self.session.execute(delete(table).where(table.created_at < limit)).rowcount
+            for table in (ServerError, ClientError)
+        )
 
     def forget_user(self, user_id: int) -> int:
-        """Efface les erreurs rencontrées par ce compte, et renvoie leur nombre."""
-        return self.session.execute(delete(ServerError).where(ServerError.user_id == user_id)).rowcount
+        """Efface les erreurs du serveur et du front rencontrées par ce compte, et renvoie leur nombre."""
+        return sum(
+            self.session.execute(delete(table).where(table.user_id == user_id)).rowcount
+            for table in (ServerError, ClientError)
+        )
+
+    def summarize_client_errors(self, since: datetime | None = None) -> list[Row]:
+        """Renvoie, par écran, type et emplacement, le nombre d'erreurs du front, leurs comptes et la dernière."""
+        statement = (
+            select(
+                ClientError.route,
+                ClientError.error_type,
+                ClientError.source,
+                func.count().label("count"),
+                func.count(distinct(ClientError.user_id)).label("accounts"),
+                func.max(ClientError.created_at).label("last_at"),
+            )
+            .group_by(ClientError.route, ClientError.error_type, ClientError.source)
+            .order_by(func.count().desc(), ClientError.route, ClientError.error_type, ClientError.source)
+        )
+        if since is not None:
+            statement = statement.where(ClientError.created_at >= since)
+        return list(self.session.execute(statement))
 
     def summarize_errors(self, since: datetime | None = None) -> list[Row]:
         """Renvoie, par route et par type d'erreur, leur nombre, les comptes touchés et la date de la dernière."""

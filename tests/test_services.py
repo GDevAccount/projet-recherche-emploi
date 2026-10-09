@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
-from conftest import FakeNotifier
+from conftest import FakeEvaluator, FakeNotifier, FakeSearchEngine
 from helpers import blank_pdf, job, rejected_job
 from sqlalchemy import update
 
@@ -20,6 +20,7 @@ from projet_recherche_emploi.config import (
     SERVER_ERROR_DAYS,
     WEEKS_SHOWN,
 )
+from projet_recherche_emploi.container import build_container
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
 from projet_recherche_emploi.data.models import EngineCall, SearchRun, ServerError
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
@@ -30,7 +31,7 @@ from projet_recherche_emploi.data.repositories.rejected_job_repository import Re
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
-from projet_recherche_emploi.schemas import BudgetOverview, SearchProgress, SearchSummary
+from projet_recherche_emploi.schemas import BudgetOverview, ClientErrorReport, SearchProgress, SearchSummary
 from projet_recherche_emploi.services import cv_service, health_service
 from projet_recherche_emploi.services.alert_service import AlertService, NtfyNotifier
 from projet_recherche_emploi.services.search_service import (
@@ -485,7 +486,7 @@ def test_unusual_daily_cost_sends_one_alert_a_day(alerting, notifier, ready_user
     alerting.search.run_search(BOB)
     assert notifier.sent == []
 
-    # Le faux modèle n'a pas de tarif : il reste le coût du moteur de recherche, 0,016 $ par appel
+    # Le faux modèle ne coûte rien ici : il reste le coût du moteur de recherche, 0,016 $ par appel
     monkeypatch.setattr(health_service, "DAILY_COST_ALERT_USD", 0.03)
     alerting.search.run_search(CAROL)
     alerting.search.run_search(BOB)
@@ -501,6 +502,64 @@ def test_unreachable_database_is_reported_once(alerting, notifier):
     # La sonde revient toutes les quelques minutes : l'alerte, elle, ne part qu'une fois dans l'heure
     assert not alerting.health.is_alive() and not alerting.health.is_alive()
     assert notifier.sent == [("Base injoignable", "AttributeError à la lecture de la base")]
+
+
+def test_model_without_a_price_is_reported(settings, valid_pdf):
+    notifier = FakeNotifier()
+    container = build_container(settings, FakeSearchEngine(), FakeEvaluator(), notifier)
+    container.alerts.dispatch = lambda send: send()
+    container.cv.save_cv(DEFAULT_USER_ID, valid_pdf)
+    assert container.health.get_overview().unpriced_models == []
+
+    container.search.run_search(DEFAULT_USER_ID)
+    container.search.run_search(DEFAULT_USER_ID)
+
+    # Une fois par jour : sans tarif, coûts et budget sont faux sans que rien ne le dise
+    message = "Aucun tarif pour faux-modèle : coûts et budget ne comptent plus ce modèle"
+    assert notifier.sent == [("Tarif manquant", message)]
+    health = container.health.get_overview()
+    # Un réglage à corriger, pas un incident
+    assert (health.unpriced_models, health.healthy) == (["faux-modèle"], True)
+
+
+def test_priced_model_is_not_reported(alerting, notifier, ready_users):
+    alerting.search.run_search(BOB)
+    assert notifier.sent == [] and alerting.health.get_overview().unpriced_models == []
+
+
+def test_errors_of_the_front_are_kept_counted_and_reported(alerting, notifier, monkeypatch):
+    crash = ClientErrorReport(error_type="TypeError", route="/offres", source="main-5UFRYBOQ.js:1:23456")
+    assert alerting.health.record_client_error(BOB, crash)
+    assert alerting.health.record_client_error(CAROL, crash)
+    assert alerting.health.record_client_error(BOB, ClientErrorReport(error_type="RangeError"))
+
+    health = alerting.health.get_overview()
+    groups = [
+        (group.route, group.error_type, group.source, group.count, group.accounts) for group in health.client_errors
+    ]
+    assert groups == [
+        ("/offres", "TypeError", "main-5UFRYBOQ.js:1:23456", 2, 2),
+        (None, "RangeError", None, 1, 1),
+    ]
+    # Une erreur chez un utilisateur est un incident, comme une panne du serveur
+    assert (health.client_failures, health.incidents, health.healthy) == (3, 3, False)
+    # La même erreur chez un second compte ne sonne pas deux fois dans l'heure
+    assert notifier.sent == [
+        ("Erreur dans le navigateur", "TypeError sur l'écran /offres"),
+        ("Erreur dans le navigateur", "RangeError sur un écran inconnu"),
+    ]
+
+    # Une page qui échoue en boucle n'apprend plus rien : au-delà du plafond du jour, on n'enregistre plus
+    monkeypatch.setattr(health_service, "CLIENT_ERRORS_PER_DAY", 2)
+    assert not alerting.health.record_client_error(BOB, crash)
+    assert alerting.health.record_client_error(CAROL, crash)
+    assert alerting.health.get_overview().client_failures == 4
+
+    # Elles partent avec le compte, et ne font jamais échouer l'appelant
+    alerting.account.delete_account(BOB)
+    assert alerting.health.get_overview().client_failures == 2
+    alerting.health.database = None
+    assert not alerting.health.record_client_error(CAROL, crash)
 
 
 def test_restart_reports_the_searches_it_has_cut(alerting, notifier, ready_users):
