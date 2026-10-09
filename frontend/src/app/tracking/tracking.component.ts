@@ -7,10 +7,12 @@ import { EvaluationGroup, SearchRun, SearchStats } from '../core/api.models';
 import { CountPipe, DurationPipe, UsdPipe } from '../core/format.pipe';
 import { SearchRunService } from '../core/search-run.service';
 import { TrackingService } from '../core/tracking.service';
+import { BudgetCardComponent } from './budget-card.component';
 import { CorrectionsCardComponent } from './corrections-card.component';
 import { HealthCardComponent } from './health-card.component';
 import { OutcomesCardComponent } from './outcomes-card.component';
 import { RunListComponent } from './run-list.component';
+import { TrendsCardComponent } from './trends-card.component';
 import { UsageCardComponent } from './usage-card.component';
 import { YieldCardComponent } from './yield-card.component';
 
@@ -38,10 +40,12 @@ const GROUPS_SHOWN = 8;
     UsdPipe,
     DurationPipe,
     CountPipe,
+    BudgetCardComponent,
     CorrectionsCardComponent,
     HealthCardComponent,
     OutcomesCardComponent,
     RunListComponent,
+    TrendsCardComponent,
     UsageCardComponent,
     YieldCardComponent,
   ],

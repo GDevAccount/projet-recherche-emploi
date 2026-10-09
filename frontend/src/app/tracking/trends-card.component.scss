@@ -1,0 +1,118 @@
+:host {
+  display: block;
+}
+
+header {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+
+  p {
+    max-width: 46rem;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--app-muted);
+  }
+}
+
+.charts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+
+  @media (max-width: 60rem) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 30rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+figure {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+}
+
+figcaption {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 0.15rem 0.75rem;
+
+  span {
+    grid-column: 1 / -1;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--app-muted);
+  }
+
+  strong {
+    font-family: var(--app-display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  small {
+    font-size: 0.75rem;
+    color: var(--app-muted);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.bars {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  height: 3.5rem;
+  border-bottom: 1px solid var(--app-border);
+}
+
+// Toute la hauteur de la colonne répond au survol, même quand sa barre est à zéro
+.slot {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+
+  i {
+    width: 100%;
+    min-height: 2px;
+    border-radius: 3px 3px 0 0;
+    background: color-mix(in srgb, var(--app-muted), transparent 55%);
+    transition: background-color 0.15s;
+  }
+
+  &:hover i {
+    background: var(--app-muted);
+  }
+
+  &:last-child i {
+    background: var(--app-accent-strong);
+  }
+
+  // Après la règle de la dernière barre : une semaine en cours sans chiffre reste hachurée
+  i.unknown,
+  &:last-child i.unknown,
+  &:hover i.unknown {
+    height: 100% !important;
+    background: repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--app-muted), transparent 80%) 0 3px,
+      transparent 3px 6px
+    );
+  }
+}
+
+.note {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+}

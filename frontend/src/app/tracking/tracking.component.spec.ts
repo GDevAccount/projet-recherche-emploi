@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import {
   AccountUsage,
+  BudgetOverview,
   EvaluationGroup,
   HealthOverview,
   OutcomeGroup,
@@ -11,6 +12,7 @@ import {
   SearchRun,
   SearchStats,
   UsageOverview,
+  WeekStats,
 } from '../core/api.models';
 import { CountPipe, DurationPipe, UsdPipe } from '../core/format.pipe';
 import { TrackingComponent } from './tracking.component';
@@ -66,6 +68,7 @@ function stats(values: Partial<SearchStats> = {}): SearchStats {
     by_site: [group('indeed.com'), group('apec.fr', { evaluated: 5, kept: 0 })],
     by_page_kind: [group('offre')],
     by_text: [group('Page entière', { evaluated: 30 }), group('Extrait seul', { evaluated: 7 })],
+    weeks: [],
     outcomes: outcome('Toutes les offres'),
     outcomes_by_query: [outcome('ingénieur IA'), outcome('AI engineer', { kept: 10, applied: 0, interviews: 0, pending: 6, deleted: 4, applied_rate: 0 })],
     outcomes_by_site: [outcome('indeed.com')],
@@ -202,6 +205,42 @@ function health(values: Partial<HealthOverview> = {}): HealthOverview {
   };
 }
 
+function budget(values: Partial<BudgetOverview> = {}): BudgetOverview {
+  return {
+    month_start: '2026-09-30T22:00:00Z',
+    budget_usd: 10,
+    runs: 11,
+    spent_usd: 2.5,
+    partial: false,
+    guests_spent_usd: 0.4,
+    day_of_month: 9,
+    days_left: 23,
+    daily_average_usd: 0.3,
+    projected_usd: 9.3,
+    spent_rate: 0.25,
+    projected_rate: 0.93,
+    over_budget: false,
+    projected_over_budget: false,
+    ...values,
+  };
+}
+
+function week(start: string, values: Partial<WeekStats> = {}): WeekStats {
+  return {
+    start,
+    runs: 2,
+    failed_runs: 0,
+    cost_usd: 0.1,
+    found: 50,
+    evaluated: 20,
+    known_rate: 0.6,
+    kept: 4,
+    kept_rate: 0.2,
+    applications: 1,
+    ...values,
+  };
+}
+
 describe('TrackingComponent', () => {
   let fixture: ComponentFixture<TrackingComponent>;
   let http: HttpTestingController;
@@ -217,6 +256,10 @@ describe('TrackingComponent', () => {
   });
 
   afterEach(() => http.verify());
+
+  /** Ce que l'API répond pour le budget : un test le change avant d'appeler serve. */
+  let spending = budget();
+  beforeEach(() => (spending = budget()));
 
   function element(): HTMLElement {
     return fixture.nativeElement as HTMLElement;
@@ -249,6 +292,7 @@ describe('TrackingComponent', () => {
     http.expectOne({ method: 'GET', url: '/api/searches' }).flush(runs);
     await fixture.whenStable();
     http.expectOne({ method: 'GET', url: '/api/admin/health?days=7' }).flush(state);
+    http.expectOne({ method: 'GET', url: '/api/admin/budget' }).flush(spending);
     await fixture.whenStable();
     if (served.runs) {
       http.expectOne({ method: 'GET', url: '/api/admin/usage?days=30' }).flush(overview);
@@ -468,6 +512,80 @@ describe('TrackingComponent', () => {
     http.expectOne({ method: 'POST', url: '/api/admin/alerts/test' }).flush({ sent: false });
     await fixture.whenStable();
     expect(text(footer()!.querySelector('[role=status].failed'))).toContain("n'est pas partie");
+  });
+
+  it('should set the spending of the month against the budget of the instance', async () => {
+    await serve(stats({ runs: 0 }), []);
+
+    const card = element().querySelector('app-budget-card')!;
+    expect(text(card.querySelector('.app-eyebrow'))).toBe('Budget du mois · octobre 2026');
+    expect(text(card.querySelector('h2'))).toBe('2,50 $ dépensés sur 10,00 $');
+    expect(text(card.querySelector('.verdict'))).toBe('Dans le budget');
+    expect((card.querySelector('.gauge .spent') as HTMLElement).style.width).toBe('25%');
+    expect((card.querySelector('.gauge .projected') as HTMLElement).style.left).toBe('93%');
+    expect([...card.querySelectorAll('dl > div')].map((cell) => text(cell))).toEqual([
+      'Projection en fin de mois 9,30 $',
+      'Moyenne par jour 0,300 $',
+      'Jours restants 23',
+      'Dont les invités 0,400 $',
+    ]);
+  });
+
+  it('should warn when the budget will be exceeded at this pace', async () => {
+    spending = budget({ projected_usd: 14, projected_rate: 1.4, projected_over_budget: true });
+    await serve(stats({ runs: 0 }), []);
+
+    const card = element().querySelector('app-budget-card')!;
+    expect(text(card.querySelector('.verdict.warn'))).toBe('À ce rythme, le budget sera dépassé');
+    // Au-delà du budget, le repère s'arrête au bord de la jauge
+    expect((card.querySelector('.gauge .projected') as HTMLElement).style.left).toBe('100%');
+  });
+
+  it('should say that the budget is exceeded', async () => {
+    spending = budget({ spent_usd: 12, spent_rate: 1.2, over_budget: true, projected_over_budget: true });
+    await serve(stats({ runs: 0 }), []);
+
+    expect(text(element().querySelector('app-budget-card .verdict.over'))).toBe('Budget dépassé');
+  });
+
+  it('should show the spending alone when no budget is set', async () => {
+    spending = budget({ budget_usd: 0, spent_rate: null, projected_rate: null, partial: true });
+    await serve(stats({ runs: 0 }), []);
+
+    const card = element().querySelector('app-budget-card')!;
+    expect(text(card.querySelector('h2'))).toBe('2,50 $ dépensés ce mois-ci');
+    expect(card.querySelector('.gauge')).toBeNull();
+    expect(card.querySelector('.verdict')).toBeNull();
+    expect(text(card.querySelector('.note'))).toContain('seul le moteur de recherche est compté');
+    expect(text(card.querySelector('.note'))).toContain('MONTHLY_BUDGET_USD');
+  });
+
+  it('should draw the last weeks, one chart for each measure', async () => {
+    const weeks = [
+      week('2026-09-20T22:00:00Z', { cost_usd: 0.05, runs: 1, known_rate: 0.25, applications: 0 }),
+      week('2026-09-27T22:00:00Z', { cost_usd: 0.2, runs: 4 }),
+      week('2026-10-04T22:00:00Z', { cost_usd: null, known_rate: null }),
+    ];
+    await serve(stats({ weeks }));
+
+    const card = element().querySelector('app-trends-card')!;
+    expect(text(card.querySelector('header p'))).toContain('depuis le 21 sept.');
+    expect([...card.querySelectorAll('figcaption')].map((caption) => text(caption))).toEqual([
+      'Coût — sem. préc. 0,200 $',
+      'Recherches 2 sem. préc. 4',
+      'Pages évaluées 20 sem. préc. 20',
+      'Pages déjà connues — sem. préc. 60 %',
+      'Offres retenues 4 sem. préc. 4',
+      'Candidatures 1 sem. préc. 1',
+    ]);
+    const [cost, , , known] = [...card.querySelectorAll('.bars')];
+    const heights = (chart: Element) =>
+      [...chart.querySelectorAll('i')].map((bar) => (bar as HTMLElement).style.height);
+    // Chaque barre à l'échelle de la plus haute ; une part, elle, se lit de 0 à 100 %
+    expect(heights(cost)).toEqual(['25%', '100%', '0%']);
+    expect(heights(known)).toEqual(['25%', '60%', '0%']);
+    expect(cost.querySelectorAll('i.unknown').length).toBe(1);
+    expect(cost.querySelector('.slot')!.getAttribute('title')).toBe('Semaine du 21 sept. : 0,050 $');
   });
 
   it('should tell what each account costs, and reload it for another period', async () => {

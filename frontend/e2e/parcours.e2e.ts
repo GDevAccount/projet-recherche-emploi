@@ -184,6 +184,11 @@ test('le suivi montre le bilan des recherches et le détail de leurs pages', asy
   await expect(health.locator('.figures > div').first()).toContainText('0 sur 2');
   await expect(health.locator('.figures > .bad')).toHaveCount(0);
 
+  // Le budget du mois compte les deux recherches du parcours, et les semaines montrent celle en cours
+  await expect(page.locator('app-budget-card .note')).toContainText('pour 2 recherches ce mois-ci');
+  await expect(page.locator('app-trends-card figcaption').nth(1)).toContainText('Recherches');
+  await expect(page.locator('app-trends-card .bars').first().locator('.slot')).toHaveCount(12);
+
   await expect(page.locator('app-tracking .tile').filter({ hasText: 'recherches' })).toBeVisible();
   await expect(page.getByText(/pages évaluées/).first()).toBeVisible();
   const runs = page.locator('app-run-list .row');

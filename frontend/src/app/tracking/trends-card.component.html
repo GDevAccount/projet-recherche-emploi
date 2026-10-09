@@ -1,0 +1,33 @@
+<section class="app-card">
+  <header>
+    <span class="app-eyebrow">Semaine après semaine</span>
+    <p>
+      Vos recherches depuis le {{ since() }}, par semaine du lundi au dimanche. La dernière barre
+      est la semaine en cours, encore incomplète.
+    </p>
+  </header>
+
+  <div class="charts">
+    @for (chart of charts(); track chart.label) {
+      <figure>
+        <figcaption>
+          <span>{{ chart.label }}</span>
+          <strong>{{ chart.current }}</strong>
+          <small>sem. préc. {{ chart.previous }}</small>
+        </figcaption>
+        <div class="bars" role="img" [attr.aria-label]="chart.label + ' par semaine'">
+          @for (bar of chart.bars; track bar.start) {
+            <span class="slot" [title]="bar.title">
+              <i [class.unknown]="bar.unknown" [style.height.%]="bar.height"></i>
+            </span>
+          }
+        </div>
+      </figure>
+    }
+  </div>
+
+  <small class="note">
+    Une barre hachurée est une semaine dont le chiffre n'est pas connu. Des pages déjà connues en
+    hausse disent que vos postes recherchés ne ramènent plus rien de neuf.
+  </small>
+</section>

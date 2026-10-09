@@ -1,10 +1,12 @@
+import math
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
-from projet_recherche_emploi.config import DEFAULT_PLAN, DEFAULT_USER_ID
+from projet_recherche_emploi.config import DEFAULT_PLAN, DEFAULT_USER_ID, LOCAL_TIMEZONE
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.repositories.usage_repository import UsageRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
-from projet_recherche_emploi.schemas import AccountUsage, UsageOverview
+from projet_recherche_emploi.schemas import AccountUsage, BudgetOverview, UsageOverview
 from projet_recherche_emploi.services.search_costs import (
     COST_DECIMALS,
     model_cost_usd,
@@ -19,8 +21,9 @@ class UsageService:
     C'est à l'interface de n'y laisser entrer qu'un administrateur (AuthService.is_admin).
     """
 
-    def __init__(self, database: Database):
+    def __init__(self, database: Database, monthly_budget_usd: float = 0):
         self.database = database
+        self.monthly_budget_usd = monthly_budget_usd
 
     def get_overview(self, days: int | None = None, now: datetime | None = None) -> UsageOverview:
         """Renvoie ce que chaque compte a consommé et coûté, le plus coûteux en premier.
@@ -29,9 +32,49 @@ class UsageService:
         ce qu'il avait consommé : ses totaux sont gardés par mois, donc un mois entamé compte en entier.
         """
         since = None if days is None else (now or datetime.now(UTC)) - timedelta(days=days)
+        return self._overview(since, since)
+
+    def get_budget(self, now: datetime | None = None) -> BudgetOverview:
+        """Renvoie la dépense du mois en cours, à l'heure de Paris, et ce qu'elle sera à ce rythme en fin de mois.
+
+        Tous les comptes y sont, ceux supprimés pendant le mois compris. Sans tarif connu pour un modèle, la
+        dépense ne compte que le moteur de recherche (partial) : un plancher vaut mieux qu'aucun chiffre.
+        """
+        local = (now or datetime.now(UTC)).astimezone(ZoneInfo(LOCAL_TIMEZONE))
+        start = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        # Le 1er du mois suivant : 32 jours mènent toujours dans le mois d'après
+        end = (start + timedelta(days=32)).replace(day=1)
+        # Les totaux archivés se comparent par mois : c'est le mois de Paris qu'il leur faut, pas celui d'UTC
+        overview = self._overview(start.astimezone(UTC), start)
+
+        partial = overview.cost_usd is None
+        spent = overview.search_cost_usd if partial else overview.cost_usd
+        # Au moins un jour : une recherche à minuit et quart ne se projette pas sur un mois entier
+        elapsed_days = max((local - start) / timedelta(days=1), 1.0)
+        daily_average = spent / elapsed_days
+        projected = round(daily_average * ((end - start) / timedelta(days=1)), COST_DECIMALS)
+        budget = self.monthly_budget_usd
+        return BudgetOverview(
+            month_start=start.astimezone(UTC),
+            budget_usd=budget,
+            runs=overview.runs,
+            spent_usd=spent,
+            partial=partial,
+            guests_spent_usd=overview.guests_cost_usd,
+            day_of_month=local.day,
+            days_left=math.ceil((end - local) / timedelta(days=1)),
+            daily_average_usd=round(daily_average, COST_DECIMALS),
+            projected_usd=projected,
+            spent_rate=round(spent / budget, 4) if budget else None,
+            projected_rate=round(projected / budget, 4) if budget else None,
+            over_budget=bool(budget) and spent > budget,
+            projected_over_budget=bool(budget) and projected > budget,
+        )
+
+    def _overview(self, since: datetime | None, archived_since: datetime | None) -> UsageOverview:
         with self.database.session() as session:
             rows = UsageRepository(session).summarize_runs(since)
-            archived_rows = UsageRepository(session).summarize_archived(since)
+            archived_rows = UsageRepository(session).summarize_archived(archived_since)
             emails = {user.id: user.email for user in UserRepository(session).list_users()}
 
         accounts = [

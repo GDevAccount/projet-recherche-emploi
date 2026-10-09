@@ -13,6 +13,7 @@ const FORMATS = {
     minute: '2-digit',
   }),
   day: new Intl.DateTimeFormat('fr-FR', { timeZone: TIME_ZONE, day: 'numeric', month: 'short' }),
+  month: new Intl.DateTimeFormat('fr-FR', { timeZone: TIME_ZONE, month: 'long', year: 'numeric' }),
   time: new Intl.DateTimeFormat('fr-FR', {
     timeZone: TIME_ZONE,
     day: 'numeric',
@@ -22,7 +23,7 @@ const FORMATS = {
   }),
 };
 
-/** Date UTC de l'API à l'heure de Paris : « 8 octobre 2026 à 14:05 », ou « 8 oct. » avec le format 'day'. */
+/** Date UTC de l'API à l'heure de Paris : « 8 octobre 2026 à 14:05 », « 8 oct. » avec le format 'day', « octobre 2026 » avec 'month'. */
 @Pipe({ name: 'parisDate' })
 export class ParisDatePipe implements PipeTransform {
   transform(value: string | null | undefined, format: keyof typeof FORMATS = 'full'): string {
