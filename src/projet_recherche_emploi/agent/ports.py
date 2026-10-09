@@ -7,7 +7,7 @@ from typing import Protocol
 from pydantic import BaseModel
 
 from projet_recherche_emploi.agent.state import FoundPage
-from projet_recherche_emploi.config import ContractType, WorkMode
+from projet_recherche_emploi.config import OFFER_PAGE_KIND, ContractType, PageKind, WorkMode
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,8 @@ class JobEvaluation(BaseModel):
     Il ne dit pas si le lieu ou le contrat conviennent au candidat : il les rapporte, et le graph décide.
     """
 
-    is_real_offer: bool
+    # Nature de la page : une offre précise, ou ce qu'elle est d'autre
+    page_kind: PageKind
     # Lus sur la page ; None quand elle ne le dit pas
     contract_type: ContractType | None = None
     work_city: str | None = None
@@ -54,6 +55,10 @@ class JobEvaluation(BaseModel):
     matches_skills: bool
     matches_level: bool
     reason: str
+
+    @property
+    def is_real_offer(self) -> bool:
+        return self.page_kind == OFFER_PAGE_KIND
 
 
 class JobSearchEngine(Protocol):

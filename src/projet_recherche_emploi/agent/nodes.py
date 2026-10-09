@@ -316,6 +316,7 @@ class SearchNodes:
                 {
                     **job,
                     **verdict,
+                    "page_kind": evaluation.page_kind,
                     "matches_cv": verdict["matches_skills"] and verdict["matches_level"],
                     "reject_reason": describe_rejection(evaluation, verdict, criteria),
                 }

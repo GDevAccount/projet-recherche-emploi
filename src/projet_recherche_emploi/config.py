@@ -29,6 +29,12 @@ CONTRACT_TYPES = list(get_args(ContractType))
 WorkMode = Literal["sur site", "hybride", "télétravail complet"]
 FULL_REMOTE_MODE = "télétravail complet"
 
+# Nature d'une page trouvée : seule une offre est comparée au CV et aux recherches
+PageKind = Literal[
+    "offre", "liste d'offres", "article", "fiche métier", "page d'accueil", "offre expirée", "formation", "autre"
+]
+OFFER_PAGE_KIND = "offre"
+
 # Contrats de formation : une offre de ce type n'est retenue que si une recherche le demande
 TRAINING_CONTRACTS = ("stage", "alternance")
 

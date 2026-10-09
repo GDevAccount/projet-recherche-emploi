@@ -13,6 +13,7 @@ INSERTED_FIELDS = (
     "work_location",
     "query",
     "is_real_offer",
+    "page_kind",
     "matches_cv",
     "matches_search",
     "matches_contract",

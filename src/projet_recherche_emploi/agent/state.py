@@ -23,6 +23,7 @@ class RejectedPage(FoundPage):
     contract_type: str | None
     work_location: str | None
     is_real_offer: bool
+    page_kind: str
     # Compétences et niveau réunis
     matches_cv: bool
     matches_search: bool

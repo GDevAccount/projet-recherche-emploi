@@ -33,6 +33,8 @@ class FakeEvaluator:
         self.work_city = "Lyon"
         self.work_country = "France"
         self.work_mode = "sur site"
+        # La nature qu'il donne à chaque page
+        self.page_kind = "offre"
         # Son avis sur la géographie : le lieu est-il dans une zone acceptée
         self.in_accepted_area = True
         self.open_to_candidates_in_france = True
@@ -51,7 +53,7 @@ class FakeEvaluator:
             yield (
                 index,
                 JobEvaluation(
-                    is_real_offer=True,
+                    page_kind=self.page_kind,
                     contract_type=self.contract_type,
                     work_city=self.work_city,
                     work_country=self.work_country,

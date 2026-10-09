@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, computed_field
 
+# Motif d'une page qui n'est pas une offre, quand sa nature n'est pas connue ou n'a pas de motif à elle
 REJECT_NOT_AN_OFFER = "Pas une offre valable"
 # Motif des pages rejetées avant que le verdict soit enregistré critère par critère
 REJECT_PROFILE_MISMATCH = "Hors profil"
@@ -15,6 +16,16 @@ REJECT_CRITERIA = {
     "matches_skills": "Compétences insuffisantes",
     "matches_level": "Niveau d'expérience incompatible",
     "matches_location": "Hors lieu recherché",
+}
+# Motif d'une page qui n'est pas une offre, selon sa nature (PageKind)
+REJECT_PAGE_KINDS = {
+    "liste d'offres": "Liste ou page de résultats",
+    "article": "Article",
+    "fiche métier": "Fiche métier",
+    "page d'accueil": "Page d'accueil",
+    "offre expirée": "Offre expirée",
+    # Une formation n'est pas un emploi : elle est rangée avec les stages et les alternances non demandés
+    "formation": REJECT_CRITERIA["matches_contract"],
 }
 
 
@@ -53,6 +64,8 @@ class RejectedJobRead(_FromRow):
     contract_type: str | None
     query: str | None
     is_real_offer: bool
+    # None pour les pages rejetées avant que leur nature soit enregistrée
+    page_kind: str | None
     matches_cv: bool
     # Détail du verdict : None pour les pages rejetées avant qu'il soit enregistré critère par critère
     matches_search: bool | None
@@ -70,7 +83,7 @@ class RejectedJobRead(_FromRow):
         """Motifs du rejet, le principal en premier."""
         # Une page qui n'est pas une offre n'a ni métier ni profil à comparer
         if not self.is_real_offer:
-            return [REJECT_NOT_AN_OFFER]
+            return [REJECT_PAGE_KINDS.get(self.page_kind, REJECT_NOT_AN_OFFER)]
         # Un critère à None n'a pas été évalué : il n'est pas en défaut
         failed = [label for criterion, label in REJECT_CRITERIA.items() if getattr(self, criterion) is False]
         return failed or [REJECT_PROFILE_MISMATCH]
