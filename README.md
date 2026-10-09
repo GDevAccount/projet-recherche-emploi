@@ -105,11 +105,12 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/queries`, `POST /api/queries`, `DELETE /api/queries/{id}` | Postes recherchés |
 | `GET /api/cv`, `PUT /api/cv` | Date du CV en place, dépôt d'un CV (fichier PDF, champ `file`) |
 | `POST /api/searches` | Lancer une recherche, suivie en direct (Server-Sent Events : `progress`, puis `result` ou `error`). Chaque `progress` nomme son étape (`step` : `search`, `dedupe`, `evaluate` ou `save`) et porte, selon l'étape, un décompte (`done`, `total`), le nombre de pages trouvées et à évaluer (`found`, `new`), ou la page qui vient d'être évaluée et son verdict (`title`, `kept`). Refusé (409) si une recherche de l'utilisateur tourne déjà |
-| `GET /api/searches` | Réservée aux administrateurs (le propriétaire et `ADMIN_EMAILS` ; 403 pour un invité), comme les quatre suivantes. Les 100 derniers lancements de l'appelant, avec leur bilan : état (`status` : `running`, `done`, `failed` ou `interrupted`), compteurs, durée totale (`duration_ms`) et de chaque étape en millisecondes, appels au moteur de recherche, jetons du modèle, modèle et version du prompt |
+| `GET /api/searches` | Réservée aux administrateurs (le propriétaire et `ADMIN_EMAILS` ; 403 pour un invité), comme les cinq suivantes. Les 100 derniers lancements de l'appelant, avec leur bilan : état (`status` : `running`, `done`, `failed` ou `interrupted`), compteurs, durée totale (`duration_ms`) et de chaque étape en millisecondes, appels au moteur de recherche, jetons du modèle, modèle et version du prompt |
 | `GET /api/searches/stats` | Synthèse de toutes les recherches suivies de l'appelant : volumes, jetons, coût en dollars (moteur de recherche, modèle, total, par offre retenue), durée moyenne, et répartition des pages évaluées par poste recherché (`by_query`), par site (`by_site`), par nature (`by_page_kind`) et selon le texte lu (`by_text` : page entière, page tronquée, extrait seul). `outcomes` dit ce que sont devenues les offres retenues par le tri, d'après l'état de chaque candidature : candidatures envoyées (`applied`), refusées par l'employeur (`refused`), entretiens (`interviews`), offres à traiter (`pending`), offres supprimées sans candidature (`deleted`), et les taux de candidature et d'entretien ; `outcomes_by_query`, `outcomes_by_site` et `outcomes_by_prompt` le détaillent par poste recherché, par site et par version du prompt, et `cost_per_application_usd` rapporte le coût total aux candidatures nées des recherches suivies. `by_search` donne le rendement de chaque texte envoyé au moteur de recherche, le moins rentable en premier : appels, pages rendues, en double dans le lancement (`repeated`), déjà connues (`known`), évaluées puis écartées (`rejected`), retenues (`kept`), coût des appels et coût par offre retenue. `corrections` compte, par version du prompt, les pages écartées remises dans les offres et les offres supprimées en reprochant quelque chose au tri, avec leurs taux ; `delete_reasons` compte les suppressions par motif |
 | `GET /api/searches/{id}/evaluations` | Pages évaluées pendant un lancement, retenues ou non : faits lus par le modèle, avis et règles du verdict, longueur du texte lu, jetons et durée de l'appel |
 | `GET /api/admin/usage` | Consommation de tous les comptes, le plus coûteux en premier : pour chacun, son adresse, ses lancements, ses appels, ses jetons et son coût en dollars et sa formule (`plan`, `free` tant qu'il n'y a pas de paiement) ; puis le total, et la part due aux invités (`guests_cost_usd`). Un compte supprimé y reste, sans adresse (`deleted`), avec ce qu'il avait consommé. `?days=30` limite le calcul aux derniers jours. Aucune page ni recherche d'un autre compte n'en sort |
-| `GET /api/admin/health` | Santé de l'instance, tous comptes réunis : recherches lancées, échouées (`failed_runs`, et `run_failures` par type d'erreur) ou coupées par un redémarrage (`interrupted_runs`), puis erreurs rendues par l'API hors d'une recherche (`server_errors`, par route et par type), séparées en pannes du serveur (`failures`, réponses 5xx) et en demandes refusées (`refusals`, 4xx). `incidents` additionne échecs, interruptions et pannes ; `healthy` est vrai quand il vaut zéro. `?days=30` limite le calcul aux derniers jours. Seuls des nombres, des routes et des types d'erreur en sortent : ni message, ni compte |
+| `GET /api/admin/health` | Santé de l'instance, tous comptes réunis : recherches lancées, échouées (`failed_runs`, et `run_failures` par type d'erreur) ou coupées par un redémarrage (`interrupted_runs`), puis erreurs rendues par l'API hors d'une recherche (`server_errors`, par route et par type), séparées en pannes du serveur (`failures`, réponses 5xx) et en demandes refusées (`refusals`, 4xx). `incidents` additionne échecs, interruptions et pannes ; `healthy` est vrai quand il vaut zéro. `?days=30` limite le calcul aux derniers jours. Seuls des nombres, des routes et des types d'erreur en sortent : ni message, ni compte. `alerts_enabled` dit si un incident prévient quelqu'un (`NTFY_TOPIC`) |
+| `POST /api/admin/alerts/test` | Envoie une alerte d'essai et attend la réponse de ntfy : `{"sent": true}` si elle est partie, `false` sinon, ou si aucune alerte n'est réglée |
 
 L'appelant prouve son identité par un en-tête `Authorization: Bearer <jeton>`. La règle :
 
@@ -218,6 +219,24 @@ Pour changer le mot de passe (la machine redémarre avec la nouvelle valeur) :
 ```bash
 fly secrets set APP_PASSWORD=nouveau-mot-de-passe
 ```
+
+## Être prévenu d'un incident
+
+Sans réglage, un incident ne se voit que dans la rubrique Suivi. Avec un sujet [ntfy](https://ntfy.sh), service gratuit de notifications, l'instance prévient un téléphone :
+
+- d'une **recherche échouée**, avec le type de l'erreur, chez le propriétaire ou chez un invité ;
+- d'une **panne du serveur** hors d'une recherche (réponse 500), avec le type de l'erreur et la route ;
+- d'une **recherche coupée** par un redémarrage du serveur, au démarrage suivant ;
+- d'un **coût anormal** : plus de 1 $ sur les dernières 24 heures, tous comptes réunis (`DAILY_COST_ALERT_USD`), une fois par jour.
+
+Une même alerte ne part pas deux fois dans l'heure (`ALERT_QUIET_MINUTES`). Un message ne porte que le type de l'incident et des nombres : jamais une adresse, un titre, un lien ni le message d'une erreur.
+
+1. Choisir un nom de sujet long et aléatoire : sans compte ntfy, quiconque le connaît peut lire le sujet. Par exemple `python -c "import secrets; print('tamis-' + secrets.token_urlsafe(24))"`.
+2. Installer l'application ntfy sur le téléphone (Android, iOS) et s'abonner à ce sujet.
+3. Le donner à l'instance, ce qui la redémarre : `fly secrets set NTFY_TOPIC=...` (ou `NTFY_TOPIC=...` dans `.env` en local).
+4. Dans la rubrique Suivi, la carte « Santé de l'instance » indique « Alertes actives » : le bouton « Envoyer une alerte d'essai » vérifie qu'elles arrivent.
+
+`NTFY_URL` remplace `https://ntfy.sh` par un serveur ntfy à soi. Les délais sont en mémoire : après un redémarrage, une alerte déjà envoyée peut repartir.
 
 ## Plusieurs utilisateurs : connexion Google
 
@@ -495,6 +514,9 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 | Recherches créées avec la base (`DEFAULT_QUERIES`) | `src/projet_recherche_emploi/config.py` | 2 recherches CDI, 2 freelance (ingénieur IA) |
 | Types de contrat proposés (`CONTRACT_TYPES`) | `src/projet_recherche_emploi/config.py` | CDI, freelance, CDD, alternance, stage |
 | Sites autorisés à appeler l'API depuis un navigateur (`CORS_ORIGINS`) | variable d'environnement | aucun |
+| Sujet ntfy des alertes (`NTFY_TOPIC`), et serveur ntfy (`NTFY_URL`) | variables d'environnement | aucune alerte, `https://ntfy.sh` |
+| Coût sur 24 heures qui déclenche une alerte (`DAILY_COST_ALERT_USD`) | `src/projet_recherche_emploi/config.py` | `1.0` |
+| Délai avant de renvoyer une même alerte (`ALERT_QUIET_MINUTES`) | `src/projet_recherche_emploi/config.py` | `60` |
 | Sites interrogés (`JOB_SITES`) | `src/projet_recherche_emploi/config.py` | 24 sites d'emploi |
 | Sites ajoutés pour la variante en anglais d'une recherche en télétravail complet (`REMOTE_JOB_SITES`) | `src/projet_recherche_emploi/config.py` | 7 sites d'offres en télétravail |
 | Critères du filtre (`FILTER_PROMPT`) | `src/projet_recherche_emploi/agent/prompts.py` | — |

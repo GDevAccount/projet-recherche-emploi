@@ -19,6 +19,7 @@ from projet_recherche_emploi.data.cv_ingestion.ingestion import CvIngestion
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.services.account_service import AccountService
+from projet_recherche_emploi.services.alert_service import AlertService, Notifier, NtfyNotifier
 from projet_recherche_emploi.services.auth_service import AuthService
 from projet_recherche_emploi.services.cv_service import CvService
 from projet_recherche_emploi.services.health_service import HealthService
@@ -34,6 +35,7 @@ class Container:
         settings: Settings,
         search_engine: JobSearchEngine | None = None,
         evaluator: JobEvaluator | None = None,
+        notifier: Notifier | None = None,
     ):
         self.settings = settings
         self.database = Database(settings.db_path)
@@ -45,10 +47,15 @@ class Container:
         self.jobs = JobService(self.database)
         self.queries = QueryService(self.database)
         self.cv = CvService(self.database, self.cv_ingestion)
-        self.search = SearchService(self.database, lambda: self.graph)
+        # Sans sujet ntfy, aucune alerte ne part
+        if notifier is None and settings.ntfy_topic:
+            notifier = NtfyNotifier(settings.ntfy_url, settings.ntfy_topic)
+        self.alerts = AlertService(notifier)
+        # Le service de santé est construit après celui des recherches, dont il dépend : d'où l'appel différé
+        self.search = SearchService(self.database, lambda: self.graph, lambda *run: self.health.search_closed(*run))
         self.account = AccountService(self.database, self.search)
         self.usage = UsageService(self.database)
-        self.health = HealthService(self.database, self.search)
+        self.health = HealthService(self.database, self.search, self.usage, self.alerts)
 
     @cached_property
     def graph(self) -> CompiledStateGraph:
@@ -61,9 +68,10 @@ def build_container(
     settings: Settings | None = None,
     search_engine: JobSearchEngine | None = None,
     evaluator: JobEvaluator | None = None,
+    notifier: Notifier | None = None,
 ) -> Container:
     """Construit l'application et met sa base à jour."""
-    container = Container(settings or Settings(), search_engine, evaluator)
+    container = Container(settings or Settings(), search_engine, evaluator, notifier)
     container.database.migrate()
     return container
 

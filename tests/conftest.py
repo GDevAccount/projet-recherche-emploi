@@ -81,6 +81,19 @@ class FakeEvaluator:
             )
 
 
+class FakeNotifier:
+    """Destinataire des alertes : il garde ce qu'il reçoit, ou refuse tout si « works » est faux."""
+
+    def __init__(self, works: bool = True):
+        self.works = works
+        self.sent: list[tuple[str, str]] = []
+
+    def send(self, title: str, message: str) -> bool:
+        if self.works:
+            self.sent.append((title, message))
+        return self.works
+
+
 @pytest.fixture(autouse=True)
 def clean_environment(monkeypatch):
     # Les réglages de la machine (ou d'un .env déjà chargé) ne doivent pas fuir dans les tests
@@ -119,6 +132,19 @@ def search_engine():
 @pytest.fixture
 def container(settings, search_engine, evaluator):
     return build_container(settings, search_engine, evaluator)
+
+
+@pytest.fixture
+def notifier():
+    return FakeNotifier()
+
+
+@pytest.fixture
+def alerting(settings, search_engine, evaluator, notifier):
+    """Application dont les alertes arrivent, sans attendre, au faux destinataire."""
+    container = build_container(settings, search_engine, evaluator, notifier)
+    container.alerts.dispatch = lambda send: send()
+    return container
 
 
 @pytest.fixture

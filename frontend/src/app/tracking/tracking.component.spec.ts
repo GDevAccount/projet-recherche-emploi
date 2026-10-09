@@ -197,6 +197,7 @@ function health(values: Partial<HealthOverview> = {}): HealthOverview {
     failures: 0,
     refusals: 0,
     server_errors: [],
+    alerts_enabled: false,
     ...values,
   };
 }
@@ -442,6 +443,31 @@ describe('TrackingComponent', () => {
     await fixture.whenStable();
 
     expect(text(card.querySelector('h2'))).toBe('Tout fonctionne');
+  });
+
+  it('should say whether alerts are on, and let the administrator try one', async () => {
+    await serve(stats({ runs: 0 }), []);
+    const footer = () => element().querySelector('app-health-card footer');
+    expect(text(footer())).toContain('Alertes désactivées');
+    expect(footer()!.querySelector('button')).toBeNull();
+
+    await click('30 jours');
+    http
+      .expectOne({ method: 'GET', url: '/api/admin/health?days=30' })
+      .flush(health({ alerts_enabled: true }));
+    await fixture.whenStable();
+    expect(text(footer())).toContain('Alertes actives');
+
+    await click("Envoyer une alerte d'essai");
+    expect(footer()!.querySelector('button')!.disabled).toBe(true);
+    http.expectOne({ method: 'POST', url: '/api/admin/alerts/test' }).flush({ sent: true });
+    await fixture.whenStable();
+    expect(text(footer()!.querySelector('[role=status]'))).toContain('Alerte envoyée');
+
+    await click("Envoyer une alerte d'essai");
+    http.expectOne({ method: 'POST', url: '/api/admin/alerts/test' }).flush({ sent: false });
+    await fixture.whenStable();
+    expect(text(footer()!.querySelector('[role=status].failed'))).toContain("n'est pas partie");
   });
 
   it('should tell what each account costs, and reload it for another period', async () => {

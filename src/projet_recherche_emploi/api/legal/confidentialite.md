@@ -35,6 +35,8 @@ Ce traitement repose sur l'exécution du service que vous demandez en vous conne
 - **Tavily**, pour la recherche web. Seules vos phrases de recherche, avec leur type de contrat et leur lieu, lui sont envoyées, pas votre CV.
 - **Fly.io** (Fly.io, Inc., 2261 Market Street #4990, San Francisco, CA 94114, États-Unis), qui héberge l'application et sa base de données, dans la région de Paris.
 
+Quand une recherche échoue ou que l'application tombe en panne, son administrateur peut en être prévenu par le service de notifications ntfy. Ce message ne contient rien qui vous concerne : seulement le type de l'incident et des nombres.
+
 Ces quatre sociétés sont établies aux États-Unis. Les données hébergées par Fly.io restent dans la région de Paris ; les transmissions à OpenAI, Tavily et Google impliquent un transfert de données hors de l'Union européenne. Google et Fly.io adhèrent au cadre de protection des données UE-États-Unis (Data Privacy Framework). Les transferts d'OpenAI hors de l'Union européenne sont encadrés par les clauses contractuelles types de la Commission européenne, prévues par son accord de traitement des données.
 
 ## Durée de conservation

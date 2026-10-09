@@ -51,6 +51,8 @@ def create_app(
         # Une connexion à moitié réglée arrête le serveur au lieu de refuser tout le monde une fois en ligne
         container.auth.check_configuration()
         container.account.delete_inactive_accounts_if_due()
+        # Aucune recherche ne tourne encore : celles restées « en cours » viennent d'être coupées
+        container.health.alert_on_interrupted_runs()
     settings = container.settings
 
     # La documentation décrit toutes les routes : elle n'est servie qu'en développement

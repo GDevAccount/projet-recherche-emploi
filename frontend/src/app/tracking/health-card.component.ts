@@ -54,6 +54,10 @@ export class HealthCardComponent {
   // undefined : en cours de lecture
   protected readonly health = signal<HealthOverview | undefined>(undefined);
   protected readonly error = signal('');
+  /** Issue de l'alerte d'essai : en cours d'envoi, partie, ou non. */
+  protected readonly test = signal<'sending' | 'sent' | 'failed' | undefined>(undefined);
+
+  private readonly tracking = inject(TrackingService);
 
   /** Ce qui a mal tourné : recherches échouées, recherches interrompues, pannes du serveur. */
   protected readonly incidents = computed<Row[]>(() => {
@@ -87,10 +91,9 @@ export class HealthCardComponent {
   });
 
   constructor() {
-    const tracking = inject(TrackingService);
     effect(() => {
       this.version();
-      tracking.getHealth(this.days()).subscribe({
+      this.tracking.getHealth(this.days()).subscribe({
         next: (health) => {
           this.health.set(health);
           this.error.set('');
@@ -102,6 +105,14 @@ export class HealthCardComponent {
 
   protected choose(days: Days): void {
     this.days.set(days);
+  }
+
+  protected sendTest(): void {
+    this.test.set('sending');
+    this.tracking.sendTestAlert().subscribe({
+      next: (result) => this.test.set(result.sent ? 'sent' : 'failed'),
+      error: () => this.test.set('failed'),
+    });
   }
 
   private serverErrors(health: HealthOverview, failures: boolean): Row[] {

@@ -3,7 +3,14 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
-import { HealthOverview, PageEvaluation, SearchRun, SearchStats, UsageOverview } from './api.models';
+import {
+  AlertTest,
+  HealthOverview,
+  PageEvaluation,
+  SearchRun,
+  SearchStats,
+  UsageOverview,
+} from './api.models';
 
 /** Suivi des recherches, réservé aux administrateurs : l'API répond 403 à tout autre compte. */
 @Injectable({ providedIn: 'root' })
@@ -35,5 +42,10 @@ export class TrackingService {
   /** Recherches échouées et erreurs de l'API sur tous les comptes, pendant les derniers jours. */
   getHealth(days: number): Observable<HealthOverview> {
     return this.http.get<HealthOverview>(`${environment.apiUrl}/admin/health`, { params: { days } });
+  }
+
+  /** Envoie une alerte d'essai, et dit si elle est partie. */
+  sendTestAlert(): Observable<AlertTest> {
+    return this.http.post<AlertTest>(`${environment.apiUrl}/admin/alerts/test`, null);
   }
 }

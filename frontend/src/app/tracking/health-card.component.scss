@@ -209,6 +209,66 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
+footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--app-border);
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+
+  p {
+    flex: 1 1 18rem;
+    margin: 0;
+  }
+
+  i {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-right: 0.4rem;
+    border-radius: 50%;
+    background: var(--app-accent-strong);
+
+    &.off {
+      background: color-mix(in srgb, var(--app-muted), transparent 50%);
+    }
+  }
+
+  button {
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: none;
+    color: var(--app-text);
+    font: inherit;
+    font-weight: 550;
+    cursor: pointer;
+    transition: border-color 0.15s;
+
+    &:hover:not(:disabled) {
+      border-color: var(--app-muted);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+
+  span {
+    flex-basis: 100%;
+    color: var(--app-text);
+  }
+
+  .failed {
+    color: var(--down);
+  }
+}
+
 .note {
   display: block;
   margin-top: 1rem;

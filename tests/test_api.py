@@ -3,7 +3,7 @@ import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from conftest import FakeEvaluator, FakeSearchEngine
+from conftest import FakeEvaluator, FakeNotifier, FakeSearchEngine
 from fastapi.testclient import TestClient
 from helpers import blank_pdf, job
 
@@ -138,6 +138,7 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/searches/1/evaluations"),
         ("GET", "/api/admin/usage"),
         ("GET", "/api/admin/health"),
+        ("POST", "/api/admin/alerts/test"),
     ],
 )
 def test_every_data_route_requires_an_identity(client, method, path):
@@ -449,6 +450,28 @@ def test_health_reports_the_errors_of_every_account_without_their_content(tmp_pa
     assert client.delete("/api/me", headers=ALICE).status_code == 204
     after = client.get("/api/admin/health", headers=BOB).json()
     assert (after["healthy"], after["failures"], after["refusals"]) == (True, 0, 2)
+
+
+def test_administrator_can_check_that_alerts_arrive(client, tmp_path):
+    # Sans sujet ntfy, rien ne part, et la santé le dit
+    assert client.post("/api/admin/alerts/test", headers=ALICE).status_code == 403
+    assert client.post("/api/admin/alerts/test", headers=OWNER).json() == {"sent": False}
+    assert client.get("/api/admin/health", headers=OWNER).json()["alerts_enabled"] is False
+
+    notifier = FakeNotifier()
+    container = build_container(
+        Settings(data_dir=tmp_path / "alertes", app_password="sesame", auth_cookie_secret=SECRET),
+        FakeSearchEngine(),
+        FakeEvaluator(),
+        notifier,
+    )
+    alerting = TestClient(create_app(container, FakeIdentityVerifier()), base_url="http://localhost")
+
+    assert alerting.post("/api/admin/alerts/test", headers=PASSWORD).json() == {"sent": True}
+    assert notifier.sent == [("Alerte d'essai", "Les alertes de Tamis arrivent bien ici.")]
+    assert alerting.get("/api/admin/health", headers=PASSWORD).json()["alerts_enabled"] is True
+    # Le sujet se lit comme un secret : rien de public ne le donne
+    assert "ntfy" not in alerting.get("/api/config").text
 
 
 def test_usage_can_be_limited_to_the_last_days(tmp_path, valid_pdf):

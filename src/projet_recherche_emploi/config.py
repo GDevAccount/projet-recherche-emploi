@@ -27,6 +27,14 @@ INACTIVE_ACCOUNT_DAYS = 365
 # de la santé de l'instance. Les règles de confidentialité affichent cette durée : elles suivent cette valeur.
 SERVER_ERROR_DAYS = 90
 
+# Une même alerte n'est pas renvoyée avant ce délai : une panne qui se répète ne doit pas noyer le téléphone
+ALERT_QUIET_MINUTES = 60
+# Coût de toutes les recherches des dernières 24 heures, en dollars, à partir duquel une alerte part, une fois
+# par jour. Une recherche coûte quelques centimes : ce seuil n'est franchi que par un usage anormal
+DAILY_COST_ALERT_USD = 1.0
+# Au démarrage, une recherche restée « en cours » depuis moins longtemps vient d'être coupée par ce redémarrage
+INTERRUPTION_ALERT_MINUTES = 60
+
 # Formule d'un compte (AccountPlan de schemas.py). Il n'y a pas encore de paiement : tout compte a celle-ci.
 # Elle est déjà gardée avec la consommation d'un compte supprimé, pour savoir plus tard ce que coûtaient
 # les comptes gratuits et les payants
@@ -147,6 +155,11 @@ class Settings(BaseSettings):
     # Adresses des administrateurs, séparées par des virgules : ils voient le suivi des recherches et la
     # consommation de tous les comptes, comme le propriétaire, et peuvent se connecter sans figurer parmi les invités
     admin_emails: str = ""
+
+    # Sujet ntfy où partent les alertes (recherche échouée, panne, coût anormal). Vide : aucune alerte.
+    # Sans compte ntfy, qui connaît ce nom peut lire le sujet : il se choisit long et aléatoire, comme un secret
+    ntfy_topic: str = Field(default="", repr=False)
+    ntfy_url: str = "https://ntfy.sh"
 
     contact_email: str = ""
     google_site_verification_file: str = ""
