@@ -1,12 +1,18 @@
 import logging
 import threading
 from collections.abc import Callable, Iterable, Iterator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Protocol
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
-from projet_recherche_emploi.config import DEFAULT_USER_ID, LOCAL_TIMEZONE, MAX_SEARCHES_PER_DAY, OFFER_PAGE_KIND
+from projet_recherche_emploi.config import (
+    DEFAULT_USER_ID,
+    LOCAL_TIMEZONE,
+    MAX_SEARCHES_PER_DAY,
+    OFFER_PAGE_KIND,
+    WEEKS_SHOWN,
+)
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.models import Correction, EngineCall, Job
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
@@ -31,6 +37,7 @@ from projet_recherche_emploi.schemas import (
     SearchStats,
     SearchSummary,
     SearchYield,
+    WeekStats,
 )
 from projet_recherche_emploi.services.search_costs import (
     COST_DECIMALS,
@@ -233,6 +240,54 @@ def group_outcomes(jobs: Iterable[Job], label_of: Callable[[Job], str | None]) -
     return sorted(outcomes, key=lambda group: (-group.kept, group.label))
 
 
+def start_of_local_week(moment: datetime) -> date:
+    """Renvoie le lundi de la semaine de cet instant, à l'heure de Paris."""
+    local = moment.astimezone(ZoneInfo(LOCAL_TIMEZONE))
+    return local.date() - timedelta(days=local.weekday())
+
+
+def summarize_weeks(runs: Iterable[SearchRunRead], applied_at: Iterable[datetime], now: datetime) -> list[WeekStats]:
+    """Compte, semaine par semaine, ce que les recherches ont trouvé et coûté, et les candidatures envoyées.
+
+    Renvoie les WEEKS_SHOWN dernières semaines, la plus ancienne en premier : une semaine sans recherche y
+    figure à zéro, pour que la suite se lise sans trou.
+    """
+    current = start_of_local_week(now)
+    starts = [current - timedelta(weeks=back) for back in reversed(range(WEEKS_SHOWN))]
+    runs_by_week: dict[date, list[SearchRunRead]] = {start: [] for start in starts}
+    for run in runs:
+        runs_by_week.get(start_of_local_week(run.created_at), []).append(run)
+    applications = dict.fromkeys(starts, 0)
+    for moment in applied_at:
+        week = start_of_local_week(moment)
+        if week in applications:
+            applications[week] += 1
+
+    weeks = []
+    for start in starts:
+        week_runs = runs_by_week[start]
+        # Une recherche arrêtée avant le dédoublonnage ne dit pas combien de ses pages étaient connues
+        deduplicated = [run for run in week_runs if run.new_count is not None]
+        found = sum(run.found_count or 0 for run in deduplicated)
+        evaluated = sum(run.new_count for run in deduplicated)
+        kept = sum(run.kept_count or 0 for run in week_runs)
+        weeks.append(
+            WeekStats(
+                start=datetime.combine(start, time.min, ZoneInfo(LOCAL_TIMEZONE)).astimezone(UTC),
+                runs=len(week_runs),
+                failed_runs=sum(run.status != "done" and run.status != "running" for run in week_runs),
+                cost_usd=sum_costs(run.cost_usd for run in week_runs),
+                found=sum(run.found_count or 0 for run in week_runs),
+                evaluated=evaluated,
+                known_rate=rate(found - evaluated, found),
+                kept=kept,
+                kept_rate=rate(kept, evaluated),
+                applications=applications[start],
+            )
+        )
+    return weeks
+
+
 def rate(part: int, whole: int) -> float | None:
     """Renvoie la part d'un ensemble, ou None s'il est vide."""
     return round(part / whole, 4) if whole else None
@@ -418,7 +473,7 @@ class SearchService:
             rows = PageEvaluationRepository(session, user_id).list_for_run(run_id)
             return [price_evaluation(PageEvaluationRead.model_validate(row), run.model) for row in rows]
 
-    def get_stats(self, user_id: int) -> SearchStats:
+    def get_stats(self, user_id: int, now: datetime | None = None) -> SearchStats:
         """Renvoie la synthèse de toutes les recherches suivies de l'utilisateur : volumes, coûts, répartitions."""
         with self.database.session() as session:
             run_rows = SearchRunRepository(session, user_id).list_runs()
@@ -432,7 +487,10 @@ class SearchService:
             by_search = summarize_engine_calls(EngineCallRepository(session, user_id).list_all())
             # Une page remise par l'utilisateur n'a pas été retenue par le tri : son devenir ne dit rien de lui
             restored = {correction.url for correction in corrections if correction.kind == CORRECTION_RESTORED}
-            jobs = [job for job in JobRepository(session, user_id).list_all() if job.url not in restored]
+            all_jobs = JobRepository(session, user_id).list_all()
+            # Toute candidature compte dans l'activité d'une semaine, même sur une page remise par l'utilisateur
+            applied_at = [job.applied_at for job in all_jobs if job.applied_at is not None]
+            jobs = [job for job in all_jobs if job.url not in restored]
             versions = {run.id: run.prompt_version for run in runs}
             # La dernière évaluation d'une page l'emporte : c'est elle qui l'a fait retenir
             judged_with = {page.url: versions.get(page.search_run_id) for page in evaluations}
@@ -478,6 +536,7 @@ class SearchService:
             by_site=group_evaluations(evaluations, lambda page: site_of(page.url)),
             by_page_kind=group_evaluations(evaluations, lambda page: page.page_kind),
             by_text=group_evaluations(evaluations, text_read),
+            weeks=summarize_weeks(runs, applied_at, now or datetime.now(UTC)),
             outcomes=outcomes,
             outcomes_by_query=outcomes_by_query,
             outcomes_by_site=outcomes_by_site,

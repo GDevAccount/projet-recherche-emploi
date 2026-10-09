@@ -18,9 +18,10 @@ from projet_recherche_emploi.config import (
     INACTIVE_ACCOUNT_DAYS,
     MAX_SEARCHES_PER_DAY,
     SERVER_ERROR_DAYS,
+    WEEKS_SHOWN,
 )
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
-from projet_recherche_emploi.data.models import EngineCall, ServerError
+from projet_recherche_emploi.data.models import EngineCall, SearchRun, ServerError
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.engine_call_repository import EngineCallRepository
@@ -29,12 +30,13 @@ from projet_recherche_emploi.data.repositories.rejected_job_repository import Re
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
-from projet_recherche_emploi.schemas import SearchProgress, SearchSummary
+from projet_recherche_emploi.schemas import BudgetOverview, SearchProgress, SearchSummary
 from projet_recherche_emploi.services import cv_service, health_service
 from projet_recherche_emploi.services.alert_service import AlertService, NtfyNotifier
 from projet_recherche_emploi.services.search_service import (
     SearchService,
     describe_engine_calls,
+    start_of_local_week,
     summarize_engine_calls,
 )
 
@@ -221,6 +223,119 @@ def test_outcomes_say_what_became_of_the_kept_offers(container, ready_users):
     refused = container.search.get_stats(BOB).outcomes
     assert (refused.applied, refused.refused, refused.interviews) == (1, 1, 1)
     assert container.search.get_stats(CAROL).outcomes.kept == 0
+
+
+def test_weeks_follow_the_searches_and_the_applications(container, ready_users):
+    # Le propriétaire n'a pas de quota, et autant d'appels au moteur que de recherches par défaut
+    owner, calls = DEFAULT_USER_ID, len(DEFAULT_QUERIES)
+    container.search.run_search(owner)
+    container.search.run_search(owner)
+    container.jobs.set_status(owner, container.jobs.list_jobs(owner)[0].id, "applied")
+
+    weeks = container.search.get_stats(owner).weeks
+
+    # Douze semaines, la plus ancienne en premier : celles sans recherche y sont, à zéro
+    assert len(weeks) == WEEKS_SHOWN and weeks == sorted(weeks, key=lambda week: week.start)
+    assert {(week.runs, week.cost_usd, week.known_rate, week.applications) for week in weeks[:-1]} == {(0, 0, None, 0)}
+    current = weeks[-1]
+    # La seconde recherche n'a retrouvé que les pages de la première : la moitié des pages était connue
+    assert (current.runs, current.failed_runs, current.found, current.evaluated) == (2, 0, 4 * calls, 2 * calls)
+    assert (current.known_rate, current.kept, current.kept_rate, current.applications) == (0.5, calls, 0.5, 1)
+    # Le faux modèle n'a pas de tarif : pas de coût, plutôt qu'un coût partiel
+    assert current.cost_usd is None
+
+    # Trois semaines plus tard, les mêmes chiffres ont reculé d'autant
+    later = container.search.get_stats(owner, now=datetime.now(UTC) + timedelta(weeks=3)).weeks
+    assert [week.runs for week in later[-4:]] == [2, 0, 0, 0] and later[-4].applications == 1
+    # Une recherche échouée compte dans sa semaine, sans fausser la part des pages connues
+    broken = SearchService(container.database, BrokenGraph)
+    with pytest.raises(RuntimeError):
+        broken.run_search(owner)
+    failed = container.search.get_stats(owner).weeks[-1]
+    assert (failed.runs, failed.failed_runs, failed.found, failed.known_rate) == (3, 1, 4 * calls + 1, 0.5)
+    assert container.search.get_stats(CAROL).weeks[-1].runs == 0
+
+
+def test_week_starts_on_monday_in_paris():
+    # Dimanche 22 h 30 en UTC, c'est déjà lundi à Paris
+    assert start_of_local_week(datetime(2026, 10, 11, 22, 30, tzinfo=UTC)).isoformat() == "2026-10-12"
+    assert start_of_local_week(datetime(2026, 10, 11, 21, 30, tzinfo=UTC)).isoformat() == "2026-10-05"
+
+
+def test_budget_projects_the_month_from_the_days_elapsed(container, ready_users):
+    container.usage.monthly_budget_usd = 0.02
+    container.search.run_search(BOB)
+    with container.database.session() as session:
+        session.execute(update(SearchRun).values(created_at=datetime(2026, 3, 10, 12, tzinfo=UTC)))
+
+    # Le 16 mars à minuit, heure de Paris : quinze jours écoulés sur trente et un
+    budget = container.usage.get_budget(datetime(2026, 3, 15, 23, tzinfo=UTC))
+
+    assert budget.month_start == datetime(2026, 2, 28, 23, tzinfo=UTC)
+    assert (budget.day_of_month, budget.days_left) == (16, 16)
+    # Un appel au moteur de recherche, et un modèle sans tarif : la dépense est un plancher
+    assert (budget.runs, budget.spent_usd, budget.partial, budget.guests_spent_usd) == (1, 0.016, True, None)
+    assert (budget.daily_average_usd, budget.projected_usd) == (0.001067, 0.033067)
+    assert (budget.spent_rate, budget.projected_rate) == (0.8, 1.6533)
+    assert (budget.over_budget, budget.projected_over_budget) == (False, True)
+
+    # Le compte supprimé, sa dépense du mois reste dans le budget
+    container.account.delete_account(BOB)
+    assert container.usage.get_budget(datetime(2026, 3, 15, 23, tzinfo=UTC)).spent_usd == 0.016
+    # Le 1er avril à minuit et demi à Paris, UTC est encore en mars : c'est le mois de Paris qui compte
+    april = container.usage.get_budget(datetime(2026, 3, 31, 22, 30, tzinfo=UTC))
+    assert (april.month_start, april.runs, april.spent_usd, april.projected_usd) == (
+        datetime(2026, 3, 31, 22, tzinfo=UTC),
+        0,
+        0,
+        0,
+    )
+    # Sans budget, rien n'est jamais dépassé
+    container.usage.monthly_budget_usd = 0
+    free = container.usage.get_budget(datetime(2026, 3, 15, 23, tzinfo=UTC))
+    assert (free.spent_rate, free.projected_rate, free.over_budget, free.projected_over_budget) == (
+        None,
+        None,
+        False,
+        False,
+    )
+
+
+def test_budget_sends_an_alert_when_exceeded_or_about_to_be(alerting, notifier, ready_users, monkeypatch):
+    alerting.search.run_search(BOB)
+    assert notifier.sent == []
+
+    alerting.usage.monthly_budget_usd = 0.02
+    alerting.search.run_search(CAROL)
+    alerting.search.run_search(BOB)
+    assert notifier.sent == [("Budget dépassé", "0.03 $ dépensés ce mois-ci pour un budget de 0.02 $")]
+
+    def budget(day: int) -> BudgetOverview:
+        return BudgetOverview(
+            month_start=datetime(2026, 4, 1, tzinfo=UTC),
+            budget_usd=10,
+            runs=4,
+            spent_usd=2,
+            partial=False,
+            guests_spent_usd=0.5,
+            day_of_month=day,
+            days_left=31 - day,
+            daily_average_usd=1,
+            projected_usd=30,
+            spent_rate=0.2,
+            projected_rate=3,
+            over_budget=False,
+            projected_over_budget=True,
+        )
+
+    # En tout début de mois, la projection repose sur trop peu de jours pour prévenir
+    monkeypatch.setattr(alerting.usage, "get_budget", lambda: budget(2))
+    alerting.search.run_search(DEFAULT_USER_ID)
+    assert len(notifier.sent) == 1
+    monkeypatch.setattr(alerting.usage, "get_budget", lambda: budget(12))
+    alerting.search.run_search(DEFAULT_USER_ID)
+    alerting.search.run_search(DEFAULT_USER_ID)
+    assert notifier.sent[1:] == [("Budget menacé", "À ce rythme, 30.00 $ en fin de mois pour un budget de 10.00 $")]
 
 
 def test_engine_calls_say_what_became_of_their_pages():

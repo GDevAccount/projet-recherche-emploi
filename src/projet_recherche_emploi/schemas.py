@@ -318,6 +318,27 @@ class ReasonCount(BaseModel):
     count: int
 
 
+class WeekStats(BaseModel):
+    """Une semaine de recherches d'un utilisateur, du lundi au dimanche à l'heure de Paris."""
+
+    # Lundi à minuit, heure de Paris
+    start: datetime
+    runs: int
+    # Recherches échouées ou interrompues
+    failed_runs: int
+    # None si le coût d'une recherche de la semaine n'est pas connu
+    cost_usd: float | None
+    found: int
+    evaluated: int
+    # Part des pages trouvées qui étaient déjà connues : proche de 1, les recherches ne ramènent plus rien de neuf
+    known_rate: float | None
+    kept: int
+    # Part des pages évaluées qui ont été retenues
+    kept_rate: float | None
+    # Candidatures envoyées pendant la semaine, quelle que soit la date où l'offre a été trouvée
+    applications: int
+
+
 class SearchStats(BaseModel):
     """Synthèse de toutes les recherches suivies d'un utilisateur. Les coûts sont en dollars, aux tarifs actuels."""
 
@@ -346,6 +367,8 @@ class SearchStats(BaseModel):
     by_page_kind: list[EvaluationGroup]
     # Selon le texte lu par le modèle : page entière, page tronquée, ou extrait du moteur de recherche
     by_text: list[EvaluationGroup]
+    # Les dernières semaines, la plus ancienne en premier, celle en cours en dernier ; une semaine vide y figure
+    weeks: list[WeekStats]
     # Devenir de toutes les offres retenues, puis par poste recherché, par site et par version du prompt
     outcomes: OutcomeGroup
     outcomes_by_query: list[OutcomeGroup]
@@ -488,6 +511,30 @@ class AlertTest(BaseModel):
     """Issue d'une alerte d'essai."""
 
     sent: bool
+
+
+class BudgetOverview(BaseModel):
+    """Dépense du mois en cours, tous comptes réunis, face au budget de l'instance. Montants en dollars."""
+
+    # Premier jour du mois à minuit, heure de Paris
+    month_start: datetime
+    # 0 : aucun budget n'est fixé, et les parts et dépassements ci-dessous restent vides ou faux
+    budget_usd: float
+    runs: int
+    spent_usd: float
+    # Vrai quand le tarif d'un modèle manque : la dépense ne compte alors que le moteur de recherche
+    partial: bool
+    # Part due aux comptes autres que celui du propriétaire ; None si elle n'est pas connue
+    guests_spent_usd: float | None
+    day_of_month: int
+    days_left: int
+    daily_average_usd: float
+    # Dépense à la fin du mois si le rythme des jours écoulés se maintient
+    projected_usd: float
+    spent_rate: float | None
+    projected_rate: float | None
+    over_budget: bool
+    projected_over_budget: bool
 
 
 class Account(BaseModel):

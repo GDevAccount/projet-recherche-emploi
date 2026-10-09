@@ -5,6 +5,7 @@
 @if (stats(); as stats) {
   <!-- Avant tout le reste, et même sans recherche de l'administrateur : elle parle de tous les comptes -->
   <app-health-card [version]="version()" />
+  <app-budget-card [version]="version()" />
   @if (!stats.runs) {
     <section class="blank">
       <h2>Aucune recherche suivie</h2>
@@ -34,6 +35,8 @@
         <span>durée moyenne</span>
       </div>
     </section>
+
+    <app-trends-card [weeks]="stats.weeks" />
 
     <section class="app-card spend">
       <header>

@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from projet_recherche_emploi.api.security import AdminId, Services
-from projet_recherche_emploi.schemas import AlertTest, HealthOverview, UsageOverview
+from projet_recherche_emploi.schemas import AlertTest, BudgetOverview, HealthOverview, UsageOverview
 
 router = APIRouter(tags=["administration"])
 
@@ -46,3 +46,12 @@ def send_test_alert(admin_id: AdminId, services: Services) -> AlertTest:
     Réservé aux administrateurs. Le message ne porte rien de l'appelant.
     """
     return AlertTest(sent=services.health.send_test_alert())
+
+
+@router.get("/admin/budget")
+def get_budget(admin_id: AdminId, services: Services) -> BudgetOverview:
+    """Dépense du mois en cours, tous comptes réunis, sa projection en fin de mois et le budget de l'instance.
+
+    Réservé aux administrateurs. Seuls des montants en sortent.
+    """
+    return services.usage.get_budget()

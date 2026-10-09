@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
   AlertTest,
+  BudgetOverview,
   HealthOverview,
   PageEvaluation,
   SearchRun,
@@ -42,6 +43,11 @@ export class TrackingService {
   /** Recherches échouées et erreurs de l'API sur tous les comptes, pendant les derniers jours. */
   getHealth(days: number): Observable<HealthOverview> {
     return this.http.get<HealthOverview>(`${environment.apiUrl}/admin/health`, { params: { days } });
+  }
+
+  /** Dépense du mois en cours sur tous les comptes, sa projection et le budget de l'instance. */
+  getBudget(): Observable<BudgetOverview> {
+    return this.http.get<BudgetOverview>(`${environment.apiUrl}/admin/budget`);
   }
 
   /** Envoie une alerte d'essai, et dit si elle est partie. */

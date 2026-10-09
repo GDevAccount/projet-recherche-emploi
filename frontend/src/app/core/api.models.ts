@@ -224,6 +224,8 @@ export interface SearchStats {
   by_site: EvaluationGroup[];
   by_page_kind: EvaluationGroup[];
   by_text: EvaluationGroup[];
+  /** Les dernières semaines, la plus ancienne en premier, celle en cours en dernier */
+  weeks: WeekStats[];
   /** Devenir de toutes les offres retenues, puis par poste recherché, par site et par version du prompt */
   outcomes: OutcomeGroup;
   outcomes_by_query: OutcomeGroup[];
@@ -370,6 +372,44 @@ export interface HealthOverview {
 /** Issue d'une alerte d'essai. */
 export interface AlertTest {
   sent: boolean;
+}
+
+/** Une semaine de recherches de l'appelant, du lundi au dimanche à l'heure de Paris. */
+export interface WeekStats {
+  /** Lundi à minuit, heure de Paris */
+  start: string;
+  runs: number;
+  failed_runs: number;
+  cost_usd: number | null;
+  found: number;
+  evaluated: number;
+  /** Part des pages trouvées qui étaient déjà connues */
+  known_rate: number | null;
+  kept: number;
+  kept_rate: number | null;
+  /** Candidatures envoyées pendant la semaine */
+  applications: number;
+}
+
+/** Dépense du mois en cours, tous comptes réunis, face au budget de l'instance. */
+export interface BudgetOverview {
+  month_start: string;
+  /** 0 : aucun budget n'est fixé */
+  budget_usd: number;
+  runs: number;
+  spent_usd: number;
+  /** Vrai quand la dépense ne compte que le moteur de recherche, faute de tarif pour un modèle */
+  partial: boolean;
+  guests_spent_usd: number | null;
+  day_of_month: number;
+  days_left: number;
+  daily_average_usd: number;
+  /** Dépense à la fin du mois si le rythme des jours écoulés se maintient */
+  projected_usd: number;
+  spent_rate: number | null;
+  projected_rate: number | null;
+  over_budget: boolean;
+  projected_over_budget: boolean;
 }
 
 /** Consommation de tous les comptes, pour les administrateurs. */

@@ -54,7 +54,7 @@ class Container:
         # Le service de santé est construit après celui des recherches, dont il dépend : d'où l'appel différé
         self.search = SearchService(self.database, lambda: self.graph, lambda *run: self.health.search_closed(*run))
         self.account = AccountService(self.database, self.search)
-        self.usage = UsageService(self.database)
+        self.usage = UsageService(self.database, settings.monthly_budget_usd)
         self.health = HealthService(self.database, self.search, self.usage, self.alerts)
 
     @cached_property

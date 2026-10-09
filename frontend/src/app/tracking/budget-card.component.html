@@ -1,0 +1,86 @@
+<section class="app-card">
+  @if (error()) {
+    <span class="app-eyebrow">Budget du mois</span>
+    <p class="hint">{{ error() }}</p>
+  } @else if (budget(); as budget) {
+    <header>
+      <div>
+        <span class="app-eyebrow"
+          >Budget du mois · {{ budget.month_start | parisDate: 'month' }}</span
+        >
+        <h2>
+          <strong>{{ budget.spent_usd | usd }}</strong>
+          @if (budget.budget_usd) {
+            dépensés sur <span>{{ budget.budget_usd | usd }}</span>
+          } @else {
+            dépensés ce mois-ci
+          }
+        </h2>
+      </div>
+      @if (budget.budget_usd) {
+        <p
+          class="verdict"
+          [class.over]="budget.over_budget"
+          [class.warn]="!budget.over_budget && budget.projected_over_budget"
+        >
+          @if (budget.over_budget) {
+            Budget dépassé
+          } @else if (budget.projected_over_budget) {
+            À ce rythme, le budget sera dépassé
+          } @else {
+            Dans le budget
+          }
+        </p>
+      }
+    </header>
+
+    @if (budget.budget_usd) {
+      <div class="gauge" aria-hidden="true">
+        <span
+          class="spent"
+          [class.over]="budget.over_budget"
+          [style.width.%]="position(budget.spent_rate)"
+        ></span>
+        <span
+          class="projected"
+          [class.over]="budget.projected_over_budget"
+          [style.left.%]="position(budget.projected_rate)"
+        ></span>
+      </div>
+    }
+
+    <dl>
+      <div>
+        <dt>Projection en fin de mois</dt>
+        <dd [class.over]="budget.projected_over_budget">{{ budget.projected_usd | usd }}</dd>
+      </div>
+      <div>
+        <dt>Moyenne par jour</dt>
+        <dd>{{ budget.daily_average_usd | usd }}</dd>
+      </div>
+      <div>
+        <dt>Jours restants</dt>
+        <dd>{{ budget.days_left | count }}</dd>
+      </div>
+      <div>
+        <dt>Dont les invités</dt>
+        <dd>{{ budget.guests_spent_usd | usd }}</dd>
+      </div>
+    </dl>
+
+    <small class="note">
+      Tous comptes réunis, Tavily et OpenAI, pour {{ budget.runs | count }}
+      {{ budget.runs > 1 ? 'recherches' : 'recherche' }} ce mois-ci. La projection prolonge le
+      rythme des jours écoulés.
+      @if (budget.partial) {
+        Le tarif d'un modèle manque : seul le moteur de recherche est compté.
+      }
+      @if (!budget.budget_usd) {
+        Aucun budget n'est fixé : définir <code>MONTHLY_BUDGET_USD</code> sur l'instance.
+      }
+    </small>
+  } @else {
+    <span class="app-eyebrow">Budget du mois</span>
+    <p class="hint">Chargement du budget…</p>
+  }
+</section>

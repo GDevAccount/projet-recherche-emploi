@@ -32,6 +32,10 @@ ALERT_QUIET_MINUTES = 60
 # Coût de toutes les recherches des dernières 24 heures, en dollars, à partir duquel une alerte part, une fois
 # par jour. Une recherche coûte quelques centimes : ce seuil n'est franchi que par un usage anormal
 DAILY_COST_ALERT_USD = 1.0
+# Nombre de semaines de la rubrique Suivi, celle en cours comprise
+WEEKS_SHOWN = 12
+# Avant ce jour du mois, la projection de fin de mois repose sur trop peu de jours pour déclencher une alerte
+BUDGET_ALERT_FIRST_DAY = 5
 # Au démarrage, une recherche restée « en cours » depuis moins longtemps vient d'être coupée par ce redémarrage
 INTERRUPTION_ALERT_MINUTES = 60
 
@@ -160,6 +164,8 @@ class Settings(BaseSettings):
     # Sans compte ntfy, qui connaît ce nom peut lire le sujet : il se choisit long et aléatoire, comme un secret
     ntfy_topic: str = Field(default="", repr=False)
     ntfy_url: str = "https://ntfy.sh"
+    # Budget mensuel de l'instance, en dollars, tous comptes réunis : Tavily et OpenAI. 0 : pas de budget
+    monthly_budget_usd: float = 10.0
 
     contact_email: str = ""
     google_site_verification_file: str = ""

@@ -2,6 +2,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from projet_recherche_emploi.config import (
+    BUDGET_ALERT_FIRST_DAY,
     DAILY_COST_ALERT_USD,
     DEFAULT_USER_ID,
     INTERRUPTION_ALERT_MINUTES,
@@ -73,6 +74,7 @@ class HealthService:
                 )
             if self.alerts.enabled:
                 self._alert_on_daily_cost()
+                self._alert_on_budget()
         except Exception:
             logger.exception("L'alerte de fin de recherche a échoué")
 
@@ -83,6 +85,19 @@ class HealthService:
         if cost >= DAILY_COST_ALERT_USD:
             message = f"{cost:.2f} $ en 24 heures pour {overview.runs} recherches, tous comptes réunis"
             self.alerts.notify("cost", "Coût anormal", message, quiet=timedelta(days=1))
+
+    def _alert_on_budget(self) -> None:
+        budget = self.usage.get_budget()
+        # Le mois est dans la clé : le délai d'un mois ne retient pas l'alerte du mois suivant
+        month = budget.month_start.isoformat()
+        if budget.over_budget:
+            message = f"{budget.spent_usd:.2f} $ dépensés ce mois-ci pour un budget de {budget.budget_usd:.2f} $"
+            self.alerts.notify(f"budget:spent:{month}", "Budget dépassé", message, quiet=timedelta(days=31))
+        elif budget.projected_over_budget and budget.day_of_month >= BUDGET_ALERT_FIRST_DAY:
+            message = (
+                f"À ce rythme, {budget.projected_usd:.2f} $ en fin de mois pour un budget de {budget.budget_usd:.2f} $"
+            )
+            self.alerts.notify(f"budget:projection:{month}", "Budget menacé", message, quiet=timedelta(days=7))
 
     def alert_on_interrupted_runs(self, now: datetime | None = None) -> int:
         """Prévient des recherches que ce démarrage du serveur vient de couper, et renvoie leur nombre.

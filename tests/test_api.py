@@ -139,6 +139,7 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/admin/usage"),
         ("GET", "/api/admin/health"),
         ("POST", "/api/admin/alerts/test"),
+        ("GET", "/api/admin/budget"),
     ],
 )
 def test_every_data_route_requires_an_identity(client, method, path):
@@ -322,7 +323,7 @@ def test_search_tracking_is_for_administrators_only(client, valid_pdf):
 
     # Un invité n'y a pas accès, pas même pour ses propres recherches
     paths = ("/api/searches", "/api/searches/stats", f"/api/searches/{run['id']}/evaluations", "/api/admin/usage")
-    for path in (*paths, "/api/admin/health"):
+    for path in (*paths, "/api/admin/health", "/api/admin/budget"):
         response = client.get(path, headers=ALICE)
         assert response.status_code == 403 and "sk-" not in response.text
     # Il lance toujours les siennes
@@ -472,6 +473,20 @@ def test_administrator_can_check_that_alerts_arrive(client, tmp_path):
     assert alerting.get("/api/admin/health", headers=PASSWORD).json()["alerts_enabled"] is True
     # Le sujet se lit comme un secret : rien de public ne le donne
     assert "ntfy" not in alerting.get("/api/config").text
+
+
+def test_administrator_reads_the_budget_of_the_month(tmp_path, valid_pdf):
+    client = make_client(tmp_path, app_password="sesame", auth_cookie_secret=SECRET, monthly_budget_usd=5)
+    client.put("/api/cv", headers=PASSWORD, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    client.post("/api/searches", headers=PASSWORD)
+
+    budget = client.get("/api/admin/budget", headers=PASSWORD).json()
+
+    spent = round(0.016 * len(DEFAULT_QUERIES), 6)
+    assert (budget["budget_usd"], budget["runs"], budget["spent_usd"], budget["partial"]) == (5, 1, spent, True)
+    assert budget["projected_usd"] >= spent and budget["spent_rate"] == round(spent / 5, 4)
+    assert (budget["over_budget"], budget["projected_over_budget"]) == (False, False)
+    assert len(client.get("/api/searches/stats", headers=PASSWORD).json()["weeks"]) == 12
 
 
 def test_usage_can_be_limited_to_the_last_days(tmp_path, valid_pdf):
