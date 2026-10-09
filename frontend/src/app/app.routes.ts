@@ -1,7 +1,14 @@
 import { Routes } from '@angular/router';
 
-import { authGuard, loginGuard } from './core/auth.guard';
-import { ACCOUNT_PATH, JOBS_PATH, LOGIN_PATH, PROFILE_PATH, REJECTED_PATH } from './core/paths';
+import { adminGuard, authGuard, loginGuard } from './core/auth.guard';
+import {
+  ACCOUNT_PATH,
+  JOBS_PATH,
+  LOGIN_PATH,
+  PROFILE_PATH,
+  REJECTED_PATH,
+  TRACKING_PATH,
+} from './core/paths';
 import { LoginComponent } from './login/login.component';
 
 const titled = (section: string) => `${section} · Tamis`;
@@ -35,6 +42,12 @@ export const routes: Routes = [
         path: ACCOUNT_PATH,
         loadComponent: () => import('./account/account.component').then((module) => module.AccountComponent),
         title: titled('Compte'),
+      },
+      {
+        path: TRACKING_PATH,
+        loadComponent: () => import('./tracking/tracking.component').then((module) => module.TrackingComponent),
+        canActivate: [adminGuard],
+        title: titled('Suivi'),
       },
     ],
   },

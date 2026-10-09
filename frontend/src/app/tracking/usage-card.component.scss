@@ -1,0 +1,150 @@
+:host {
+  display: block;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  margin-bottom: 1.25rem;
+
+  h2 {
+    margin: 0.6rem 0 0;
+    font-family: var(--app-font);
+    font-size: 0.9375rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--app-muted);
+
+    strong {
+      margin-right: 0.35rem;
+      font-family: var(--app-display);
+      font-size: 2.75rem;
+      font-weight: 650;
+      letter-spacing: -0.04em;
+      color: var(--app-text);
+      font-variant-numeric: tabular-nums;
+    }
+  }
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+
+  button {
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: none;
+    color: var(--app-muted);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 550;
+    cursor: pointer;
+    transition:
+      color 0.15s,
+      border-color 0.15s,
+      background-color 0.15s;
+
+    &:hover {
+      border-color: var(--app-muted);
+      color: var(--app-text);
+    }
+
+    &.on {
+      border-color: var(--app-text);
+      background: var(--app-text);
+      color: var(--app-bg);
+    }
+  }
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--app-muted);
+}
+
+// Le tableau défile dans sa carte sur un petit écran : la page, elle, ne défile jamais de côté
+.scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+th,
+td {
+  padding: 0.65rem 0.75rem;
+  border-top: 1px solid var(--app-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+thead th {
+  border-top: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--app-muted);
+}
+
+tbody th {
+  font-weight: 600;
+
+  small {
+    margin-left: 0.4rem;
+    font-weight: 400;
+    color: var(--app-muted);
+  }
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+// Sur un téléphone, il reste le compte, ses recherches et son coût : le reste se lit sur un écran plus large
+@media (max-width: 44rem) {
+  .extra {
+    display: none;
+  }
+
+  tbody th {
+    max-width: 8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  th,
+  td {
+    padding-inline: 0.4rem;
+  }
+}
+
+td {
+  color: var(--app-muted);
+
+  strong {
+    color: var(--app-text);
+  }
+}
+
+.deleted th {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--app-muted);
+}
+
+.note {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+}

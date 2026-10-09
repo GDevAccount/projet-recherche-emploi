@@ -12,6 +12,8 @@ export interface AppConfig {
 export interface Account {
   user_id: number;
   is_owner: boolean;
+  /** Le propriétaire, ou une adresse d'ADMIN_EMAILS : la rubrique Suivi lui est ouverte */
+  is_admin: boolean;
   /** Adresse, nom et photo du compte Google ; null avec le mot de passe de l'instance */
   email: string | null;
   name: string | null;
@@ -110,4 +112,144 @@ export interface SearchSummary {
   kept: number;
   rejected: number;
   inserted: number;
+}
+
+/** État d'un lancement ; null pour ceux d'avant le suivi, qui n'ont que leur date. */
+export type SearchRunStatus = 'running' | 'done' | 'failed' | 'interrupted';
+
+/** Bilan d'une recherche. Tout sauf la date peut manquer : étape non franchie, ou lancement d'avant le suivi. */
+export interface SearchRun {
+  id: number;
+  created_at: string;
+  finished_at: string | null;
+  status: SearchRunStatus | null;
+  /** Type de l'erreur d'une recherche échouée, sans son message */
+  error: string | null;
+  model: string | null;
+  prompt_version: string | null;
+  found_count: number | null;
+  new_count: number | null;
+  kept_count: number | null;
+  rejected_count: number | null;
+  inserted_count: number | null;
+  duration_ms: number | null;
+  search_ms: number | null;
+  dedupe_ms: number | null;
+  evaluate_ms: number | null;
+  save_ms: number | null;
+  search_calls: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_write_tokens: number | null;
+  reasoning_tokens: number | null;
+  /** Coûts en dollars, calculés par l'API aux tarifs actuels */
+  search_cost_usd: number | null;
+  model_cost_usd: number | null;
+  cost_usd: number | null;
+}
+
+/** Une page évaluée pendant une recherche, retenue ou non. */
+export interface PageEvaluation {
+  id: number;
+  url: string;
+  title: string;
+  query: string | null;
+  score: number | null;
+  kept: boolean;
+  /** Faits lus sur la page par le modèle */
+  page_kind: string | null;
+  contract_type: string | null;
+  work_city: string | null;
+  work_country: string | null;
+  work_mode: string | null;
+  in_accepted_area: boolean | null;
+  open_to_candidates_in_france: boolean | null;
+  /** Avis du modèle, puis règles appliquées par le graph */
+  matches_search: boolean | null;
+  matches_skills: boolean | null;
+  matches_level: boolean | null;
+  matches_contract: boolean | null;
+  matches_location: boolean | null;
+  reason: string | null;
+  page_chars: number | null;
+  truncated: boolean | null;
+  /** Faux quand seul l'extrait du moteur de recherche a été lu */
+  full_page: boolean | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  reasoning_tokens: number | null;
+  duration_ms: number | null;
+  model_cost_usd: number | null;
+}
+
+/** Pages évaluées qui partagent un trait : même recherche, même site, même nature. */
+export interface EvaluationGroup {
+  label: string;
+  evaluated: number;
+  kept: number;
+  not_an_offer: number;
+  rejected_offers: number;
+  input_tokens: number;
+  output_tokens: number;
+  model_cost_usd: number | null;
+}
+
+/** Synthèse de toutes les recherches suivies de l'appelant. */
+export interface SearchStats {
+  runs: number;
+  unfinished_runs: number;
+  found_count: number;
+  new_count: number;
+  kept_count: number;
+  rejected_count: number;
+  search_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  reasoning_tokens: number;
+  search_cost_usd: number;
+  model_cost_usd: number | null;
+  cost_usd: number | null;
+  cost_per_kept_usd: number | null;
+  average_duration_ms: number | null;
+  by_query: EvaluationGroup[];
+  by_site: EvaluationGroup[];
+  by_page_kind: EvaluationGroup[];
+  by_text: EvaluationGroup[];
+}
+
+export type AccountPlan = 'free' | 'paid';
+
+/** Ce qu'un compte a consommé et coûté. */
+export interface AccountUsage {
+  user_id: number;
+  /** null pour le propriétaire et pour un compte supprimé */
+  email: string | null;
+  is_owner: boolean;
+  deleted: boolean;
+  plan: AccountPlan;
+  runs: number;
+  found_count: number;
+  kept_count: number;
+  search_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  search_cost_usd: number;
+  model_cost_usd: number | null;
+  cost_usd: number | null;
+  last_search_at: string | null;
+}
+
+/** Consommation de tous les comptes, pour les administrateurs. */
+export interface UsageOverview {
+  since: string | null;
+  accounts: AccountUsage[];
+  runs: number;
+  kept_count: number;
+  search_cost_usd: number;
+  model_cost_usd: number | null;
+  cost_usd: number | null;
+  /** Part du coût due aux comptes autres que celui du propriétaire */
+  guests_cost_usd: number | null;
 }

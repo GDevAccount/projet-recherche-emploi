@@ -1,0 +1,146 @@
+@if (error()) {
+  <p-message severity="error" class="error">{{ error() }}</p-message>
+}
+
+@if (stats(); as stats) {
+  @if (!stats.runs) {
+    <section class="blank">
+      <h2>Aucune recherche suivie</h2>
+      <p>Après une recherche, son coût, sa durée et le détail de chaque page évaluée apparaîtront ici.</p>
+    </section>
+  } @else {
+    <section class="tiles" aria-label="Synthèse">
+      <div class="tile accent">
+        <strong>{{ stats.cost_usd | usd }}</strong>
+        <span>coût total</span>
+      </div>
+      <div class="tile">
+        <strong>{{ stats.cost_per_kept_usd | usd }}</strong>
+        <span>par offre retenue</span>
+      </div>
+      <div class="tile">
+        <strong>{{ stats.runs | count }}</strong>
+        <span>
+          {{ stats.runs > 1 ? 'recherches' : 'recherche' }}
+          @if (stats.unfinished_runs) {
+            · {{ stats.unfinished_runs }} {{ stats.unfinished_runs > 1 ? 'inachevées' : 'inachevée' }}
+          }
+        </span>
+      </div>
+      <div class="tile">
+        <strong>{{ stats.average_duration_ms | duration }}</strong>
+        <span>durée moyenne</span>
+      </div>
+    </section>
+
+    <section class="app-card spend">
+      <header>
+        <span class="app-eyebrow">Où part l'argent</span>
+        <p>Coûts en dollars, recalculés aux tarifs actuels à partir de ce que chaque recherche a consommé.</p>
+      </header>
+      @if (searchShare() !== null) {
+        <div
+          class="split"
+          role="img"
+          [attr.aria-label]="'Tavily ' + searchShare() + ' %, OpenAI ' + (100 - searchShare()!) + ' %'"
+        >
+          <span class="search" [style.width.%]="searchShare()"></span>
+          <span class="model"></span>
+        </div>
+      }
+      <dl>
+        <div>
+          <dt><i class="search"></i>Tavily, la recherche web</dt>
+          <dd>
+            <strong>{{ stats.search_cost_usd | usd }}</strong>
+            {{ stats.search_calls | count }} {{ stats.search_calls > 1 ? 'appels' : 'appel' }}
+          </dd>
+        </div>
+        <div>
+          <dt><i class="model"></i>OpenAI, l'évaluation des pages</dt>
+          <dd>
+            <strong>{{ stats.model_cost_usd | usd }}</strong>
+            {{ stats.input_tokens | count }} jetons lus, dont {{ stats.cache_read_tokens | count }} en cache ·
+            {{ stats.output_tokens | count }} écrits, dont {{ stats.reasoning_tokens | count }} de raisonnement
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="app-card pages">
+      <header>
+        <div>
+          <span class="app-eyebrow">Ce que deviennent les pages évaluées</span>
+          <h2>
+            <strong>{{ evaluated() | count }}</strong> {{ evaluated() > 1 ? 'pages évaluées' : 'page évaluée' }}
+          </h2>
+        </div>
+        <div class="tabs" role="group" aria-label="Répartition">
+          @for (option of breakdowns; track option.key) {
+            <button
+              type="button"
+              [class.on]="breakdown() === option.key"
+              [attr.aria-pressed]="breakdown() === option.key"
+              (click)="choose(option.key)"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+      </header>
+
+      <ul class="legend" aria-hidden="true">
+        <li><i class="kept"></i>Retenues</li>
+        <li><i class="rejected"></i>Offres écartées</li>
+        <li><i class="other"></i>Pas des offres</li>
+      </ul>
+
+      @if (rows().length) {
+        <ul class="groups">
+          @for (row of rows(); track row.group.label) {
+            <li
+              [title]="
+                row.group.kept +
+                ' retenues, ' +
+                row.group.rejected_offers +
+                ' offres écartées, ' +
+                row.group.not_an_offer +
+                ' pas des offres'
+              "
+            >
+              <span class="label">{{ row.group.label }}</span>
+              <span class="track">
+                <span class="stack" [style.width.%]="row.width">
+                  <span class="kept" [style.width.%]="row.parts.kept"></span>
+                  <span class="rejected" [style.width.%]="row.parts.rejected"></span>
+                  <span class="other" [style.width.%]="row.parts.other"></span>
+                </span>
+              </span>
+              <span class="value">
+                <strong>{{ row.group.kept }}</strong>
+                <small>sur {{ row.group.evaluated }}</small>
+              </span>
+              <span class="cost">{{ row.group.model_cost_usd | usd }}</span>
+            </li>
+          }
+        </ul>
+        @if (hiddenGroups()) {
+          <button type="button" class="more" (click)="showAllGroups()">
+            Tout afficher <span>{{ hiddenGroups() }} de plus</span>
+          </button>
+        }
+        <small class="note">
+          Pour chaque ligne : les pages retenues sur les pages évaluées, puis ce que leur évaluation a coûté chez
+          OpenAI. Les doublons, écartés avant l'évaluation, n'y figurent pas.
+        </small>
+      } @else {
+        <p class="hint">Aucune page n'a encore été évaluée.</p>
+      }
+    </section>
+
+    <app-run-list [runs]="runs()" />
+    <app-usage-card [version]="version()" />
+  }
+} @else if (!error()) {
+  <p class="loading">Chargement du suivi…</p>
+}

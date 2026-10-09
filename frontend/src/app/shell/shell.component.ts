@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { AvatarComponent } from '../account/avatar.component';
@@ -22,10 +22,12 @@ export class ShellComponent {
   protected readonly theme = inject(ThemeService);
   protected readonly run = inject(SearchRunService);
 
-  protected readonly sections = SECTIONS;
   protected readonly profilePath = PROFILE_PATH;
   protected readonly accountPath = ACCOUNT_PATH;
   protected readonly account = this.session.account;
+  protected readonly sections = computed(() =>
+    SECTIONS.filter((section) => !section.admin || this.account()?.is_admin),
+  );
   protected readonly closing = signal(false);
 
   protected logout(): void {

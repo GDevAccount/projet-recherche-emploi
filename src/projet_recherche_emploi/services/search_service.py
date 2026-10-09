@@ -83,7 +83,9 @@ def text_read(evaluation: PageEvaluationRead) -> str:
 
 
 def price_run(run: SearchRunRead) -> SearchRunRead:
-    """Complète un lancement par ses coûts."""
+    """Complète un lancement par sa durée et ses coûts."""
+    steps = [getattr(run, step) for step in STEP_DURATIONS]
+    run.duration_ms = None if all(step is None for step in steps) else sum(step or 0 for step in steps)
     run.search_cost_usd = search_cost_usd(run.search_calls)
     run.model_cost_usd = model_cost_usd(
         run.model, run.input_tokens, run.output_tokens, run.cache_read_tokens, run.cache_write_tokens
@@ -266,7 +268,7 @@ class SearchService:
             return sum(getattr(run, name) or 0 for run in runs)
 
         done = [run for run in runs if run.status == "done"]
-        durations = [sum(getattr(run, step) or 0 for step in STEP_DURATIONS) for run in done]
+        durations = [run.duration_ms or 0 for run in done]
         model_cost = sum_costs(run.model_cost_usd for run in runs if run.input_tokens is not None)
         search_cost = round(sum(run.search_cost_usd or 0 for run in runs), COST_DECIMALS)
         cost = None if model_cost is None else round(search_cost + model_cost, COST_DECIMALS)

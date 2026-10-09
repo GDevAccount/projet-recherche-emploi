@@ -13,6 +13,13 @@ const FORMATS = {
     minute: '2-digit',
   }),
   day: new Intl.DateTimeFormat('fr-FR', { timeZone: TIME_ZONE, day: 'numeric', month: 'short' }),
+  time: new Intl.DateTimeFormat('fr-FR', {
+    timeZone: TIME_ZONE,
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }),
 };
 
 /** Date UTC de l'API à l'heure de Paris : « 8 octobre 2026 à 14:05 », ou « 8 oct. » avec le format 'day'. */

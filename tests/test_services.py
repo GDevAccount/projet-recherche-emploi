@@ -119,7 +119,7 @@ def test_failed_search_still_counts(container, ready_users):
     # Le lancement garde ce qui a été mesuré avant l'échec, et le type de l'erreur sans son message
     [run] = search.list_runs(BOB)
     assert (run.status, run.error, run.found_count, run.new_count) == ("failed", "RuntimeError", 1, None)
-    assert (run.search_ms, run.search_calls, run.evaluate_ms) == (12, 1, None)
+    assert (run.search_ms, run.search_calls, run.evaluate_ms, run.duration_ms) == (12, 1, None, 12)
     assert run.finished_at is not None
 
 

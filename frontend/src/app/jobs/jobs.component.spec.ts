@@ -50,7 +50,7 @@ const NO_CONTENT = { status: 204, statusText: 'No Content' };
 
 const SEARCHING: Account = {
   user_id: 2,
-  is_owner: false,
+  is_owner: false, is_admin: false,
   email: null,
   name: null,
   picture: null,

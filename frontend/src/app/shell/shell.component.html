@@ -11,7 +11,7 @@
     </a>
 
     <nav aria-label="Rubriques">
-      @for (section of sections; track section.path) {
+      @for (section of sections(); track section.path) {
         <a [routerLink]="section.path" routerLinkActive="active">{{ section.label }}</a>
       }
     </nav>

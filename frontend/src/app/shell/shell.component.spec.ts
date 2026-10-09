@@ -11,7 +11,7 @@ import { ShellComponent } from './shell.component';
 
 const GUEST: Account = {
   user_id: 2,
-  is_owner: false,
+  is_owner: false, is_admin: false,
   email: null,
   name: null,
   picture: null,
@@ -70,7 +70,7 @@ describe('ShellComponent', () => {
   });
 
   it('should not show a quota to the owner, who has none', async () => {
-    await openSession({ ...GUEST, user_id: 1, is_owner: true, remaining_searches: null });
+    await openSession({ ...GUEST, user_id: 1, is_owner: true, is_admin: true, remaining_searches: null });
 
     expect(element().querySelector('.quota')).toBeNull();
   });
@@ -125,6 +125,13 @@ describe('ShellComponent', () => {
 
     const links = [...element().querySelectorAll('nav a')].map((link) => link.getAttribute('href'));
     expect(links).toEqual(['/offres', '/rejets', '/profil']);
+  });
+
+  it('should add the tracking section for an administrator only', async () => {
+    await openSession({ ...GUEST, is_admin: true });
+
+    const links = [...element().querySelectorAll('nav a')].map((link) => link.getAttribute('href'));
+    expect(links).toEqual(['/offres', '/rejets', '/profil', '/suivi']);
   });
 
   it('should lead to the account page from the avatar', async () => {

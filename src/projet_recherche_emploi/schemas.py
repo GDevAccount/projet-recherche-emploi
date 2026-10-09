@@ -168,6 +168,8 @@ class SearchRunRead(_FromRow):
     cache_read_tokens: int | None
     cache_write_tokens: int | None
     reasoning_tokens: int | None
+    # Durée de la recherche, toutes étapes franchies réunies ; None si aucune n'a été mesurée
+    duration_ms: int | None = None
     # Coûts en dollars, calculés aux tarifs actuels ; None quand une consommation ou un tarif n'est pas connu
     search_cost_usd: float | None = None
     model_cost_usd: float | None = None
