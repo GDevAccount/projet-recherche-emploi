@@ -39,6 +39,10 @@ class JobRepository:
         )
         return list(self.session.scalars(statement))
 
+    def list_all(self) -> list[Job]:
+        """Renvoie toutes les offres retenues, supprimées comprises, pour en mesurer le devenir."""
+        return list(self.session.scalars(select(Job).where(Job.user_id == self.user_id).order_by(Job.id)))
+
     def get_job(self, job_id: int) -> Job | None:
         """Renvoie l'offre, ou None si elle est inconnue ou supprimée."""
         statement = (

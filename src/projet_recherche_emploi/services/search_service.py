@@ -7,10 +7,11 @@ from zoneinfo import ZoneInfo
 
 from projet_recherche_emploi.config import DEFAULT_USER_ID, LOCAL_TIMEZONE, MAX_SEARCHES_PER_DAY, OFFER_PAGE_KIND
 from projet_recherche_emploi.data.database import Database
-from projet_recherche_emploi.data.models import Correction, EngineCall
+from projet_recherche_emploi.data.models import Correction, EngineCall, Job
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.engine_call_repository import EngineCallRepository
+from projet_recherche_emploi.data.repositories.job_repository import JobRepository
 from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
@@ -21,6 +22,7 @@ from projet_recherche_emploi.schemas import (
     DELETE_REASONS_WITHOUT_ERROR,
     CorrectionStats,
     EvaluationGroup,
+    OutcomeGroup,
     PageEvaluationRead,
     ReasonCount,
     SearchProgress,
@@ -61,6 +63,10 @@ TEXT_FULL = "Page entière"
 TEXT_TRUNCATED = "Page tronquée"
 TEXT_EXTRACT = "Extrait seul"
 UNKNOWN_LABEL = "Non précisé"
+# Libellés du devenir des offres : toutes réunies, et celles jugées avant que la version du prompt soit notée
+ALL_OFFERS_LABEL = "Toutes les offres"
+BEFORE_TRACKING_LABEL = "Avant le suivi"
+CORRECTION_RESTORED = "restored"
 # Listes de l'état du graph dont la longueur donne un compteur du lancement
 RUN_COUNTS = {
     "found_count": "jobs",
@@ -195,6 +201,33 @@ def summarize_engine_calls(calls: Iterable[EngineCall]) -> list[SearchYield]:
         yields,
         key=lambda item: (item.kept > 0, -(item.cost_per_kept_usd or item.search_cost_usd), item.search_text),
     )
+
+
+def describe_outcome(label: str, jobs: list[Job]) -> OutcomeGroup:
+    """Compte ce que ces offres retenues sont devenues."""
+    applied = [job for job in jobs if job.applied_at is not None]
+    interviews = sum(job.interview_at is not None for job in jobs)
+    return OutcomeGroup(
+        label=label,
+        kept=len(jobs),
+        applied=len(applied),
+        refused=sum(job.status == "rejected" for job in applied),
+        interviews=interviews,
+        # Une offre supprimée après une candidature reste une candidature
+        pending=sum(job.applied_at is None and not job.deleted for job in jobs),
+        deleted=sum(job.applied_at is None and job.deleted for job in jobs),
+        applied_rate=rate(len(applied), len(jobs)),
+        interview_rate=rate(interviews, len(applied)),
+    )
+
+
+def group_outcomes(jobs: Iterable[Job], label_of: Callable[[Job], str | None]) -> list[OutcomeGroup]:
+    """Regroupe des offres retenues selon un trait, le groupe le plus fourni en premier."""
+    groups: dict[str, list[Job]] = {}
+    for job in jobs:
+        groups.setdefault(label_of(job) or UNKNOWN_LABEL, []).append(job)
+    outcomes = [describe_outcome(label, group) for label, group in groups.items()]
+    return sorted(outcomes, key=lambda group: (-group.kept, group.label))
 
 
 def rate(part: int, whole: int) -> float | None:
@@ -387,6 +420,18 @@ class SearchService:
             correction_stats = summarize_corrections(corrections, evaluations, runs)
             delete_reasons = count_delete_reasons(corrections)
             by_search = summarize_engine_calls(EngineCallRepository(session, user_id).list_all())
+            # Une page remise par l'utilisateur n'a pas été retenue par le tri : son devenir ne dit rien de lui
+            restored = {correction.url for correction in corrections if correction.kind == CORRECTION_RESTORED}
+            jobs = [job for job in JobRepository(session, user_id).list_all() if job.url not in restored]
+            versions = {run.id: run.prompt_version for run in runs}
+            # La dernière évaluation d'une page l'emporte : c'est elle qui l'a fait retenir
+            judged_with = {page.url: versions.get(page.search_run_id) for page in evaluations}
+            outcomes = describe_outcome(ALL_OFFERS_LABEL, jobs)
+            outcomes_by_query = group_outcomes(jobs, lambda job: job.query)
+            outcomes_by_site = group_outcomes(jobs, lambda job: site_of(job.url))
+            outcomes_by_prompt = group_outcomes(jobs, lambda job: judged_with.get(job.url) or BEFORE_TRACKING_LABEL)
+            # Seules les offres du journal ont un coût connu : les candidatures d'avant le suivi fausseraient le rapport
+            tracked_applications = sum(job.applied_at is not None and job.url in judged_with for job in jobs)
         # Un lancement d'avant le suivi n'a que sa date : il n'entre pas dans la synthèse
         runs = [run for run in self._describe_runs(user_id, runs) if run.status is not None]
         models = {run.id: run.model for run in runs}
@@ -423,6 +468,13 @@ class SearchService:
             by_site=group_evaluations(evaluations, lambda page: site_of(page.url)),
             by_page_kind=group_evaluations(evaluations, lambda page: page.page_kind),
             by_text=group_evaluations(evaluations, text_read),
+            outcomes=outcomes,
+            outcomes_by_query=outcomes_by_query,
+            outcomes_by_site=outcomes_by_site,
+            outcomes_by_prompt=outcomes_by_prompt,
+            cost_per_application_usd=(
+                round(cost / tracked_applications, COST_DECIMALS) if cost and tracked_applications else None
+            ),
             by_search=by_search,
             corrections=correction_stats,
             delete_reasons=delete_reasons,

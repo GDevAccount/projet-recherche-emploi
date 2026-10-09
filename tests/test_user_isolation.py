@@ -24,6 +24,7 @@ def test_each_user_sees_only_their_jobs(session):
     assert {row.url for row in alice.list_jobs()} == {"https://a/1", "https://a/2"}
     assert {row.url for row in bob.list_jobs()} == {"https://b/1"}
     assert alice.list_known_urls() == {"https://a/1", "https://a/2"}
+    assert [row.url for row in bob.list_all()] == ["https://b/1"]
     assert bob.list_known_urls() == {"https://b/1"}
 
 

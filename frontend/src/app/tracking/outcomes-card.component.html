@@ -1,0 +1,86 @@
+<section class="app-card">
+  <header>
+    <div>
+      <span class="app-eyebrow">Ce que deviennent les offres retenues</span>
+      @if (stats().outcomes; as all) {
+        <h2>
+          <strong>{{ all.applied_rate | share }}</strong>
+          mènent à une candidature
+        </h2>
+        <p>
+          {{ all.applied | count }} {{ all.applied > 1 ? 'candidatures' : 'candidature' }} sur
+          {{ all.kept | count }} {{ all.kept > 1 ? 'offres retenues' : 'offre retenue' }} ·
+          {{ all.interviews | count }} {{ all.interviews > 1 ? 'entretiens' : 'entretien' }} ·
+          {{ stats().cost_per_application_usd | usd }} par candidature
+        </p>
+      }
+    </div>
+    <div class="tabs" role="group" aria-label="Regroupement">
+      @for (option of breakdowns; track option.key) {
+        <button
+          type="button"
+          [class.on]="breakdown() === option.key"
+          [attr.aria-pressed]="breakdown() === option.key"
+          (click)="choose(option.key)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (rows().length) {
+    <ul class="legend" aria-hidden="true">
+      <li><i class="interviews"></i>Entretiens</li>
+      <li><i class="applied"></i>Candidatures</li>
+      <li><i class="pending"></i>À traiter</li>
+      <li><i class="deleted"></i>Supprimées</li>
+    </ul>
+
+    <ul class="outcomes">
+      @for (row of rows(); track row.group.label) {
+        <li
+          [title]="
+            row.group.applied +
+            ' candidatures, dont ' +
+            row.group.interviews +
+            ' avec entretien et ' +
+            row.group.refused +
+            ' refusées ; ' +
+            row.group.pending +
+            ' à traiter, ' +
+            row.group.deleted +
+            ' supprimées'
+          "
+        >
+          <span class="label">{{ row.group.label }}</span>
+          <span class="track">
+            <span class="stack" [style.width.%]="row.width">
+              <span class="interviews" [style.width.%]="row.parts.interviews"></span>
+              <span class="applied" [style.width.%]="row.parts.applied"></span>
+              <span class="pending" [style.width.%]="row.parts.pending"></span>
+              <span class="deleted" [style.width.%]="row.parts.deleted"></span>
+            </span>
+          </span>
+          <span class="value">
+            <strong>{{ row.group.applied }}</strong>
+            <small>sur {{ row.group.kept }}</small>
+          </span>
+          <span class="rate">{{ row.group.applied_rate | share }}</span>
+        </li>
+      }
+    </ul>
+    @if (hiddenGroups()) {
+      <button type="button" class="more" (click)="showAllGroups()">
+        Tout afficher <span>{{ hiddenGroups() }} de plus</span>
+      </button>
+    }
+    <small class="note">
+      Pour chaque ligne : les candidatures envoyées sur les offres retenues, puis leur part. Une offre refusée par
+      l'employeur reste une candidature. Les pages que vous avez remises vous-même dans vos offres n'y figurent
+      pas, et le coût par candidature ne compte que les recherches suivies.
+    </small>
+  } @else {
+    <p class="hint">Aucune offre n'a encore été retenue.</p>
+  }
+</section>
