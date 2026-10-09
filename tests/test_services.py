@@ -237,12 +237,12 @@ def test_jobs_are_tracked_and_private(container):
 
     ids = {saved.url: saved.id for saved in container.jobs.list_jobs(BOB)}
 
-    updated = container.jobs.set_applied(BOB, ids["https://a/1"], True)
-    assert (updated.id, updated.applied) == (ids["https://a/1"], True) and updated.applied_at is not None
-    assert container.jobs.set_applied(BOB, ids["https://a/1"], False).applied_at is None
-    container.jobs.set_applied(BOB, ids["https://a/1"], True)
+    updated = container.jobs.set_status(BOB, ids["https://a/1"], "applied")
+    assert (updated.id, updated.status) == (ids["https://a/1"], "applied") and updated.applied_at is not None
+    assert container.jobs.set_status(BOB, ids["https://a/1"], "todo").applied_at is None
+    container.jobs.set_status(BOB, ids["https://a/1"], "applied")
     with pytest.raises(NotFoundError):
-        container.jobs.set_applied(CAROL, ids["https://a/1"], True)
+        container.jobs.set_status(CAROL, ids["https://a/1"], "applied")
     assert container.jobs.delete_jobs(CAROL, [ids["https://a/2"]]) == 0
     with pytest.raises(NotFoundError):
         container.jobs.delete_job(CAROL, ids["https://a/2"])
@@ -251,9 +251,63 @@ def test_jobs_are_tracked_and_private(container):
         container.jobs.delete_job(BOB, ids["https://a/2"])
 
     [saved] = container.jobs.list_jobs(BOB)
-    assert (saved.url, saved.applied) == ("https://a/1", True)
+    assert (saved.url, saved.status) == ("https://a/1", "applied")
     assert saved.applied_at.tzinfo is not None and saved.created_at.tzinfo is not None
     assert container.jobs.list_jobs(CAROL) == []
+
+
+def test_application_goes_through_its_steps_and_each_one_is_dated(container):
+    with container.database.session() as session:
+        JobRepository(session, BOB).insert_jobs([job("https://a/1")])
+    [saved] = container.jobs.list_jobs(BOB)
+    monday, tuesday, wednesday = (datetime(2026, 10, day, 9, tzinfo=UTC) for day in (5, 6, 7))
+    # L'API dit ce que l'offre peut devenir : le front ne propose rien d'autre
+    assert (saved.status, saved.next_statuses) == ("todo", ["applied"])
+
+    applied = container.jobs.set_status(BOB, saved.id, "applied", monday)
+    assert (applied.applied_at, applied.next_statuses) == (monday, ["interview", "rejected", "todo"])
+
+    interview = container.jobs.set_status(BOB, saved.id, "interview", tuesday)
+    assert (interview.applied_at, interview.interview_at) == (monday, tuesday)
+    assert interview.next_statuses == ["rejected", "applied"]
+
+    rejected = container.jobs.set_status(BOB, saved.id, "rejected", wednesday)
+    assert (rejected.applied_at, rejected.interview_at, rejected.rejected_at) == (monday, tuesday, wednesday)
+    # Le refus se défait vers l'étape où en était la candidature, pas vers le début
+    assert rejected.next_statuses == ["interview"]
+
+    reopened = container.jobs.set_status(BOB, saved.id, "interview", wednesday)
+    assert (reopened.status, reopened.interview_at, reopened.rejected_at) == ("interview", tuesday, None)
+    # Revenir en arrière efface la date de l'étape quittée
+    back = container.jobs.set_status(BOB, saved.id, "applied", wednesday)
+    assert (back.applied_at, back.interview_at) == (monday, None)
+    assert container.jobs.set_status(BOB, saved.id, "todo", wednesday).applied_at is None
+
+
+def test_refusal_before_any_interview_is_undone_to_applied(container):
+    with container.database.session() as session:
+        JobRepository(session, BOB).insert_jobs([job("https://a/1")])
+    [saved] = container.jobs.list_jobs(BOB)
+    container.jobs.set_status(BOB, saved.id, "applied")
+
+    rejected = container.jobs.set_status(BOB, saved.id, "rejected")
+
+    assert (rejected.interview_at, rejected.next_statuses) == (None, ["applied"])
+
+
+def test_application_cannot_skip_a_step(container):
+    with container.database.session() as session:
+        JobRepository(session, BOB).insert_jobs([job("https://a/1")])
+    [saved] = container.jobs.list_jobs(BOB)
+
+    # Ni entretien ni refus pour une offre à laquelle on n'a pas postulé
+    for status in ("interview", "rejected"):
+        with pytest.raises(InvalidInputError):
+            container.jobs.set_status(BOB, saved.id, status)
+    # Redemander l'état en place ne change rien, date comprise
+    first = container.jobs.set_status(BOB, saved.id, "applied", datetime(2026, 10, 5, tzinfo=UTC))
+    again = container.jobs.set_status(BOB, saved.id, "applied", datetime(2026, 10, 6, tzinfo=UTC))
+    assert again.applied_at == first.applied_at
 
 
 def test_query_is_saved_for_a_location_or_for_full_remote(container):

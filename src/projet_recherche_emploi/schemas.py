@@ -18,6 +18,10 @@ REJECT_CRITERIA = {
 }
 
 
+# État d'une candidature : à traiter, postulée, entretien obtenu, refusée par l'employeur
+JobStatus = Literal["todo", "applied", "interview", "rejected"]
+
+
 class _FromRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -33,9 +37,14 @@ class JobRead(_FromRow):
     work_location: str | None
     query: str | None
     match_reason: str | None
-    applied: bool
+    status: JobStatus
+    # Date de chaque étape franchie par la candidature ; None tant qu'elle ne l'est pas
     applied_at: datetime | None
+    interview_at: datetime | None
+    rejected_at: datetime | None
     created_at: datetime
+    # États que l'offre peut prendre maintenant : les interfaces n'en proposent pas d'autre
+    next_statuses: list[JobStatus] = []
 
 
 class RejectedJobRead(_FromRow):

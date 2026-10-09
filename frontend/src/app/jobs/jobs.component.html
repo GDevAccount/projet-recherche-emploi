@@ -2,6 +2,22 @@
   <p-message severity="error" class="error">{{ error() }}</p-message>
 }
 
+<ng-template #cards let-list>
+  <div class="cards">
+    @for (job of list; track job.id) {
+      <app-job-card
+        draggable="true"
+        [job]="job"
+        [busy]="busy().has(job.id)"
+        (dragstart)="dragStart($event, job)"
+        (dragend)="dragEnd()"
+        (statusChange)="setStatus(job, $event)"
+        (discard)="openDiscard(job)"
+      />
+    }
+  </div>
+</ng-template>
+
 @if (jobs(); as all) {
   @if (!all.length) {
     <section class="blank">
@@ -21,14 +37,18 @@
         <span>à traiter</span>
       </div>
       <div class="tile">
-        <strong>{{ appliedCount() }}</strong>
-        <span>{{ appliedCount() > 1 ? 'candidatures envoyées' : 'candidature envoyée' }}</span>
+        <strong>{{ sentCount() }}</strong>
+        <span>{{ sentCount() > 1 ? 'candidatures envoyées' : 'candidature envoyée' }}</span>
+      </div>
+      <div class="tile">
+        <strong>{{ interviewCount() }}</strong>
+        <span>{{ interviewCount() > 1 ? 'entretiens' : 'entretien' }}</span>
       </div>
       <div class="tile wide">
         <div class="meter-head">
           <span>
-            <b>{{ appliedCount() }}</b> {{ appliedCount() > 1 ? 'offres' : 'offre' }} sur <b>{{ total() }}</b>
-            {{ appliedCount() > 1 ? 'ont' : 'a' }} reçu une candidature
+            <b>{{ sentCount() }}</b> {{ sentCount() > 1 ? 'offres' : 'offre' }} sur <b>{{ total() }}</b>
+            {{ sentCount() > 1 ? 'ont' : 'a' }} reçu une candidature
           </span>
           <strong>{{ progress() }} %</strong>
         </div>
@@ -75,64 +95,86 @@
       }
     </section>
 
-    <div class="board" [class.dragging]="dragged()">
-      <section
-        class="column todo"
-        [class.target]="dropTarget() === false"
-        (dragover)="dragOver($event, false)"
-        (dragleave)="dropTarget.set(null)"
-        (drop)="drop($event, false)"
-      >
-        <h2>À traiter <span>{{ todo().length }}</span></h2>
-        @if (todo().length) {
-          <div class="cards">
-            @for (job of todo(); track job.id) {
-              <app-job-card
-                draggable="true"
-                [job]="job"
-                [busy]="busy().has(job.id)"
-                (dragstart)="dragStart($event, job)"
-                (dragend)="dragEnd()"
-                (appliedChange)="setApplied(job, $event)"
-                (remove)="remove(job)"
-              />
-            }
-          </div>
-        } @else {
-          <p class="hint">{{ filtered() ? 'Aucune offre à traiter pour ces filtres.' : 'Tout est traité. Bien joué.' }}</p>
-        }
-      </section>
+    <div class="tracking" [class.dragging]="dragged()">
+      <!-- En tête, avant tout le reste : c'est ce qui demande de se préparer -->
+      @if (interviews().length) {
+        <section
+          class="column interviews"
+          [class.target]="dropTarget() === 'interview'"
+          (dragover)="dragOver($event, 'interview')"
+          (dragleave)="dropTarget.set(null)"
+          (drop)="drop($event, 'interview')"
+        >
+          <h2>Entretiens <span>{{ interviews().length }}</span></h2>
+          <ng-container [ngTemplateOutlet]="cards" [ngTemplateOutletContext]="{ $implicit: interviews() }" />
+        </section>
+      }
 
-      <section
-        class="column applied"
-        [class.target]="dropTarget() === true"
-        (dragover)="dragOver($event, true)"
-        (dragleave)="dropTarget.set(null)"
-        (drop)="drop($event, true)"
-      >
-        <h2>Postulées <span>{{ applied().length }}</span></h2>
-        @if (applied().length) {
-          <div class="cards">
-            @for (job of applied(); track job.id) {
-              <app-job-card
-                draggable="true"
-                [job]="job"
-                [busy]="busy().has(job.id)"
-                (dragstart)="dragStart($event, job)"
-                (dragend)="dragEnd()"
-                (appliedChange)="setApplied(job, $event)"
-                (remove)="remove(job)"
-              />
-            }
-          </div>
-        } @else {
-          <p class="hint">
-            {{ filtered() ? 'Aucune candidature pour ces filtres.' : 'Glissez une offre ici une fois votre candidature envoyée.' }}
-          </p>
-        }
-      </section>
+      <div class="board">
+        <section
+          class="column todo"
+          [class.target]="dropTarget() === 'todo'"
+          (dragover)="dragOver($event, 'todo')"
+          (dragleave)="dropTarget.set(null)"
+          (drop)="drop($event, 'todo')"
+        >
+          <h2>À traiter <span>{{ todo().length }}</span></h2>
+          @if (todo().length) {
+            <ng-container [ngTemplateOutlet]="cards" [ngTemplateOutletContext]="{ $implicit: todo() }" />
+          } @else {
+            <p class="hint">{{ filtered() ? 'Aucune offre à traiter pour ces filtres.' : 'Tout est traité. Bien joué.' }}</p>
+          }
+        </section>
+
+        <section
+          class="column applied"
+          [class.target]="dropTarget() === 'applied'"
+          (dragover)="dragOver($event, 'applied')"
+          (dragleave)="dropTarget.set(null)"
+          (drop)="drop($event, 'applied')"
+        >
+          <h2>Postulées <span>{{ applied().length }}</span></h2>
+          @if (applied().length) {
+            <ng-container [ngTemplateOutlet]="cards" [ngTemplateOutletContext]="{ $implicit: applied() }" />
+          } @else {
+            <p class="hint">
+              {{ filtered() ? 'Aucune candidature pour ces filtres.' : 'Glissez une offre ici une fois votre candidature envoyée.' }}
+            </p>
+          }
+        </section>
+      </div>
+
+      <!-- Repliées : on les retrouve, sans qu'elles encombrent -->
+      @if (rejected().length) {
+        <details class="refused">
+          <summary>
+            Candidatures refusées <span>{{ rejected().length }}</span>
+          </summary>
+          <ng-container [ngTemplateOutlet]="cards" [ngTemplateOutletContext]="{ $implicit: rejected() }" />
+        </details>
+      }
     </div>
   }
 } @else if (!error()) {
   <p class="loading">Chargement de vos offres…</p>
 }
+
+<!-- closedby : un clic hors de la fenêtre la ferme, dans les navigateurs qui le savent ; Échap et « Annuler » partout -->
+<dialog #dialog class="discard" closedby="any" aria-labelledby="discard-title" (close)="discarding.set(null)">
+  @if (discarding(); as job) {
+    <h2 id="discard-title">Que faire de cette offre ?</h2>
+    <p class="subject">{{ job.title }}</p>
+
+    @if (job.next_statuses.includes('rejected')) {
+      <button type="button" class="choice" (click)="refuse(job)">
+        <strong>L'employeur a refusé ma candidature</strong>
+        <span>Elle est rangée dans vos candidatures refusées, où vous la retrouverez.</span>
+      </button>
+    }
+    <button type="button" class="choice danger" (click)="remove(job)">
+      <strong>Supprimer cette annonce</strong>
+      <span>Elle disparaît de vos offres et ne reviendra pas aux prochaines recherches.</span>
+    </button>
+    <button type="button" class="cancel" (click)="closeDiscard()">Annuler</button>
+  }
+</dialog>

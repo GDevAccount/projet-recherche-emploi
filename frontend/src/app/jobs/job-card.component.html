@@ -5,15 +5,31 @@
     <span class="avatar" [style.--hue]="hue()">{{ site().charAt(0) || '?' }}</span>
     <span class="name">{{ site() }}</span>
   </span>
-  @if (offer.applied) {
-    <span class="stamp">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-        <path d="m5 12.5 4.5 4.5L19 7.5" />
-      </svg>
-      Postulé{{ offer.applied_at ? ' le ' + (offer.applied_at | parisDate: 'day') : '' }}
-    </span>
-  } @else {
-    <time [attr.datetime]="offer.created_at">{{ offer.created_at | parisDate: 'day' }}</time>
+  @switch (offer.status) {
+    @case ('applied') {
+      <span class="stamp">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m5 12.5 4.5 4.5L19 7.5" />
+        </svg>
+        Postulé{{ offer.applied_at ? ' le ' + (offer.applied_at | parisDate: 'day') : '' }}
+      </span>
+    }
+    @case ('interview') {
+      <span class="stamp strong">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 6h14v10H10l-5 4V6Z" />
+        </svg>
+        Entretien{{ offer.interview_at ? ' depuis le ' + (offer.interview_at | parisDate: 'day') : '' }}
+      </span>
+    }
+    @case ('rejected') {
+      <span class="stamp muted">
+        Refusée{{ offer.rejected_at ? ' le ' + (offer.rejected_at | parisDate: 'day') : '' }}
+      </span>
+    }
+    @default {
+      <time [attr.datetime]="offer.created_at">{{ offer.created_at | parisDate: 'day' }}</time>
+    }
   }
 </header>
 
@@ -32,7 +48,7 @@
   </li>
 </ul>
 
-@if (offer.match_reason && !offer.applied) {
+@if (offer.match_reason && offer.status === 'todo') {
   <button
     type="button"
     class="reason"
@@ -45,40 +61,53 @@
   </button>
 }
 
-<footer [class.confirming]="confirming()">
-  @if (confirming()) {
-    <span class="question">Supprimer ? Elle ne reviendra pas.</span>
-    <button type="button" class="danger" [disabled]="busy()" (click)="remove.emit()">Supprimer</button>
-    <button type="button" class="ghost" [disabled]="busy()" (click)="confirming.set(false)">Garder</button>
-  } @else {
-    @if (offer.applied) {
-      <button type="button" class="ghost" [disabled]="busy()" (click)="appliedChange.emit(false)">
-        Remettre à traiter
-      </button>
-    } @else {
-      <button type="button" class="primary" [disabled]="busy()" (click)="appliedChange.emit(true)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="m5 12.5 4.5 4.5L19 7.5" />
+<footer>
+  @if (forward(); as action) {
+    <button type="button" class="primary" [disabled]="busy()" (click)="statusChange.emit(action.status)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m5 12.5 4.5 4.5L19 7.5" />
+      </svg>
+      {{ action.label }}
+    </button>
+  }
+  @if (offer.status === 'todo') {
+    <a class="ghost link" aria-label="Voir l'annonce" [href]="offer.url" target="_blank" rel="noopener noreferrer">
+      <span>Voir l'annonce</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 16 16 8M9 8h7v7" />
+      </svg>
+    </a>
+  } @else if (offer.status === 'rejected' && back(); as action) {
+    <button type="button" class="ghost" [disabled]="busy()" (click)="statusChange.emit(action.status)">
+      {{ action.label }}
+    </button>
+  }
+  <span class="tools">
+    @if (offer.status !== 'rejected' && back(); as action) {
+      <button
+        type="button"
+        class="icon"
+        [attr.aria-label]="action.label"
+        [title]="action.label"
+        [disabled]="busy()"
+        (click)="statusChange.emit(action.status)"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" />
         </svg>
-        J'ai postulé
       </button>
-      <a class="ghost" [href]="offer.url" target="_blank" rel="noopener noreferrer">
-        Voir l'annonce
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M8 16 16 8M9 8h7v7" />
-        </svg>
-      </a>
     }
     <button
       type="button"
-      class="icon"
-      [attr.aria-label]="'Supprimer l\'offre « ' + offer.title + ' »'"
+      class="icon discard"
+      [attr.aria-label]="'Retirer l\'offre « ' + offer.title + ' »'"
+      title="Retirer cette offre"
       [disabled]="busy()"
-      (click)="confirming.set(true)"
+      (click)="discard.emit()"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
       </svg>
     </button>
-  }
+  </span>
 </footer>

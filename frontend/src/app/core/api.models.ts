@@ -47,6 +47,9 @@ export interface SearchQueryCreate {
   remote: boolean;
 }
 
+/** État d'une candidature : à traiter, postulée, entretien obtenu, refusée par l'employeur. */
+export type JobStatus = 'todo' | 'applied' | 'interview' | 'rejected';
+
 export interface Job {
   id: number;
   url: string;
@@ -59,9 +62,14 @@ export interface Job {
   work_location: string | null;
   query: string | null;
   match_reason: string | null;
-  applied: boolean;
+  status: JobStatus;
+  /** Date de chaque étape franchie par la candidature ; null tant qu'elle ne l'est pas */
   applied_at: string | null;
+  interview_at: string | null;
+  rejected_at: string | null;
   created_at: string;
+  /** États que l'offre peut prendre maintenant : l'écran n'en propose pas d'autre */
+  next_statuses: JobStatus[];
 }
 
 export interface RejectedJob {

@@ -43,12 +43,13 @@
 // Chiffres clés
 .stats {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 11rem)) minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 10rem)) minmax(0, 1fr);
   gap: 1rem;
   margin-bottom: 1.5rem;
 
-  @media (max-width: 48rem) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  @media (max-width: 60rem) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem;
   }
 }
 
@@ -90,8 +91,22 @@
   &.wide {
     gap: 0.75rem;
 
-    @media (max-width: 48rem) {
+    @media (max-width: 60rem) {
       grid-column: 1 / -1;
+    }
+  }
+
+  // Trois tuiles de front sur un téléphone : des chiffres plus petits, des libellés qui passent à la ligne
+  @media (max-width: 60rem) {
+    padding: 0.9rem 1rem;
+
+    > strong {
+      font-size: 2.1rem;
+    }
+
+    > span {
+      font-size: 0.8125rem;
+      line-height: 1.25;
     }
   }
 }
@@ -232,6 +247,14 @@
   }
 }
 
+// Suivi : les entretiens, puis le tableau de bord, puis les refus
+.tracking {
+  display: grid;
+  gap: 1.5rem;
+  // Sans ce minimum à zéro, une carte au contenu large élargit la piste et sort de l'écran
+  grid-template-columns: minmax(0, 1fr);
+}
+
 // Tableau de bord : l'espace de travail à gauche, les candidatures envoyées à droite
 .board {
   display: grid;
@@ -240,7 +263,7 @@
   gap: 1.5rem;
 
   @media (max-width: 60rem) {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -280,6 +303,18 @@
     border-color: var(--app-accent-strong);
     background: color-mix(in srgb, var(--app-accent), transparent 86%);
   }
+
+  // Les entretiens se détachent du reste : fond citron vert, compteur plein
+  &.interviews {
+    border-style: solid;
+    border-color: color-mix(in srgb, var(--app-accent-strong), transparent 45%);
+    background: color-mix(in srgb, var(--app-accent), transparent 82%);
+
+    h2 span {
+      background: var(--app-accent);
+      color: var(--app-accent-ink);
+    }
+  }
 }
 
 .cards {
@@ -288,8 +323,158 @@
   // Sans ce minimum à zéro, une carte au contenu large (un nom de site long) élargit la piste et sort de la colonne
   grid-template-columns: minmax(0, 1fr);
 
-  .todo & {
+  .todo &,
+  .interviews &,
+  .refused & {
     grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
+  }
+}
+
+// Candidatures refusées : une ligne discrète, qui s'ouvre à la demande
+.refused {
+  border: 1px solid var(--app-border);
+  border-radius: calc(var(--app-radius) + 6px);
+
+  summary {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.9rem 1.25rem;
+    color: var(--app-muted);
+    font-weight: 600;
+    list-style: none;
+    cursor: pointer;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &::after {
+      content: '';
+      width: 0.5rem;
+      height: 0.5rem;
+      margin-left: auto;
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transform: rotate(45deg);
+      transition: transform 0.15s;
+    }
+
+    &:hover {
+      color: var(--app-text);
+    }
+
+    span {
+      padding: 0.1rem 0.6rem;
+      border-radius: 999px;
+      background: var(--app-surface-2);
+      font-size: 0.8125rem;
+      font-weight: 700;
+    }
+  }
+
+  &[open] summary::after {
+    transform: rotate(-135deg);
+  }
+
+  .cards {
+    padding: 0 1rem 1rem;
+  }
+}
+
+// Fenêtre de la corbeille : au centre sur un écran large, en bas de l'écran sur un téléphone
+.discard {
+  width: min(27rem, calc(100% - 2rem));
+  padding: 1.5rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-shadow: var(--app-shadow);
+
+  &::backdrop {
+    background: rgba(10, 11, 13, 0.55);
+    backdrop-filter: blur(3px);
+  }
+
+  &[open] {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  @media (max-width: 40rem) {
+    width: 100%;
+    max-width: 100%;
+    margin: auto 0 0;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: var(--app-radius) var(--app-radius) 0 0;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.375rem;
+  }
+
+  .subject {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0 0 0.5rem;
+    color: var(--app-muted);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .choice {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+    background: none;
+    color: inherit;
+    text-align: left;
+    transition:
+      border-color 0.15s,
+      background-color 0.15s;
+
+    span {
+      font-size: 0.875rem;
+      color: var(--app-muted);
+    }
+
+    &:hover {
+      border-color: var(--app-muted);
+      background: var(--app-surface-2);
+    }
+
+    &.danger strong {
+      color: #ef4444;
+    }
+
+    &.danger:hover {
+      border-color: #ef4444;
+      background: color-mix(in srgb, #ef4444, transparent 92%);
+    }
+  }
+
+  .cancel {
+    padding: 0.75rem;
+    border: 0;
+    border-radius: var(--app-radius-sm);
+    background: none;
+    color: var(--app-muted);
+    font-weight: 600;
+
+    &:hover {
+      color: var(--app-text);
+    }
   }
 }
 

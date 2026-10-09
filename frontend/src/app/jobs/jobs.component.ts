@@ -1,9 +1,19 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Message } from 'primeng/message';
 
 import { apiErrorMessage } from '../core/api-error';
-import { Job } from '../core/api.models';
+import { Job, JobStatus } from '../core/api.models';
 import { JobService } from '../core/job.service';
 import { SearchRunService } from '../core/search-run.service';
 import { normalize } from '../core/text';
@@ -17,12 +27,13 @@ function contractOf(job: Job): string {
 }
 
 /**
- * Rubrique Offres : un tableau de bord en deux colonnes, à traiter et postulées.
- * Une carte passe de l'une à l'autre par son bouton, ou en la faisant glisser.
+ * Rubrique Offres : le suivi des candidatures. Les entretiens en tête, puis deux colonnes, à traiter et
+ * postulées, et les candidatures refusées repliées en bas. Une carte change d'état par son bouton, ou en la
+ * faisant glisser. Les états proposés sont ceux que l'API annonce pour chaque offre (next_statuses).
  */
 @Component({
   selector: 'app-jobs',
-  imports: [FormsModule, Message, JobCardComponent],
+  imports: [FormsModule, NgTemplateOutlet, Message, JobCardComponent],
   templateUrl: './jobs.component.html',
   styleUrl: './jobs.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -30,6 +41,7 @@ function contractOf(job: Job): string {
 export class JobsComponent {
   private readonly jobService = inject(JobService);
   protected readonly run = inject(SearchRunService);
+  private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
   // undefined : en cours de lecture
   protected readonly jobs = signal<Job[] | undefined>(undefined);
@@ -38,16 +50,18 @@ export class JobsComponent {
   protected readonly contracts = signal<ReadonlySet<string>>(new Set());
   protected readonly busy = signal<ReadonlySet<number>>(new Set());
   protected readonly dragged = signal<Job | null>(null);
-  /** Colonne survolée pendant un glissement : true pour « Postulées » */
-  protected readonly dropTarget = signal<boolean | null>(null);
+  /** Zone survolée pendant un glissement, nommée par l'état qu'elle donne */
+  protected readonly dropTarget = signal<JobStatus | null>(null);
+  /** Offre dont la corbeille a été cliquée : la fenêtre demande quoi en faire */
+  protected readonly discarding = signal<Job | null>(null);
   protected readonly error = signal('');
 
   protected readonly total = computed(() => this.jobs()?.length ?? 0);
-  protected readonly appliedCount = computed(() => this.jobs()?.filter((job) => job.applied).length ?? 0);
-  protected readonly todoCount = computed(() => this.total() - this.appliedCount());
-  protected readonly progress = computed(() =>
-    this.total() ? Math.round((this.appliedCount() / this.total()) * 100) : 0,
-  );
+  protected readonly todoCount = computed(() => this.count('todo'));
+  protected readonly interviewCount = computed(() => this.count('interview'));
+  /** Candidatures envoyées, quelle que soit leur suite */
+  protected readonly sentCount = computed(() => this.total() - this.todoCount());
+  protected readonly progress = computed(() => (this.total() ? Math.round((this.sentCount() / this.total()) * 100) : 0));
 
   protected readonly contractOptions = computed(() =>
     [...new Set((this.jobs() ?? []).map(contractOf))].sort((first, second) => first.localeCompare(second, 'fr')),
@@ -64,8 +78,10 @@ export class JobsComponent {
       return !words || searched.includes(words);
     });
   });
-  protected readonly todo = computed(() => this.visible().filter((job) => !job.applied));
-  protected readonly applied = computed(() => this.visible().filter((job) => job.applied));
+  protected readonly todo = computed(() => this.withStatus('todo'));
+  protected readonly applied = computed(() => this.withStatus('applied'));
+  protected readonly interviews = computed(() => this.withStatus('interview'));
+  protected readonly rejected = computed(() => this.withStatus('rejected'));
   protected readonly filtered = computed(() => this.visible().length !== this.total());
 
   constructor() {
@@ -91,12 +107,12 @@ export class JobsComponent {
     this.contracts.set(new Set());
   }
 
-  protected setApplied(job: Job, applied: boolean): void {
-    if (job.applied === applied || this.busy().has(job.id)) {
+  protected setStatus(job: Job, status: JobStatus): void {
+    if (job.status === status || this.busy().has(job.id)) {
       return;
     }
     this.start(job.id);
-    this.jobService.setApplied(job.id, applied).subscribe({
+    this.jobService.setStatus(job.id, status).subscribe({
       next: (updated) => {
         // L'API renvoie l'offre à jour : pas de rechargement de la liste, dont la réponse pourrait arriver
         // après un autre clic et remettre une carte dans la mauvaise colonne
@@ -107,7 +123,34 @@ export class JobsComponent {
     });
   }
 
+  protected openDiscard(job: Job): void {
+    this.discarding.set(job);
+    const dialog = this.dialog().nativeElement;
+    // showModal retient le clavier dans la fenêtre et la ferme sur Échap
+    if (dialog.showModal) {
+      dialog.showModal();
+    } else {
+      dialog.setAttribute('open', '');
+    }
+  }
+
+  protected closeDiscard(): void {
+    const dialog = this.dialog().nativeElement;
+    if (dialog.close) {
+      dialog.close();
+    } else {
+      dialog.removeAttribute('open');
+      this.discarding.set(null);
+    }
+  }
+
+  protected refuse(job: Job): void {
+    this.closeDiscard();
+    this.setStatus(job, 'rejected');
+  }
+
   protected remove(job: Job): void {
+    this.closeDiscard();
     this.start(job.id);
     this.jobService.delete(job.id).subscribe({
       next: () => {
@@ -124,21 +167,21 @@ export class JobsComponent {
     event.dataTransfer?.setData('text/plain', String(job.id));
   }
 
-  protected dragOver(event: DragEvent, applied: boolean): void {
-    const job = this.dragged();
-    if (job && job.applied !== applied) {
-      // Sans cela, la colonne refuserait le dépôt
+  protected dragOver(event: DragEvent, status: JobStatus): void {
+    // Une zone n'accepte que les cartes qui peuvent prendre son état
+    if (this.dragged()?.next_statuses.includes(status)) {
+      // Sans cela, la zone refuserait le dépôt
       event.preventDefault();
-      this.dropTarget.set(applied);
+      this.dropTarget.set(status);
     }
   }
 
-  protected drop(event: DragEvent, applied: boolean): void {
+  protected drop(event: DragEvent, status: JobStatus): void {
     event.preventDefault();
     const job = this.dragged();
     this.dragEnd();
-    if (job) {
-      this.setApplied(job, applied);
+    if (job?.next_statuses.includes(status)) {
+      this.setStatus(job, status);
     }
   }
 
@@ -152,6 +195,14 @@ export class JobsComponent {
       next: (jobs) => this.jobs.set(jobs),
       error: (error: unknown) => this.error.set(apiErrorMessage(error)),
     });
+  }
+
+  private count(status: JobStatus): number {
+    return this.jobs()?.filter((job) => job.status === status).length ?? 0;
+  }
+
+  private withStatus(status: JobStatus): Job[] {
+    return this.visible().filter((job) => job.status === status);
   }
 
   private replace(job: Job): void {

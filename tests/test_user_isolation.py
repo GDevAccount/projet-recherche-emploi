@@ -32,36 +32,41 @@ def test_same_offer_can_be_kept_by_two_users(session):
     assert alice.insert_jobs([job("https://a/1")]) == 0
 
 
-def test_applying_does_not_touch_another_user(session):
+def test_tracking_an_application_does_not_touch_another_user(session):
     alice, bob = JobRepository(session, ALICE), JobRepository(session, BOB)
     alice.insert_jobs([job("https://a/1")])
     bob.insert_jobs([job("https://a/1")])
+    applied_at = datetime(2026, 10, 9, 8, tzinfo=UTC)
 
     [alice_job], [bob_job] = alice.list_jobs(), bob.list_jobs()
 
-    assert bob.set_applied(bob_job.id, True) is True
-    # L'offre d'Alice existe, mais pas pour Bob : il ne peut ni la cocher ni la lire
-    assert bob.set_applied(alice_job.id, True) is False
+    assert bob.set_tracking(bob_job.id, "applied", applied_at, None, None) is True
+    # L'offre d'Alice existe, mais pas pour Bob : il ne peut ni la suivre ni la lire
+    assert bob.set_tracking(alice_job.id, "applied", applied_at, None, None) is False
     assert bob.get_job(alice_job.id) is None
     # Relue dans la même session, l'offre de Bob porte déjà sa candidature
-    assert bob.get_job(bob_job.id).applied is True
+    assert bob.get_job(bob_job.id).status == "applied"
     session.expire_all()
 
-    assert (alice_job.applied, alice_job.applied_at) == (False, None)
-    assert bob_job.applied is True and bob_job.applied_at is not None
+    assert (alice_job.status, alice_job.applied_at) == ("todo", None)
+    assert (bob_job.status, bob_job.applied_at) == ("applied", applied_at)
 
 
-def test_unapplying_clears_the_application_date(session):
+def test_tracking_writes_the_date_of_each_step(session):
     jobs = JobRepository(session, BOB)
     jobs.insert_jobs([job("https://a/1")])
     [saved] = jobs.list_jobs()
-    jobs.set_applied(saved.id, True)
+    first, second, third = (datetime(2026, 10, day, tzinfo=UTC) for day in (1, 2, 3))
 
-    jobs.set_applied(saved.id, False)
+    jobs.set_tracking(saved.id, "rejected", first, second, third)
     session.expire_all()
-
     [saved] = jobs.list_jobs()
-    assert (saved.applied, saved.applied_at) == (False, None)
+    assert (saved.status, saved.applied_at, saved.interview_at, saved.rejected_at) == ("rejected", first, second, third)
+
+    jobs.set_tracking(saved.id, "todo", None, None, None)
+    session.expire_all()
+    [saved] = jobs.list_jobs()
+    assert (saved.status, saved.applied_at, saved.interview_at, saved.rejected_at) == ("todo", None, None, None)
 
 
 def test_deleting_does_not_touch_another_user(session):
@@ -72,9 +77,9 @@ def test_deleting_does_not_touch_another_user(session):
     [alice_job], [bob_job] = alice.list_jobs(), bob.list_jobs()
 
     assert bob.delete_jobs([bob_job.id, alice_job.id]) == 1
-    # Une offre déjà supprimée n'est pas comptée une seconde fois, et ne se coche plus
+    # Une offre déjà supprimée n'est pas comptée une seconde fois, et ne se suit plus
     assert bob.delete_jobs([bob_job.id]) == 0
-    assert bob.set_applied(bob_job.id, True) is False
+    assert bob.set_tracking(bob_job.id, "applied", datetime(2026, 10, 9, tzinfo=UTC), None, None) is False
     assert bob.get_job(bob_job.id) is None
 
     assert len(alice.list_jobs()) == 1

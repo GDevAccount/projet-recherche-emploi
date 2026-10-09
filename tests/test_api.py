@@ -210,21 +210,25 @@ def test_jobs_are_private(client):
 
     assert client.get("/api/jobs", headers=BOB).json() == []
     paths = {saved["url"]: f"/api/jobs/{saved['id']}" for saved in client.get("/api/jobs", headers=ALICE).json()}
-    applied = {"applied": True}
+    applied = {"status": "applied"}
     assert client.patch(paths["https://a/1"], headers=BOB, json=applied).status_code == 404
     updated = client.patch(paths["https://a/1"], headers=ALICE, json=applied)
     # L'offre revient telle qu'elle est maintenant, avec la date que le serveur vient de lui donner
     assert updated.status_code == 200
-    assert (updated.json()["url"], updated.json()["applied"]) == ("https://a/1", True)
+    assert (updated.json()["url"], updated.json()["status"]) == ("https://a/1", "applied")
     assert updated.json()["applied_at"].endswith(("Z", "+00:00"))
-    assert client.patch(paths["https://a/1"], headers=ALICE, json={"applied": False}).json()["applied_at"] is None
+    assert updated.json()["next_statuses"] == ["interview", "rejected", "todo"]
+    assert client.patch(paths["https://a/1"], headers=ALICE, json={"status": "todo"}).json()["applied_at"] is None
+    # Un état inconnu, ou que l'offre ne peut pas prendre, est refusé
+    assert client.patch(paths["https://a/1"], headers=ALICE, json={"status": "embauche"}).status_code == 422
+    assert client.patch(paths["https://a/1"], headers=ALICE, json={"status": "interview"}).status_code == 422
     client.patch(paths["https://a/1"], headers=ALICE, json=applied)
     assert client.delete(paths["https://a/2"], headers=BOB).status_code == 404
     assert client.delete(paths["https://a/2"], headers=ALICE).status_code == 204
     assert client.delete(paths["https://a/2"], headers=ALICE).status_code == 404
 
     [saved] = client.get("/api/jobs", headers=ALICE).json()
-    assert (saved["url"], saved["applied"]) == ("https://a/1", True)
+    assert (saved["url"], saved["status"]) == ("https://a/1", "applied")
     # Les dates sortent avec leur fuseau : le front n'a pas à deviner qu'elles sont en UTC
     assert saved["created_at"].endswith(("Z", "+00:00")) and saved["applied_at"].endswith(("Z", "+00:00"))
     # Ni l'identifiant de l'utilisateur ni la marque de suppression ne sortent de l'API
