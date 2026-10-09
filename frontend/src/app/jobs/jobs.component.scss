@@ -43,12 +43,18 @@
 // Chiffres clés
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 10rem)) minmax(0, 1fr);
+  // Deux tuiles, ou trois dès qu'il y a un entretien, puis la jauge
+  --tiles: 2;
+  grid-template-columns: repeat(var(--tiles), minmax(0, 10rem)) minmax(0, 1fr);
   gap: 1rem;
   margin-bottom: 1.5rem;
 
+  &.with-interviews {
+    --tiles: 3;
+  }
+
   @media (max-width: 60rem) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--tiles), minmax(0, 1fr));
     gap: 0.6rem;
   }
 }

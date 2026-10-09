@@ -31,7 +31,7 @@
       }
     </section>
   } @else {
-    <section class="stats" aria-label="Avancement">
+    <section class="stats" [class.with-interviews]="interviewCount()" aria-label="Avancement">
       <div class="tile accent">
         <strong>{{ todoCount() }}</strong>
         <span>à traiter</span>
@@ -40,10 +40,13 @@
         <strong>{{ sentCount() }}</strong>
         <span>{{ sentCount() > 1 ? 'candidatures envoyées' : 'candidature envoyée' }}</span>
       </div>
-      <div class="tile">
-        <strong>{{ interviewCount() }}</strong>
-        <span>{{ interviewCount() > 1 ? 'entretiens' : 'entretien' }}</span>
-      </div>
+      <!-- Un zéro n'apprend rien : la tuile n'apparaît qu'au premier entretien -->
+      @if (interviewCount()) {
+        <div class="tile">
+          <strong>{{ interviewCount() }}</strong>
+          <span>{{ interviewCount() > 1 ? 'entretiens' : 'entretien' }}</span>
+        </div>
+      }
       <div class="tile wide">
         <div class="meter-head">
           <span>
