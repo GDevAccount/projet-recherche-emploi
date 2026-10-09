@@ -247,6 +247,29 @@ class EvaluationGroup(BaseModel):
     model_cost_usd: float | None
 
 
+class SearchYield(BaseModel):
+    """Ce qu'un texte envoyé au moteur de recherche a rapporté, tous lancements réunis.
+
+    Les pages rendues se partagent en quatre : déjà rendues par un autre appel du même lancement, déjà
+    connues (offres ou rejets d'une recherche passée), évaluées puis écartées, évaluées puis retenues.
+    """
+
+    # Phrase saisie par l'utilisateur, et texte réellement envoyé
+    query: str
+    search_text: str
+    # Variante en anglais d'une recherche en télétravail complet
+    international: bool
+    calls: int
+    found: int
+    repeated: int
+    known: int
+    rejected: int
+    kept: int
+    # Coût de ces appels en dollars, et ce que chaque offre retenue a coûté en appels ; None sans offre retenue
+    search_cost_usd: float
+    cost_per_kept_usd: float | None
+
+
 class CorrectionStats(BaseModel):
     """Ce que l'utilisateur a corrigé du tri rendu avec une version du prompt.
 
@@ -303,6 +326,8 @@ class SearchStats(BaseModel):
     by_page_kind: list[EvaluationGroup]
     # Selon le texte lu par le modèle : page entière, page tronquée, ou extrait du moteur de recherche
     by_text: list[EvaluationGroup]
+    # Rendement de chaque texte envoyé au moteur de recherche, le moins rentable en premier
+    by_search: list[SearchYield]
     # Corrections du tri par version du prompt, la plus récente en premier
     corrections: list[CorrectionStats]
     # Motifs des suppressions d'offres, le plus fréquent en premier

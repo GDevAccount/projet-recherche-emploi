@@ -14,8 +14,10 @@ from projet_recherche_emploi.config import (
     MAX_SEARCHES_PER_DAY,
 )
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
+from projet_recherche_emploi.data.models import EngineCall
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
+from projet_recherche_emploi.data.repositories.engine_call_repository import EngineCallRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
 from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
@@ -23,7 +25,11 @@ from projet_recherche_emploi.data.repositories.user_repository import UserReposi
 from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
 from projet_recherche_emploi.schemas import SearchProgress, SearchSummary
 from projet_recherche_emploi.services import cv_service
-from projet_recherche_emploi.services.search_service import SearchService
+from projet_recherche_emploi.services.search_service import (
+    SearchService,
+    describe_engine_calls,
+    summarize_engine_calls,
+)
 
 BOB = 2
 CAROL = 3
@@ -45,7 +51,15 @@ class FakeGraph:
 
 class BrokenGraph:
     def stream(self, state, stream_mode):
-        yield "values", {"jobs": [{"url": "https://x/1"}], "metrics": {"search_ms": 12, "search_calls": 1}}
+        call = {"query": "une recherche", "search_text": "offre une recherche", "international": False}
+        yield (
+            "values",
+            {
+                "jobs": [{"url": "https://x/1", "search_index": 0}],
+                "searches": [{**call, "found_count": 1, "duration_ms": 12}],
+                "metrics": {"search_ms": 12, "search_calls": 1},
+            },
+        )
         raise RuntimeError("Tavily search failed : clé sk-secrete")
 
 
@@ -166,6 +180,45 @@ def test_guest_is_stopped_at_the_daily_quota_before_the_graph_runs(search, graph
     assert search.remaining_searches(CAROL) == MAX_SEARCHES_PER_DAY
 
 
+def test_engine_calls_say_what_became_of_their_pages():
+    def page(search_index: int) -> dict:
+        return {"search_index": search_index}
+
+    searches = [
+        {"query": "data engineer", "search_text": "offre data engineer", "international": False, "found_count": 5},
+        {"query": "data engineer", "search_text": "data engineer remote job", "international": True, "found_count": 4},
+    ]
+    state = {
+        "searches": searches,
+        # Deux pages du second appel avaient déjà été rendues par le premier : elles lui reviennent
+        "jobs": [page(0)] * 5 + [page(1)] * 2,
+        "new_jobs": [page(0)] * 3 + [page(1)],
+        "filtered_jobs": [page(0)],
+    }
+
+    first, second = describe_engine_calls(state)
+    assert (first["unique_count"], first["new_count"], first["kept_count"]) == (5, 3, 1)
+    assert (second["search_text"], second["unique_count"], second["new_count"], second["kept_count"]) == (
+        "data engineer remote job",
+        2,
+        1,
+        0,
+    )
+    # Un lancement arrêté avant le tri des doublons ne sait pas ce que ses pages sont devenues
+    [stopped] = describe_engine_calls({"searches": searches[:1], "jobs": [page(0)] * 5})
+    assert (stopped["unique_count"], stopped["new_count"], stopped["kept_count"]) == (5, None, None)
+    assert describe_engine_calls({}) == []
+
+    calls = [EngineCall(**call) for call in (first, second, stopped)]
+    worst, best = summarize_engine_calls(calls)
+    # Le texte qui n'a rien fait retenir vient en premier
+    assert (worst.search_text, worst.international, worst.calls) == ("data engineer remote job", True, 1)
+    assert (worst.found, worst.repeated, worst.known, worst.rejected, worst.kept) == (4, 2, 1, 1, 0)
+    assert (worst.search_cost_usd, worst.cost_per_kept_usd) == (0.016, None)
+    assert (best.calls, best.found, best.repeated, best.known, best.rejected, best.kept) == (2, 10, 0, 2, 2, 1)
+    assert (best.search_cost_usd, best.cost_per_kept_usd) == (0.032, 0.032)
+
+
 def test_failed_search_still_counts(container, ready_users):
     search = SearchService(container.database, BrokenGraph)
 
@@ -178,6 +231,9 @@ def test_failed_search_still_counts(container, ready_users):
     assert (run.status, run.error, run.found_count, run.new_count) == ("failed", "RuntimeError", 1, None)
     assert (run.search_ms, run.search_calls, run.evaluate_ms, run.duration_ms) == (12, 1, None, 12)
     assert run.finished_at is not None
+    # L'appel au moteur fait avant l'échec a été payé : il reste compté, sans suite connue
+    [call] = search.get_stats(BOB).by_search
+    assert (call.calls, call.found, call.known, call.rejected, call.kept) == (1, 1, 0, 0, 0)
 
 
 def test_run_left_running_by_a_restart_is_reported_as_interrupted(container, search, ready_users):
@@ -484,6 +540,7 @@ def test_deleting_an_account_leaves_nothing_behind(container, valid_pdf):
     assert container.jobs.list_jobs(user_id) == [] and container.jobs.list_rejected_jobs(user_id) == []
     with container.database.session() as session:
         assert CorrectionRepository(session, user_id).list_all() == []
+        assert EngineCallRepository(session, user_id).list_all() == []
     assert container.queries.list_queries(user_id) == []
     assert container.cv.get_status(user_id).updated_at is None
     assert stored_cv_text(container, user_id) is None

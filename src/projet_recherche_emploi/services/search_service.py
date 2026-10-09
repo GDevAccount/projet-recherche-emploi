@@ -7,9 +7,10 @@ from zoneinfo import ZoneInfo
 
 from projet_recherche_emploi.config import DEFAULT_USER_ID, LOCAL_TIMEZONE, MAX_SEARCHES_PER_DAY, OFFER_PAGE_KIND
 from projet_recherche_emploi.data.database import Database
-from projet_recherche_emploi.data.models import Correction
+from projet_recherche_emploi.data.models import Correction, EngineCall
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
+from projet_recherche_emploi.data.repositories.engine_call_repository import EngineCallRepository
 from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
@@ -26,6 +27,7 @@ from projet_recherche_emploi.schemas import (
     SearchRunRead,
     SearchStats,
     SearchSummary,
+    SearchYield,
 )
 from projet_recherche_emploi.services.search_costs import (
     COST_DECIMALS,
@@ -135,6 +137,64 @@ def group_evaluations(
         for label, pages in groups.items()
     ]
     return sorted(summaries, key=lambda group: (-group.evaluated, group.label))
+
+
+def describe_engine_calls(state: dict) -> list[dict]:
+    """Renvoie une ligne par appel au moteur de recherche, avec ce que ses pages sont devenues.
+
+    Une étape que le lancement n'a pas franchie laisse son compteur vide.
+    """
+
+    def count(pages_key: str, index: int) -> int | None:
+        if pages_key not in state:
+            return None
+        return sum(page.get("search_index") == index for page in state[pages_key])
+
+    return [
+        {
+            **call,
+            "unique_count": count("jobs", index),
+            "new_count": count("new_jobs", index),
+            "kept_count": count("filtered_jobs", index),
+        }
+        for index, call in enumerate(state.get("searches", []))
+    ]
+
+
+def summarize_engine_calls(calls: Iterable[EngineCall]) -> list[SearchYield]:
+    """Additionne les appels par texte envoyé, le moins rentable en premier."""
+    groups: dict[tuple[str, str, bool], list[EngineCall]] = {}
+    for call in calls:
+        groups.setdefault((call.query, call.search_text, call.international), []).append(call)
+    yields = []
+    for (query, search_text, international), group in groups.items():
+        found = sum(call.found_count for call in group)
+        # Un lancement arrêté en route n'a pas tous ses compteurs : ses pages comptent comme rendues, sans suite
+        unique = sum(call.found_count if call.unique_count is None else call.unique_count for call in group)
+        new = sum(call.new_count or 0 for call in group)
+        known = sum(0 if call.new_count is None else (call.unique_count or 0) - call.new_count for call in group)
+        kept = sum(call.kept_count or 0 for call in group)
+        cost = search_cost_usd(len(group))
+        yields.append(
+            SearchYield(
+                query=query,
+                search_text=search_text,
+                international=international,
+                calls=len(group),
+                found=found,
+                repeated=found - unique,
+                known=known,
+                rejected=new - kept,
+                kept=kept,
+                search_cost_usd=cost,
+                cost_per_kept_usd=round(cost / kept, COST_DECIMALS) if kept else None,
+            )
+        )
+    # Sans offre retenue d'abord, puis l'offre la plus chère : c'est là qu'un poste recherché est à revoir
+    return sorted(
+        yields,
+        key=lambda item: (item.kept > 0, -(item.cost_per_kept_usd or item.search_cost_usd), item.search_text),
+    )
 
 
 def rate(part: int, whole: int) -> float | None:
@@ -326,6 +386,7 @@ class SearchService:
             # Lus tant que la session est ouverte : la synthèse n'en garde que des nombres
             correction_stats = summarize_corrections(corrections, evaluations, runs)
             delete_reasons = count_delete_reasons(corrections)
+            by_search = summarize_engine_calls(EngineCallRepository(session, user_id).list_all())
         # Un lancement d'avant le suivi n'a que sa date : il n'entre pas dans la synthèse
         runs = [run for run in self._describe_runs(user_id, runs) if run.status is not None]
         models = {run.id: run.model for run in runs}
@@ -362,6 +423,7 @@ class SearchService:
             by_site=group_evaluations(evaluations, lambda page: site_of(page.url)),
             by_page_kind=group_evaluations(evaluations, lambda page: page.page_kind),
             by_text=group_evaluations(evaluations, text_read),
+            by_search=by_search,
             corrections=correction_stats,
             delete_reasons=delete_reasons,
         )
@@ -404,3 +466,5 @@ class SearchService:
         }
         with self.database.session() as session:
             SearchRunRepository(session, user_id).finish_run(run_id, values)
+            # Même après un échec : les appels déjà faits ont été payés
+            EngineCallRepository(session, user_id).insert_calls(run_id, describe_engine_calls(state))

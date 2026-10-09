@@ -190,6 +190,11 @@ test('le suivi montre le bilan des recherches et le détail de leurs pages', asy
   await expect(pages.filter({ hasText: 'Retenue' }).first()).toBeVisible();
   await expect(pages.filter({ hasText: 'Écartée' }).first()).toContainText('en défaut : compétences');
 
+  // Deux recherches ont envoyé les mêmes textes : chacun compte deux appels, dont le second n'a rien ramené
+  const searches = page.locator('app-yield-card .searches li');
+  await expect(searches.first()).toContainText('2 appels');
+  await expect(searches.filter({ hasText: QUERY }).first()).toContainText('par offre');
+
   // Une offre supprimée pour son métier, une page écartée remise : les deux corrections sont comptées
   const corrections = page.locator('app-corrections-card');
   await expect(corrections.locator('tbody tr')).toHaveCount(1);

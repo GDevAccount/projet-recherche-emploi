@@ -15,6 +15,7 @@ L'application est un projet personnel, exploité par un particulier. Pour toute 
 - **Les pages écartées** : titre, lien, type de contrat et lieu lus sur la page, raison du rejet et critères en défaut, pour ne pas les évaluer une seconde fois.
 - **Le bilan de chaque recherche lancée** : sa date, pour appliquer la limite quotidienne, et des mesures techniques (nombre de pages trouvées, retenues et écartées, durée, volume de texte échangé avec OpenAI), pour suivre le coût et le bon fonctionnement du service. Les administrateurs de l'application voient, pour chaque compte, son adresse e-mail et le total de ces mesures ; ils ne voient ni vos recherches, ni votre CV, ni les pages trouvées pour vous.
 - **Le journal des pages évaluées** : pour chaque page lue lors d'une recherche, retenue ou non, son titre, son lien, ce qui y a été lu (type de contrat, lieu, mode de travail), le verdict critère par critère et sa raison. Il sert à comprendre et à corriger le tri. Contrairement aux pages écartées, il n'est pas effacé quand vous remplacez votre CV.
+- **Les appels au moteur de recherche** : pour chaque recherche envoyée à Tavily, le texte envoyé, tiré de vos postes recherchés, et le nombre de pages qu'elle a ramenées, déjà connues, évaluées et retenues. Ils servent à savoir ce que chaque poste recherché rapporte et coûte.
 - **Vos corrections du tri** : quand vous remettez une page écartée dans vos offres, ou quand vous supprimez une offre, l'application en garde la trace : le titre et le lien de la page, le verdict qui avait été rendu, et le motif de la suppression si vous en choisissez un. Elles servent à mesurer si le tri se trompe, et sur quoi.
 - **La date de votre dernière utilisation**, au jour près, pour supprimer les comptes qui ne servent plus.
 
@@ -37,7 +38,7 @@ Ces quatre sociétés sont établies aux États-Unis. Les données hébergées p
 
 ## Durée de conservation
 
-Vos données sont conservées tant que vous utilisez l'application. Un compte resté {inactive_months} mois sans utilisation est supprimé automatiquement, avec tout ce qu'il contient : adresse e-mail, CV, recherches, offres, pages écartées, bilans des recherches, journal des pages évaluées et corrections du tri. Vous n'en êtes pas prévenu, l'application n'envoyant aucun e-mail.
+Vos données sont conservées tant que vous utilisez l'application. Un compte resté {inactive_months} mois sans utilisation est supprimé automatiquement, avec tout ce qu'il contient : adresse e-mail, CV, recherches, offres, pages écartées, bilans des recherches, journal des pages évaluées, appels au moteur de recherche et corrections du tri. Vous n'en êtes pas prévenu, l'application n'envoyant aucun e-mail.
 
 À la suppression d'un compte, par vous ou automatiquement, une seule chose est conservée : le total, par mois, de ce que ses recherches ont consommé (nombre de recherches, de pages lues et volume de texte échangé avec OpenAI et Tavily). Ces totaux ne portent ni adresse e-mail, ni contenu, ni date précise : ils ne permettent pas de vous identifier, et servent uniquement à connaître le coût du service dans la durée.
 
@@ -47,9 +48,9 @@ Avant certaines mises à jour de l'application, une copie de sauvegarde de la ba
 
 ## Vos droits
 
-Conformément au règlement général sur la protection des données (RGPD), vous pouvez demander l'accès à vos données, leur rectification ou leur suppression, en recevoir une copie dans un format courant (portabilité), et demander la limitation de leur traitement ou vous y opposer, en écrivant à l'adresse indiquée plus haut. Une réponse vous est donnée dans un délai d'un mois. La suppression porte sur l'ensemble de votre compte : adresse e-mail, CV, recherches, offres, pages écartées, bilans des recherches, journal des pages évaluées et corrections du tri.
+Conformément au règlement général sur la protection des données (RGPD), vous pouvez demander l'accès à vos données, leur rectification ou leur suppression, en recevoir une copie dans un format courant (portabilité), et demander la limitation de leur traitement ou vous y opposer, en écrivant à l'adresse indiquée plus haut. Une réponse vous est donnée dans un délai d'un mois. La suppression porte sur l'ensemble de votre compte : adresse e-mail, CV, recherches, offres, pages écartées, bilans des recherches, journal des pages évaluées, appels au moteur de recherche et corrections du tri.
 
-Vous pouvez supprimer votre compte vous-même, depuis la page « Compte » de l'application : votre adresse e-mail, votre CV, vos recherches, vos offres, les pages écartées, les bilans de vos recherches, le journal des pages évaluées et vos corrections du tri sont alors effacés immédiatement, sans retour possible. Vous pouvez aussi remplacer votre CV et supprimer vos recherches sans supprimer votre compte. Vous pouvez aussi retirer l'accès de l'application à votre compte Google depuis les paramètres de sécurité de ce compte.
+Vous pouvez supprimer votre compte vous-même, depuis la page « Compte » de l'application : votre adresse e-mail, votre CV, vos recherches, vos offres, les pages écartées, les bilans de vos recherches, le journal des pages évaluées, les appels au moteur de recherche et vos corrections du tri sont alors effacés immédiatement, sans retour possible. Vous pouvez aussi remplacer votre CV et supprimer vos recherches sans supprimer votre compte. Vous pouvez aussi retirer l'accès de l'application à votre compte Google depuis les paramètres de sécurité de ce compte.
 
 Si vous estimez que vos droits ne sont pas respectés, vous pouvez adresser une réclamation à la CNIL (www.cnil.fr).
 

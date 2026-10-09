@@ -10,6 +10,7 @@ import { TrackingService } from '../core/tracking.service';
 import { CorrectionsCardComponent } from './corrections-card.component';
 import { RunListComponent } from './run-list.component';
 import { UsageCardComponent } from './usage-card.component';
+import { YieldCardComponent } from './yield-card.component';
 
 /** Répartitions de la synthèse, dans l'ordre des onglets. */
 const BREAKDOWNS = [
@@ -38,6 +39,7 @@ const GROUPS_SHOWN = 8;
     CorrectionsCardComponent,
     RunListComponent,
     UsageCardComponent,
+    YieldCardComponent,
   ],
   templateUrl: './tracking.component.html',
   styleUrl: './tracking.component.scss',

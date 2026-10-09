@@ -230,6 +230,34 @@ class PageEvaluation(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
 
 
+class EngineCall(Base):
+    """Appel au moteur de recherche pendant un lancement : ce qu'il a rendu, et ce que ses pages sont devenues.
+
+    Chaque appel est payé, qu'il ramène du neuf ou non : c'est ce qui dit quel poste recherché rapporte.
+    """
+
+    __tablename__ = "engine_calls"
+    __table_args__ = (Index("ix_engine_calls_user", "user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer)
+    search_run_id: Mapped[int] = mapped_column(Integer)
+    # Phrase saisie par l'utilisateur, et texte réellement envoyé au moteur
+    query: Mapped[str] = mapped_column(Text)
+    search_text: Mapped[str] = mapped_column(Text)
+    # Variante en anglais d'une recherche en télétravail complet, sur les sites internationaux
+    international: Mapped[bool] = mapped_column(IntBool)
+    # Pages rendues par l'appel
+    found_count: Mapped[int] = mapped_column(Integer)
+    # Parmi elles, celles qu'aucun appel précédent du lancement n'avait déjà rendues
+    unique_count: Mapped[int | None] = mapped_column(Integer)
+    # Parmi celles-là, les pages encore inconnues, donc évaluées ; vide si le lancement s'est arrêté avant
+    new_count: Mapped[int | None] = mapped_column(Integer)
+    kept_count: Mapped[int | None] = mapped_column(Integer)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+
 class Correction(Base):
     """Correction du tri par l'utilisateur : une page écartée qu'il a remise dans ses offres, ou une offre supprimée.
 

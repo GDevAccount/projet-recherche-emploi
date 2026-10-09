@@ -95,7 +95,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/health` | État du serveur (sans connexion) |
 | `GET /api/config` | Ce qu'un front lit avant la connexion (sans connexion) : mode de connexion (`google` ou `password`), identifiant client Google, types de contrat, motifs proposés à la suppression d'une offre (`delete_reasons`) |
 | `GET /api/me` | Utilisateur de la requête (avec l'adresse, le nom et la photo de son compte Google), s'il est propriétaire (`is_owner`) ou administrateur (`is_admin`), recherches restantes aujourd'hui, s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché), et si l'une des siennes tourne déjà (`search_running`) |
-| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements, journal des pages évaluées, corrections du tri et adresse sont effacés ; seule sa consommation reste, en totaux mensuels sans adresse (table `archived_usage`). Ils sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
+| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements, journal des pages évaluées, appels au moteur de recherche, corrections du tri et adresse sont effacés ; seule sa consommation reste, en totaux mensuels sans adresse (table `archived_usage`). Ils sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
 | `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer |
 | `GET /api/jobs` | Offres retenues |
 | `PATCH /api/jobs/{id}` | Changer l'état d'une candidature (`{"status": "applied"}` ; `todo`, `applied`, `interview` ou `rejected`). Renvoie l'offre mise à jour, avec la date de chaque étape et les états qu'elle peut prendre ensuite (`next_statuses`). Un état que l'offre ne peut pas prendre depuis le sien est refusé (422) |
@@ -106,7 +106,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/cv`, `PUT /api/cv` | Date du CV en place, dépôt d'un CV (fichier PDF, champ `file`) |
 | `POST /api/searches` | Lancer une recherche, suivie en direct (Server-Sent Events : `progress`, puis `result` ou `error`). Chaque `progress` nomme son étape (`step` : `search`, `dedupe`, `evaluate` ou `save`) et porte, selon l'étape, un décompte (`done`, `total`), le nombre de pages trouvées et à évaluer (`found`, `new`), ou la page qui vient d'être évaluée et son verdict (`title`, `kept`). Refusé (409) si une recherche de l'utilisateur tourne déjà |
 | `GET /api/searches` | Réservée aux administrateurs (le propriétaire et `ADMIN_EMAILS` ; 403 pour un invité), comme les trois suivantes. Les 100 derniers lancements de l'appelant, avec leur bilan : état (`status` : `running`, `done`, `failed` ou `interrupted`), compteurs, durée totale (`duration_ms`) et de chaque étape en millisecondes, appels au moteur de recherche, jetons du modèle, modèle et version du prompt |
-| `GET /api/searches/stats` | Synthèse de toutes les recherches suivies de l'appelant : volumes, jetons, coût en dollars (moteur de recherche, modèle, total, par offre retenue), durée moyenne, et répartition des pages évaluées par poste recherché (`by_query`), par site (`by_site`), par nature (`by_page_kind`) et selon le texte lu (`by_text` : page entière, page tronquée, extrait seul). `corrections` compte, par version du prompt, les pages écartées remises dans les offres et les offres supprimées en reprochant quelque chose au tri, avec leurs taux ; `delete_reasons` compte les suppressions par motif |
+| `GET /api/searches/stats` | Synthèse de toutes les recherches suivies de l'appelant : volumes, jetons, coût en dollars (moteur de recherche, modèle, total, par offre retenue), durée moyenne, et répartition des pages évaluées par poste recherché (`by_query`), par site (`by_site`), par nature (`by_page_kind`) et selon le texte lu (`by_text` : page entière, page tronquée, extrait seul). `by_search` donne le rendement de chaque texte envoyé au moteur de recherche, le moins rentable en premier : appels, pages rendues, en double dans le lancement (`repeated`), déjà connues (`known`), évaluées puis écartées (`rejected`), retenues (`kept`), coût des appels et coût par offre retenue. `corrections` compte, par version du prompt, les pages écartées remises dans les offres et les offres supprimées en reprochant quelque chose au tri, avec leurs taux ; `delete_reasons` compte les suppressions par motif |
 | `GET /api/searches/{id}/evaluations` | Pages évaluées pendant un lancement, retenues ou non : faits lus par le modèle, avis et règles du verdict, longueur du texte lu, jetons et durée de l'appel |
 | `GET /api/admin/usage` | Consommation de tous les comptes, le plus coûteux en premier : pour chacun, son adresse, ses lancements, ses appels, ses jetons et son coût en dollars et sa formule (`plan`, `free` tant qu'il n'y a pas de paiement) ; puis le total, et la part due aux invités (`guests_cost_usd`). Un compte supprimé y reste, sans adresse (`deleted`), avec ce qu'il avait consommé. `?days=30` limite le calcul aux derniers jours. Aucune page ni recherche d'un autre compte n'en sort |
 
@@ -404,6 +404,22 @@ Table `page_evaluations`, le journal des pages évaluées, retenues ou non. Cont
 | `full_page` | `1` si le texte complet de la page était disponible, `0` si seul l'extrait de Tavily a été lu |
 | `input_tokens`, `output_tokens`, `duration_ms` | Jetons et durée de l'appel au modèle pour cette page |
 | `cache_read_tokens`, `cache_write_tokens`, `reasoning_tokens` | Détail de ces jetons, comme pour un lancement |
+| `created_at` | Date de l'enregistrement (UTC) |
+
+Table `engine_calls`, une ligne par appel au moteur de recherche et par lancement. Elle est écrite à la fin du lancement, même s'il échoue :
+
+| Colonne | Contenu |
+|---|---|
+| `id` | Identifiant de la ligne |
+| `user_id` | Utilisateur propriétaire de la ligne |
+| `search_run_id` | Lancement pendant lequel l'appel a été fait |
+| `query`, `search_text` | Phrase saisie par l'utilisateur, et texte réellement envoyé au moteur |
+| `international` | `1` pour la variante en anglais d'une recherche en télétravail complet |
+| `found_count` | Pages rendues par l'appel |
+| `unique_count` | Parmi elles, celles qu'aucun appel précédent du lancement n'avait déjà rendues |
+| `new_count` | Parmi celles-là, les pages encore inconnues, donc évaluées ; vide si le lancement s'est arrêté avant |
+| `kept_count` | Parmi celles-là, les offres retenues ; vide si le lancement s'est arrêté avant |
+| `duration_ms` | Durée de l'appel |
 | `created_at` | Date de l'enregistrement (UTC) |
 
 Table `corrections`, ce que l'utilisateur a corrigé du tri. Une ligne par page écartée remise dans les offres et par offre supprimée :

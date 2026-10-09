@@ -1,0 +1,76 @@
+<section class="app-card">
+  <header>
+    <span class="app-eyebrow">Ce que rapporte chaque recherche envoyée à Tavily</span>
+    <p>
+      Chaque appel est payé, qu'il ramène du neuf ou non. En tête, les recherches qui coûtent le
+      plus par offre retenue : un poste qui ne ramène que des pages déjà vues est à reformuler, ou à
+      retirer.
+    </p>
+  </header>
+
+  @if (rows().length) {
+    <ul class="legend" aria-hidden="true">
+      <li><i class="kept"></i>Retenues</li>
+      <li><i class="rejected"></i>Évaluées, écartées</li>
+      <li><i class="known"></i>Déjà connues</li>
+      <li><i class="repeated"></i>En double dans la recherche</li>
+    </ul>
+
+    <ul class="searches">
+      @for (row of rows(); track row.search.search_text + row.search.international) {
+        <li
+          [title]="
+            row.search.kept +
+            ' retenues, ' +
+            row.search.rejected +
+            ' évaluées puis écartées, ' +
+            row.search.known +
+            ' déjà connues, ' +
+            row.search.repeated +
+            ' en double'
+          "
+        >
+          <span class="label">
+            {{ row.search.search_text }}
+            @if (row.search.international) {
+              <small>sites internationaux</small>
+            }
+          </span>
+          <span class="track">
+            <span class="stack" [style.width.%]="row.width">
+              <span class="kept" [style.width.%]="row.parts.kept"></span>
+              <span class="rejected" [style.width.%]="row.parts.rejected"></span>
+              <span class="known" [style.width.%]="row.parts.known"></span>
+              <span class="repeated" [style.width.%]="row.parts.repeated"></span>
+            </span>
+          </span>
+          <span class="value">
+            <strong>{{ row.search.kept }}</strong>
+            <small>sur {{ row.search.found | count }}</small>
+          </span>
+          <span class="calls">
+            {{ row.search.calls | count }} {{ row.search.calls > 1 ? 'appels' : 'appel' }} ·
+            {{ row.search.search_cost_usd | usd }}
+          </span>
+          <span class="cost" [class.none]="row.search.cost_per_kept_usd === null">
+            @if (row.search.cost_per_kept_usd !== null) {
+              <strong>{{ row.search.cost_per_kept_usd | usd }}</strong>
+              <small>par offre</small>
+            } @else {
+              <strong>Aucune offre</strong>
+            }
+          </span>
+        </li>
+      }
+    </ul>
+    <small class="note">
+      Pour chaque ligne : les offres retenues sur les pages rendues, les appels et leur coût chez
+      Tavily, puis ce que chaque offre retenue a coûté en appels. Une page rendue par deux
+      recherches du même lancement revient à la première.
+    </small>
+  } @else {
+    <p class="hint">
+      Le rendement de chaque recherche apparaîtra ici après votre prochaine recherche.
+    </p>
+  }
+</section>
