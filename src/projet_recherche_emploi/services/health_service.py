@@ -1,11 +1,18 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
-from projet_recherche_emploi.config import SERVER_ERROR_DAYS
+from projet_recherche_emploi.config import (
+    DAILY_COST_ALERT_USD,
+    DEFAULT_USER_ID,
+    INTERRUPTION_ALERT_MINUTES,
+    SERVER_ERROR_DAYS,
+)
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.repositories.health_repository import HealthRepository
 from projet_recherche_emploi.schemas import HealthOverview, RunFailureGroup, ServerErrorGroup
+from projet_recherche_emploi.services.alert_service import AlertService
 from projet_recherche_emploi.services.search_service import UNKNOWN_LABEL, SearchService, rate
+from projet_recherche_emploi.services.usage_service import UsageService
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +27,11 @@ class HealthService:
     C'est à l'interface de n'y laisser lire qu'un administrateur (AuthService.is_admin).
     """
 
-    def __init__(self, database: Database, search: SearchService):
+    def __init__(self, database: Database, search: SearchService, usage: UsageService, alerts: AlertService):
         self.database = database
         self.search = search
+        self.usage = usage
+        self.alerts = alerts
 
     def record_error(
         self,
@@ -46,6 +55,55 @@ class HealthService:
                 repository.delete_errors_before(limit)
         except Exception:
             logger.exception("L'erreur %s de %s %s n'a pas pu être enregistrée", error_type, method, route)
+        # Après l'enregistrement, et même s'il a échoué : une base qui ne répond plus est justement une panne
+        if status_code >= FIRST_FAILURE_STATUS:
+            where = f"{method} {route}" if route else "une route inconnue"
+            self.alerts.notify(f"error:{method}:{route}:{error_type}", "Panne du serveur", f"{error_type} sur {where}")
+
+    def search_closed(self, user_id: int, status: str, error: str | None = None) -> None:
+        """Prévient d'une recherche échouée, et d'un coût anormal sur les dernières 24 heures. Ne lève jamais.
+
+        Appelé par SearchService à la fin de chaque lancement, réussi ou non.
+        """
+        try:
+            if status == FAILED:
+                whose = "du propriétaire" if user_id == DEFAULT_USER_ID else "d'un invité"
+                self.alerts.notify(
+                    f"search:{error}", "Recherche échouée", f"{error or UNKNOWN_LABEL} pendant une recherche {whose}"
+                )
+            if self.alerts.enabled:
+                self._alert_on_daily_cost()
+        except Exception:
+            logger.exception("L'alerte de fin de recherche a échoué")
+
+    def _alert_on_daily_cost(self) -> None:
+        overview = self.usage.get_overview(days=1)
+        # Sans tarif connu pour le modèle, il reste le coût du moteur de recherche : un plancher
+        cost = overview.search_cost_usd if overview.cost_usd is None else overview.cost_usd
+        if cost >= DAILY_COST_ALERT_USD:
+            message = f"{cost:.2f} $ en 24 heures pour {overview.runs} recherches, tous comptes réunis"
+            self.alerts.notify("cost", "Coût anormal", message, quiet=timedelta(days=1))
+
+    def alert_on_interrupted_runs(self, now: datetime | None = None) -> int:
+        """Prévient des recherches que ce démarrage du serveur vient de couper, et renvoie leur nombre.
+
+        À appeler au démarrage, quand aucune recherche ne tourne encore. Ne lève jamais.
+        """
+        since = (now or datetime.now(UTC)) - timedelta(minutes=INTERRUPTION_ALERT_MINUTES)
+        try:
+            with self.database.session() as session:
+                interrupted = len(HealthRepository(session).list_unfinished_runs(since))
+        except Exception:
+            logger.exception("Les recherches interrompues n'ont pas pu être comptées")
+            return 0
+        if interrupted:
+            message = f"{interrupted} recherche(s) coupée(s) par un redémarrage du serveur"
+            self.alerts.notify("interrupted", "Recherche interrompue", message)
+        return interrupted
+
+    def send_test_alert(self) -> bool:
+        """Envoie une alerte d'essai, et dit si elle est partie : faux aussi quand aucune alerte n'est réglée."""
+        return self.alerts.send_test()
 
     def get_overview(self, days: int | None = None, now: datetime | None = None) -> HealthOverview:
         """Renvoie ce qui a échoué sur l'instance, tous comptes réunis. Sans nombre de jours, tout est compté."""
@@ -104,4 +162,5 @@ class HealthService:
             failures=failures,
             refusals=sum(group.count for group in server_errors if not group.is_failure),
             server_errors=server_errors,
+            alerts_enabled=self.alerts.enabled,
         )

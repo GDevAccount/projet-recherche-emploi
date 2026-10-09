@@ -1,9 +1,13 @@
 import gc
+import json
 import sqlite3
+import threading
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
+from conftest import FakeNotifier
 from helpers import blank_pdf, job, rejected_job
 from sqlalchemy import update
 
@@ -26,7 +30,8 @@ from projet_recherche_emploi.data.repositories.search_run_repository import Sear
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
 from projet_recherche_emploi.schemas import SearchProgress, SearchSummary
-from projet_recherche_emploi.services import cv_service
+from projet_recherche_emploi.services import cv_service, health_service
+from projet_recherche_emploi.services.alert_service import AlertService, NtfyNotifier
 from projet_recherche_emploi.services.search_service import (
     SearchService,
     describe_engine_calls,
@@ -327,6 +332,117 @@ def test_server_errors_are_kept_for_a_while_then_forgotten(container):
     # Une base qui ne répond plus ne doit pas empêcher la réponse d'erreur de partir
     container.health.database = None
     container.health.record_error(BOB, "GET", "/api/jobs", 500, "OperationalError")
+
+
+def test_failed_search_sends_an_alert_without_naming_anyone(alerting, notifier, ready_users):
+    alerting.search.run_search(BOB)
+    assert notifier.sent == []
+
+    alerting.search._get_graph = BrokenGraph
+    for user_id in (BOB, CAROL, DEFAULT_USER_ID):
+        with pytest.raises(RuntimeError):
+            alerting.search.run_search(user_id)
+
+    # La même erreur chez un second compte, dans l'heure, ne sonne pas une seconde fois
+    assert notifier.sent == [("Recherche échouée", "RuntimeError pendant une recherche d'un invité")]
+    assert alerting.health.get_overview().alerts_enabled
+
+
+def test_server_failure_sends_an_alert_but_a_refusal_does_not(alerting, notifier):
+    alerting.health.record_error(BOB, "PUT", "/api/cv", 422, "InvalidInputError")
+    assert notifier.sent == []
+
+    alerting.health.record_error(BOB, "GET", "/api/jobs/{job_id}", 500, "KeyError")
+    alerting.health.record_error(CAROL, "GET", "/api/jobs/{job_id}", 500, "KeyError")
+    alerting.health.record_error(None, "GET", None, 500, "KeyError")
+    # Même si la base ne répond plus : c'est justement une panne
+    alerting.health.database = None
+    alerting.health.record_error(BOB, "GET", "/api/cv", 500, "OperationalError")
+
+    assert notifier.sent == [
+        ("Panne du serveur", "KeyError sur GET /api/jobs/{job_id}"),
+        ("Panne du serveur", "KeyError sur une route inconnue"),
+        ("Panne du serveur", "OperationalError sur GET /api/cv"),
+    ]
+
+
+def test_unusual_daily_cost_sends_one_alert_a_day(alerting, notifier, ready_users, monkeypatch):
+    alerting.search.run_search(BOB)
+    assert notifier.sent == []
+
+    # Le faux modèle n'a pas de tarif : il reste le coût du moteur de recherche, 0,016 $ par appel
+    monkeypatch.setattr(health_service, "DAILY_COST_ALERT_USD", 0.03)
+    alerting.search.run_search(CAROL)
+    alerting.search.run_search(BOB)
+
+    assert notifier.sent == [("Coût anormal", "0.03 $ en 24 heures pour 2 recherches, tous comptes réunis")]
+
+
+def test_restart_reports_the_searches_it_has_cut(alerting, notifier, ready_users):
+    assert alerting.health.alert_on_interrupted_runs() == 0
+    with alerting.database.session() as session:
+        SearchRunRepository(session, BOB).record_run()
+        SearchRunRepository(session, CAROL).record_run()
+
+    # Une recherche coupée depuis longtemps n'est plus une nouvelle
+    assert alerting.health.alert_on_interrupted_runs(datetime.now(UTC) + timedelta(hours=2)) == 0
+    assert notifier.sent == []
+    assert alerting.health.alert_on_interrupted_runs() == 2
+    assert notifier.sent == [("Recherche interrompue", "2 recherche(s) coupée(s) par un redémarrage du serveur")]
+
+
+def test_alerts_are_not_repeated_and_never_raise():
+    notifier = FakeNotifier()
+    alerts = AlertService(notifier, dispatch=lambda send: send())
+    now = datetime.now(UTC)
+
+    assert alerts.notify("panne", "Titre", "Message", now=now)
+    assert not alerts.notify("panne", "Titre", "Message", now=now + timedelta(minutes=59))
+    assert alerts.notify("autre", "Titre", "Autre message", now=now)
+    assert alerts.notify("panne", "Titre", "Message", now=now + timedelta(minutes=61))
+    assert len(notifier.sent) == 3
+
+    def broken_dispatch(send):
+        raise RuntimeError("plus de fil disponible")
+
+    assert not AlertService(notifier, dispatch=broken_dispatch).notify("panne", "Titre", "Message")
+    # Sans destinataire, rien ne part et rien n'échoue
+    silent = AlertService()
+    assert (silent.enabled, silent.notify("panne", "Titre", "Message"), silent.send_test()) == (False, False, False)
+    assert AlertService(FakeNotifier()).send_test() and not AlertService(FakeNotifier(works=False)).send_test()
+
+
+def test_ntfy_receives_the_alert_on_its_topic():
+    received = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            received.append((self.path, self.headers["Content-Type"], json.loads(body)))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{server.server_port}"
+    try:
+        assert NtfyNotifier(url, "sujet-secret").send("Panne du serveur", "KeyError sur GET /api/jobs")
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    [(path, content_type, body)] = received
+    assert (path, content_type) == ("/", "application/json")
+    assert (body["topic"], body["title"], body["message"]) == (
+        "sujet-secret",
+        "Panne du serveur",
+        "KeyError sur GET /api/jobs",
+    )
+    # Le serveur vient d'être arrêté : l'envoi échoue sans lever
+    assert not NtfyNotifier(url, "sujet-secret").send("Titre", "Message")
 
 
 def test_run_left_running_by_a_restart_is_reported_as_interrupted(container, search, ready_users):

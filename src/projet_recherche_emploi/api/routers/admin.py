@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from projet_recherche_emploi.api.security import AdminId, Services
-from projet_recherche_emploi.schemas import HealthOverview, UsageOverview
+from projet_recherche_emploi.schemas import AlertTest, HealthOverview, UsageOverview
 
 router = APIRouter(tags=["administration"])
 
@@ -37,3 +37,12 @@ def get_health(
     et des types d'erreur sortent d'ici : ni message d'erreur, ni compte, ni contenu.
     """
     return services.health.get_overview(days)
+
+
+@router.post("/admin/alerts/test")
+def send_test_alert(admin_id: AdminId, services: Services) -> AlertTest:
+    """Envoie une alerte d'essai, pour vérifier qu'elles arrivent. « sent » est faux si rien n'est parti.
+
+    Réservé aux administrateurs. Le message ne porte rien de l'appelant.
+    """
+    return AlertTest(sent=services.health.send_test_alert())

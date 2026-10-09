@@ -1,3 +1,4 @@
+import logging
 import threading
 from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, datetime
@@ -62,6 +63,8 @@ STEP_DURATIONS = ("search_ms", "dedupe_ms", "evaluate_ms", "save_ms")
 TEXT_FULL = "Page entière"
 TEXT_TRUNCATED = "Page tronquée"
 TEXT_EXTRACT = "Extrait seul"
+logger = logging.getLogger(__name__)
+
 UNKNOWN_LABEL = "Non précisé"
 # Libellés du devenir des offres : toutes réunies, et celles jugées avant que la version du prompt soit notée
 ALL_OFFERS_LABEL = "Toutes les offres"
@@ -311,8 +314,15 @@ class RunningSearch:
 
 
 class SearchService:
-    def __init__(self, database: Database, get_graph: Callable[[], SearchGraph]):
+    def __init__(
+        self,
+        database: Database,
+        get_graph: Callable[[], SearchGraph],
+        on_closed: Callable[[int, str, str | None], None] | None = None,
+    ):
         self.database = database
+        # Appelé à la fin de chaque lancement avec l'utilisateur, l'état et le type de l'erreur : pour les alertes
+        self._on_closed = on_closed
         # Le graph n'est construit qu'à la première recherche
         self._get_graph = get_graph
         # Utilisateurs dont une recherche tourne. En mémoire : un redémarrage interrompt les recherches, et vide ceci
@@ -520,3 +530,9 @@ class SearchService:
             SearchRunRepository(session, user_id).finish_run(run_id, values)
             # Même après un échec : les appels déjà faits ont été payés
             EngineCallRepository(session, user_id).insert_calls(run_id, describe_engine_calls(state))
+        if self._on_closed is not None:
+            try:
+                self._on_closed(user_id, status, error)
+            except Exception:
+                # Une alerte manquée ne doit ni faire échouer une recherche réussie ni masquer l'erreur d'une autre
+                logger.exception("Le signalement de la fin du lancement %d a échoué", run_id)

@@ -480,6 +480,14 @@ class HealthOverview(BaseModel):
     refusals: int
     # Les pannes d'abord, puis le plus fréquent en premier
     server_errors: list[ServerErrorGroup]
+    # Vrai quand un incident prévient quelqu'un (NTFY_TOPIC) ; faux, il ne se voit qu'ici
+    alerts_enabled: bool
+
+
+class AlertTest(BaseModel):
+    """Issue d'une alerte d'essai."""
+
+    sent: bool
 
 
 class Account(BaseModel):

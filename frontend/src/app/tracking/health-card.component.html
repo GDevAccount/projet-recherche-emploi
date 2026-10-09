@@ -140,6 +140,32 @@
         le type d'une erreur et sa route sont gardés, jamais son message.
       </p>
     }
+
+    <footer>
+      @if (health.alerts_enabled) {
+        <p>
+          <i aria-hidden="true"></i>
+          Alertes actives : une recherche échouée, une panne du serveur ou un coût anormal vous
+          prévient par ntfy.
+        </p>
+        <button type="button" [disabled]="test() === 'sending'" (click)="sendTest()">
+          Envoyer une alerte d'essai
+        </button>
+        @if (test() === 'sent') {
+          <span role="status">Alerte envoyée : elle doit arriver sur votre téléphone.</span>
+        } @else if (test() === 'failed') {
+          <span role="status" class="failed">
+            L'alerte n'est pas partie : vérifiez le sujet ntfy de l'instance.
+          </span>
+        }
+      } @else {
+        <p>
+          <i aria-hidden="true" class="off"></i>
+          Alertes désactivées : un incident ne se voit qu'ici. Définir <code>NTFY_TOPIC</code> sur
+          l'instance pour être prévenu.
+        </p>
+      }
+    </footer>
   } @else {
     <p class="hint">Chargement de la santé de l'instance…</p>
   }

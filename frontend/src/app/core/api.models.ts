@@ -363,6 +363,13 @@ export interface HealthOverview {
   failures: number;
   refusals: number;
   server_errors: ServerErrorGroup[];
+  /** Vrai quand un incident prévient quelqu'un ; faux, il ne se voit que dans cette rubrique */
+  alerts_enabled: boolean;
+}
+
+/** Issue d'une alerte d'essai. */
+export interface AlertTest {
+  sent: boolean;
 }
 
 /** Consommation de tous les comptes, pour les administrateurs. */
