@@ -144,6 +144,24 @@ test('le thème choisi est gardé après rechargement', async () => {
   await expect(page.getByRole('button', { name: 'Passer au thème clair' })).toBeVisible();
 });
 
+test('les pages légales prennent le thème choisi dans le site, pas celui du système', async () => {
+  // Le navigateur de test annonce un système clair : seul le choix fait dans le site explique le fond sombre
+  await page.getByRole('link', { name: 'Règles de confidentialité' }).last().click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Règles de confidentialité' })).toBeVisible();
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(10, 11, 13)');
+
+  await page.goto('/offres');
+  await page.getByRole('button', { name: 'Passer au thème clair' }).click();
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto('/conditions');
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(245, 244, 239)');
+
+  // Retour au site, en thème sombre, pour la suite du parcours
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/offres');
+  await page.getByRole('button', { name: 'Passer au thème sombre' }).click();
+});
+
 test('la déconnexion ferme la session', async () => {
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
   await expect(page).toHaveURL(/\/connexion$/);
