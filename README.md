@@ -94,7 +94,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/health` | État du serveur (sans connexion) |
 | `GET /api/config` | Ce qu'un front lit avant la connexion (sans connexion) : mode de connexion (`google` ou `password`), identifiant client Google, types de contrat |
 | `GET /api/me` | Utilisateur de la requête (avec l'adresse, le nom et la photo de son compte Google), recherches restantes aujourd'hui, s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché), et si l'une des siennes tourne déjà (`search_running`) |
-| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements et adresse sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
+| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements, journal des pages évaluées et adresse sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
 | `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer |
 | `GET /api/jobs` | Offres retenues |
 | `PATCH /api/jobs/{id}` | Changer l'état d'une candidature (`{"status": "applied"}` ; `todo`, `applied`, `interview` ou `rejected`). Renvoie l'offre mise à jour, avec la date de chaque étape et les états qu'elle peut prendre ensuite (`next_statuses`). Un état que l'offre ne peut pas prendre depuis le sien est refusé (422) |
@@ -103,6 +103,8 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/queries`, `POST /api/queries`, `DELETE /api/queries/{id}` | Postes recherchés |
 | `GET /api/cv`, `PUT /api/cv` | Date du CV en place, dépôt d'un CV (fichier PDF, champ `file`) |
 | `POST /api/searches` | Lancer une recherche, suivie en direct (Server-Sent Events : `progress`, puis `result` ou `error`). Chaque `progress` nomme son étape (`step` : `search`, `dedupe`, `evaluate` ou `save`) et porte, selon l'étape, un décompte (`done`, `total`), le nombre de pages trouvées et à évaluer (`found`, `new`), ou la page qui vient d'être évaluée et son verdict (`title`, `kept`). Refusé (409) si une recherche de l'utilisateur tourne déjà |
+| `GET /api/searches` | Les 100 derniers lancements de l'utilisateur, avec leur bilan : état (`status` : `running`, `done`, `failed` ou `interrupted`), compteurs, durée de chaque étape en millisecondes, appels au moteur de recherche, jetons du modèle, modèle et version du prompt |
+| `GET /api/searches/{id}/evaluations` | Pages évaluées pendant un lancement, retenues ou non : faits lus par le modèle, avis et règles du verdict, longueur du texte lu, jetons et durée de l'appel |
 
 L'appelant prouve son identité par un en-tête `Authorization: Bearer <jeton>`. La règle :
 
@@ -361,13 +363,42 @@ Table `cv_texts`, le texte du CV de chaque utilisateur, coordonnées retirées. 
 | `content` | Texte du CV, où e-mail, téléphone, liens, adresse postale, date de naissance et nom du compte sont remplacés par une étiquette (`[e-mail]`, `[téléphone]`…) |
 | `updated_at` | Date de l'enregistrement (UTC) |
 
-Table `search_runs`, les lancements de recherche, qui servent au quota journalier :
+Table `search_runs`, les lancements de recherche. Ils servent au quota journalier, et gardent le bilan de chaque recherche. Tout sauf la date est vide pour les lancements d'avant ce suivi :
 
 | Colonne | Contenu |
 |---|---|
 | `id` | Identifiant du lancement |
 | `user_id` | Utilisateur qui a lancé la recherche |
 | `created_at` | Date du lancement (UTC) |
+| `status` | `running` au lancement, puis `done` ou `failed`. Un lancement coupé par un redémarrage du serveur reste `running` : l'API le dit `interrupted` |
+| `error` | Type de l'erreur d'une recherche échouée (`RateLimitError`…), sans son message, qui reste dans les logs |
+| `finished_at` | Date de fin (UTC) |
+| `model`, `prompt_version` | Modèle interrogé, et empreinte du prompt du filtre : elle change dès qu'un mot de ses consignes change |
+| `found_count`, `new_count`, `kept_count`, `rejected_count`, `inserted_count` | Pages trouvées, nouvelles, retenues, rejetées, et offres réellement insérées |
+| `search_ms`, `dedupe_ms`, `evaluate_ms`, `save_ms` | Durée de chaque étape du graph, en millisecondes |
+| `search_calls` | Nombre d'appels à Tavily |
+| `input_tokens`, `output_tokens` | Jetons envoyés au modèle et reçus de lui, toutes pages confondues |
+
+Table `page_evaluations`, le journal des pages évaluées, retenues ou non. Contrairement à `rejected_jobs`, il n'est pas vidé quand un nouveau CV est enregistré :
+
+| Colonne | Contenu |
+|---|---|
+| `id` | Identifiant de la ligne |
+| `user_id` | Utilisateur propriétaire de la ligne |
+| `search_run_id` | Lancement pendant lequel la page a été évaluée |
+| `url`, `title`, `query`, `score` | La page, la recherche qui l'a trouvée et le score donné par Tavily |
+| `kept` | `1` si la page a été retenue, `0` si elle a été rejetée |
+| `page_kind`, `contract_type`, `work_city`, `work_country`, `work_mode` | Faits lus sur la page par le modèle |
+| `in_accepted_area`, `open_to_candidates_in_france` | Ce que le modèle a répondu sur le lieu, dont le graph tire `matches_location` |
+| `matches_search`, `matches_skills`, `matches_level` | Avis du modèle |
+| `matches_contract`, `matches_location` | Règles appliquées par le graph |
+| `reason` | Justification écrite par le modèle |
+| `page_chars`, `truncated` | Longueur du texte disponible, et `1` si le modèle n'en a lu que le début (au-delà de `MAX_PAGE_CHARS`) |
+| `full_page` | `1` si le texte complet de la page était disponible, `0` si seul l'extrait de Tavily a été lu |
+| `input_tokens`, `output_tokens`, `duration_ms` | Jetons et durée de l'appel au modèle pour cette page |
+| `created_at` | Date de l'enregistrement (UTC) |
+
+Le coût en euros n'est pas enregistré : il se calcule à partir des jetons et des appels, avec les tarifs du moment.
 
 ### Faire évoluer le schéma
 
@@ -473,7 +504,8 @@ src/projet_recherche_emploi/
     │   ├── job_repository.py           # offres : insertion, lecture, suivi des candidatures, suppression
     │   ├── rejected_job_repository.py  # pages rejetées : insertion, lecture, vidage
     │   ├── query_repository.py         # postes recherchés : lecture, ajout, suppression
-    │   ├── search_run_repository.py    # lancements de recherche (quota journalier)
+    │   ├── search_run_repository.py    # lancements de recherche : quota journalier, bilan
+    │   ├── page_evaluation_repository.py  # journal des pages évaluées
     │   ├── user_repository.py          # comptes
     │   └── cv_text_repository.py       # texte des CV, coordonnées retirées, et date du dépôt
     └── cv_ingestion/    # du PDF déposé au texte enregistré : le PDF n'est pas conservé

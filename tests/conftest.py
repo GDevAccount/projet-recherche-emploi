@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from projet_recherche_emploi.agent.ports import JobEvaluation
+from projet_recherche_emploi.agent.ports import EvaluationUsage, JobEvaluation
 from projet_recherche_emploi.config import Settings
 from projet_recherche_emploi.container import build_container
 from projet_recherche_emploi.data.database import Database
@@ -13,17 +13,27 @@ class FakeSearchEngine:
 
     def __init__(self):
         self.searches = []
+        # Texte complet de chaque page ; None quand le moteur n'a rendu que l'extrait
+        self.raw_content = None
 
     def search(self, query, international=False):
         self.searches.append((query, international))
         return [
-            {"title": f"{query} {index}", "url": f"https://x/{query}/{index}", "content": "c", "score": 1.0}
+            {
+                "title": f"{query} {index}",
+                "url": f"https://x/{query}/{index}",
+                "content": "c",
+                "raw_content": self.raw_content,
+                "score": 1.0,
+            }
             for index in range(2)
         ]
 
 
 class FakeEvaluator:
     """Retient une page sur deux, sans appeler OpenAI, et garde le CV reçu à chaque évaluation."""
+
+    model_name = "faux-modèle"
 
     def __init__(self):
         self.evaluated = []
@@ -35,6 +45,8 @@ class FakeEvaluator:
         self.work_mode = "sur site"
         # La nature qu'il donne à chaque page
         self.page_kind = "offre"
+        # Ce que chaque appel est censé avoir coûté
+        self.usage = EvaluationUsage(input_tokens=1000, output_tokens=50, duration_ms=120)
         # Son avis sur la géographie : le lieu est-il dans une zone acceptée
         self.in_accepted_area = True
         self.open_to_candidates_in_france = True
@@ -65,6 +77,7 @@ class FakeEvaluator:
                     matches_level=self.matches_level,
                     reason=reason,
                 ),
+                self.usage,
             )
 
 

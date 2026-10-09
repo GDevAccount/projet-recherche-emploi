@@ -61,6 +61,20 @@ class JobEvaluation(BaseModel):
         return self.page_kind == OFFER_PAGE_KIND
 
 
+@dataclass(frozen=True)
+class EvaluationUsage:
+    """Ce qu'a coûté l'évaluation d'une page. None quand l'évaluateur ne le dit pas."""
+
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    duration_ms: int | None = None
+
+
+def page_text(page: FoundPage) -> str:
+    """Renvoie le texte d'une page donné à l'évaluateur, avant troncature : la page entière, sinon son extrait."""
+    return page.get("raw_content") or page["content"]
+
+
 class JobSearchEngine(Protocol):
     def search(self, query: str, international: bool = False) -> list[dict]:
         """Renvoie les pages trouvées pour cette recherche : title, url, content, raw_content, score.
@@ -71,11 +85,14 @@ class JobSearchEngine(Protocol):
 
 
 class JobEvaluator(Protocol):
+    # Nom du modèle interrogé, enregistré avec chaque lancement
+    model_name: str
+
     def evaluate(
         self, cv: str, criteria: SearchCriteria, pages: Sequence[FoundPage]
-    ) -> Iterator[tuple[int, JobEvaluation]]:
+    ) -> Iterator[tuple[int, JobEvaluation, EvaluationUsage]]:
         """Évalue chaque page au regard du CV et de ce que l'utilisateur cherche.
 
-        Les verdicts arrivent dans le désordre, chacun avec l'indice de sa page.
+        Les verdicts arrivent dans le désordre, chacun avec l'indice de sa page et ce que l'appel a coûté.
         """
         ...

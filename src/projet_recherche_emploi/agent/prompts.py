@@ -1,3 +1,4 @@
+import hashlib
 from collections.abc import Iterable
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -79,3 +80,13 @@ FILTER_PROMPT = ChatPromptTemplate.from_messages(
         ("human", "Titre : {title}\nURL : {url}\n\nContenu de la page :\n{page}"),
     ]
 )
+
+
+def prompt_version() -> str:
+    """Renvoie l'empreinte du prompt du filtre : elle change dès qu'un mot de ses consignes change.
+
+    Enregistrée avec chaque lancement, elle dit quelles recherches ont été jugées avec les mêmes consignes.
+    """
+    templates = [message.prompt.template for message in FILTER_PROMPT.messages]
+    text = "\n".join([*templates, AREA_RULE, NO_AREA_RULE])
+    return hashlib.sha256(text.encode()).hexdigest()[:12]

@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from projet_recherche_emploi.api.security import Services, UserId
-from projet_recherche_emploi.schemas import SearchProgress, SearchSummary
+from projet_recherche_emploi.schemas import PageEvaluationRead, SearchProgress, SearchRunRead, SearchSummary
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,18 @@ def start_search(user_id: UserId, services: Services) -> StreamingResponse:
     """
     events = services.search.stream_search(user_id)
     return StreamingResponse(_to_server_sent_events(_run_detached(events)), media_type="text/event-stream")
+
+
+@router.get("/searches")
+def list_searches(user_id: UserId, services: Services) -> list[SearchRunRead]:
+    """Derniers lancements de l'utilisateur, avec leur bilan : compteurs, durées par étape, appels et jetons."""
+    return services.search.list_runs(user_id)
+
+
+@router.get("/searches/{run_id}/evaluations")
+def list_evaluations(run_id: int, user_id: UserId, services: Services) -> list[PageEvaluationRead]:
+    """Pages évaluées pendant un lancement, retenues ou non : faits lus, verdict, jetons et durée de l'appel."""
+    return services.search.list_evaluations(user_id, run_id)
 
 
 def _run_detached(events: Iterator[SearchEvent]) -> Iterator[SearchEvent | Exception]:

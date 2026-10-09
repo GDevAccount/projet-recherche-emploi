@@ -1,4 +1,5 @@
 import logging
+import time
 import unicodedata
 from collections.abc import Iterable
 
@@ -6,16 +7,20 @@ from langgraph.config import get_stream_writer
 
 from projet_recherche_emploi.agent.ports import (
     CvReader,
+    EvaluationUsage,
     JobEvaluation,
     JobEvaluator,
     JobSearchEngine,
     SearchCriteria,
+    page_text,
 )
-from projet_recherche_emploi.agent.state import JobSearchState
-from projet_recherche_emploi.config import DEFAULT_USER_ID, FULL_REMOTE_MODE, TRAINING_CONTRACTS
+from projet_recherche_emploi.agent.prompts import prompt_version
+from projet_recherche_emploi.agent.state import FoundPage, JobSearchState
+from projet_recherche_emploi.config import DEFAULT_USER_ID, FULL_REMOTE_MODE, MAX_PAGE_CHARS, TRAINING_CONTRACTS
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.models import SearchQuery
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
 
@@ -198,6 +203,50 @@ def format_work_location(evaluation: JobEvaluation) -> str | None:
     return place_text or None
 
 
+def elapsed_ms(started: float) -> int:
+    """Renvoie le temps écoulé depuis cet instant de time.perf_counter(), en millisecondes."""
+    return round((time.perf_counter() - started) * 1000)
+
+
+def total_tokens(counts: Iterable[int | None]) -> int | None:
+    """Additionne des nombres de jetons, et renvoie None si aucun appel n'a dit le sien."""
+    known = [count for count in counts if count is not None]
+    return sum(known) if known else None
+
+
+def describe_evaluation(
+    page: FoundPage, evaluation: JobEvaluation, verdict: dict[str, bool], usage: EvaluationUsage
+) -> dict:
+    """Renvoie la ligne du journal pour une page évaluée : ce que le modèle a lu, le verdict, le coût de l'appel."""
+    text = page_text(page)
+    return {
+        "url": page["url"],
+        "title": page["title"],
+        "query": page.get("query"),
+        "score": page.get("score"),
+        "kept": all(verdict.values()),
+        "page_kind": evaluation.page_kind,
+        "contract_type": evaluation.contract_type,
+        "work_city": evaluation.work_city,
+        "work_country": evaluation.work_country,
+        "work_mode": evaluation.work_mode,
+        "in_accepted_area": evaluation.in_accepted_area,
+        "open_to_candidates_in_france": evaluation.open_to_candidates_in_france,
+        "matches_search": evaluation.matches_search,
+        "matches_skills": evaluation.matches_skills,
+        "matches_level": evaluation.matches_level,
+        "matches_contract": verdict["matches_contract"],
+        "matches_location": verdict["matches_location"],
+        "reason": evaluation.reason,
+        "page_chars": len(text),
+        "truncated": len(text) > MAX_PAGE_CHARS,
+        "full_page": bool(page.get("raw_content")),
+        "input_tokens": usage.input_tokens,
+        "output_tokens": usage.output_tokens,
+        "duration_ms": usage.duration_ms,
+    }
+
+
 class SearchNodes:
     """Les quatre étapes du graph. Chacune ouvre sa propre session : une recherche dure plusieurs minutes."""
 
@@ -214,6 +263,7 @@ class SearchNodes:
         self.evaluator = evaluator
 
     def search_jobs(self, state: JobSearchState) -> dict:
+        started = time.perf_counter()
         with self.database.session() as session:
             saved_queries = QueryRepository(session, get_user_id(state)).list_queries()
             criteria = build_criteria(saved_queries)
@@ -247,12 +297,17 @@ class SearchNodes:
                     },
                 )
 
-        return {"jobs": list(jobs_by_url.values()), "criteria": criteria}
+        return {
+            "jobs": list(jobs_by_url.values()),
+            "criteria": criteria,
+            "metrics": {"search_ms": elapsed_ms(started), "search_calls": len(queries)},
+        }
 
     def filter_duplicates(self, state: JobSearchState) -> dict:
         # Écarter les pages déjà évaluées avant le filtre évite de payer un appel au modèle pour rien.
         # Les offres supprimées comptent aussi : leur URL reste en base pour qu'elles ne reviennent pas.
         # Les pages rejetées de même : le modèle les rejetterait à nouveau.
+        started = time.perf_counter()
         user_id = get_user_id(state)
         with self.database.session() as session:
             known_urls = (
@@ -270,12 +325,16 @@ class SearchNodes:
                 "new": len(new_jobs),
             }
         )
-        return {"new_jobs": new_jobs}
+        return {"new_jobs": new_jobs, "metrics": {"dedupe_ms": elapsed_ms(started)}}
 
     def filter_jobs(self, state: JobSearchState) -> dict:
+        started = time.perf_counter()
+        # Le modèle et la version du prompt sont notés même sans page à évaluer : ce sont ceux du lancement
+        metrics = {"model": self.evaluator.model_name, "prompt_version": prompt_version()}
         jobs = state["new_jobs"]
         if not jobs:
-            return {"filtered_jobs": [], "rejected_jobs": []}
+            metrics["evaluate_ms"] = elapsed_ms(started)
+            return {"filtered_jobs": [], "rejected_jobs": [], "evaluations": [], "metrics": metrics}
 
         cv_content = self.cv_reader.read_text(get_user_id(state))
 
@@ -287,9 +346,12 @@ class SearchNodes:
         # Les réponses arrivent dans le désordre : l'indice les remet en face de leur offre
         evaluations: list[JobEvaluation | None] = [None] * len(jobs)
         verdicts: list[dict[str, bool] | None] = [None] * len(jobs)
+        usages: list[EvaluationUsage | None] = [None] * len(jobs)
         criteria = state["criteria"]
-        for done, (index, evaluation) in enumerate(self.evaluator.evaluate(cv_content, criteria, jobs), start=1):
+        evaluated = self.evaluator.evaluate(cv_content, criteria, jobs)
+        for done, (index, evaluation, usage) in enumerate(evaluated, start=1):
             evaluations[index] = evaluation
+            usages[index] = usage
             # Jugée dès sa réponse, pour que l'avancement donne le verdict page par page
             verdicts[index] = judge(evaluation, criteria)
             write_progress(
@@ -305,7 +367,9 @@ class SearchNodes:
 
         filtered_jobs = []
         rejected_jobs = []
-        for job, evaluation, verdict in zip(jobs, evaluations, verdicts, strict=True):
+        journal = []
+        for job, evaluation, verdict, usage in zip(jobs, evaluations, verdicts, usages, strict=True):
+            journal.append(describe_evaluation(job, evaluation, verdict, usage))
             # Le contrat et le lieu enregistrés sont ceux de la page : une recherche de CDI ramène aussi des missions
             work_location = format_work_location(evaluation)
             job = {**job, "contract_type": evaluation.contract_type, "work_location": work_location}
@@ -321,18 +385,29 @@ class SearchNodes:
                     "reject_reason": describe_rejection(evaluation, verdict, criteria),
                 }
             )
-        return {"filtered_jobs": filtered_jobs, "rejected_jobs": rejected_jobs}
+        metrics["input_tokens"] = total_tokens(usage.input_tokens for usage in usages)
+        metrics["output_tokens"] = total_tokens(usage.output_tokens for usage in usages)
+        metrics["evaluate_ms"] = elapsed_ms(started)
+        return {
+            "filtered_jobs": filtered_jobs,
+            "rejected_jobs": rejected_jobs,
+            "evaluations": journal,
+            "metrics": metrics,
+        }
 
     def insert_jobs(self, state: JobSearchState) -> dict:
+        started = time.perf_counter()
         user_id = get_user_id(state)
         filtered_jobs = state["filtered_jobs"]
         rejected_jobs = state["rejected_jobs"]
         message = f"Enregistrement de {len(filtered_jobs)} offre(s) et de {len(rejected_jobs)} page(s) rejetée(s)"
         get_stream_writer()({"message": message, "step": "save"})
-        # Une seule transaction : une page évaluée finit dans l'une des deux tables, ou dans aucune
+        # Une seule transaction : une page évaluée finit dans l'une des deux tables, ou dans aucune,
+        # et le journal ne raconte que ce qui a été enregistré
         with self.database.session() as session:
             inserted_count = JobRepository(session, user_id).insert_jobs(filtered_jobs)
             RejectedJobRepository(session, user_id).insert_rejected_jobs(rejected_jobs)
+            PageEvaluationRepository(session, user_id).insert_evaluations(state.get("run_id"), state["evaluations"])
         logger.info(
             "%d offre(s) insérée(s) sur %d retenue(s) (%d déjà en base)",
             inserted_count,
@@ -340,4 +415,4 @@ class SearchNodes:
             len(filtered_jobs) - inserted_count,
         )
         logger.info("%d page(s) rejetée(s) mémorisée(s)", len(rejected_jobs))
-        return {"inserted_count": inserted_count}
+        return {"inserted_count": inserted_count, "metrics": {"save_ms": elapsed_ms(started)}}

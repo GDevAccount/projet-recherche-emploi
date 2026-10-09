@@ -129,6 +129,8 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/cv"),
         ("PUT", "/api/cv"),
         ("POST", "/api/searches"),
+        ("GET", "/api/searches"),
+        ("GET", "/api/searches/1/evaluations"),
     ],
 )
 def test_every_data_route_requires_an_identity(client, method, path):
@@ -140,7 +142,7 @@ def test_every_route_is_covered_by_the_identity_test(client):
     # Une route ajoutée sans figurer dans le test ci-dessus ferait échouer celui-ci
     tested = test_every_data_route_requires_an_identity.pytestmark[0].args[1]
     routes = {
-        (method.upper(), path.replace("{query_id}", "1").replace("{job_id}", "1"))
+        (method.upper(), path.replace("{query_id}", "1").replace("{job_id}", "1").replace("{run_id}", "1"))
         for path, operations in client.app.openapi()["paths"].items()
         # Routes publiques : elles ne lisent aucune donnée d'utilisateur, et ont leurs propres tests
         if path not in ("/api/health", "/api/config")
@@ -270,6 +272,16 @@ def test_search_is_streamed_then_counted(client, valid_pdf):
         ["Compétences insuffisantes"],
     )
 
+    # Le bilan du lancement et le journal de ses pages se relisent ensuite
+    [run] = client.get("/api/searches", headers=ALICE).json()
+    assert (run["status"], run["found_count"], run["kept_count"], run["rejected_count"]) == ("done", 2, 1, 1)
+    assert (run["input_tokens"], run["output_tokens"], run["search_calls"]) == (2000, 100, 1)
+    evaluations = client.get(f"/api/searches/{run['id']}/evaluations", headers=ALICE).json()
+    assert sorted(page["kept"] for page in evaluations) == [False, True]
+    # Le lancement d'un autre n'existe pas pour soi
+    assert client.get(f"/api/searches/{run['id']}/evaluations", headers=BOB).status_code == 404
+    assert client.get("/api/searches", headers=BOB).json() == []
+
     # Le refus n'avait pas entamé le quota, la recherche si
     assert client.get("/api/me", headers=ALICE).json()["remaining_searches"] == MAX_SEARCHES_PER_DAY - 1
     client.post("/api/searches", headers=ALICE)
@@ -278,6 +290,8 @@ def test_search_is_streamed_then_counted(client, valid_pdf):
 
 def test_failed_search_ends_the_stream_with_an_error_without_leaking_its_cause(tmp_path, valid_pdf):
     class BrokenEvaluator:
+        model_name = "faux-modèle"
+
         def evaluate(self, cv, criteria, pages):
             raise RuntimeError("clé sk-secrete refusée")
             yield
