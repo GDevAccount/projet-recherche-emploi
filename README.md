@@ -132,6 +132,7 @@ npm start              # serveur de développement : http://localhost:4200
 npm test               # tests (Vitest)
 npm run lint           # linter (ESLint)
 npm run build          # build de production, dans frontend/dist/
+npm run e2e            # tests de bout en bout (Playwright), après un build
 ```
 
 `npm start` recharge la page à chaque modification, et relaie les appels à `/api` vers `http://127.0.0.1:8000` (`proxy.conf.json`) : lancer le serveur à côté avec `uv run projet-recherche-emploi api`. Le navigateur ne voit ainsi qu'une seule adresse, comme en ligne, et `CORS_ORIGINS` reste inutile.
@@ -414,6 +415,8 @@ uv run ruff check .    # linter
 ```
 
 Ceux du front se lancent à part, depuis `frontend/` (voir [Front Angular](#front-angular)) : ils simulent l'API, et couvrent chaque écran, la session et le suivi d'une recherche.
+
+Les tests de bout en bout (`npm run e2e`, dans `frontend/e2e/`) déroulent un parcours complet dans Chrome, devant l'application entière : connexion, dépôt du CV, ajout d'un poste, recherche suivie en direct, candidature, suppression d'une offre, rejets, thème, déconnexion. [Playwright](https://playwright.dev/) lance pour cela `tests/e2e_server.py`, un serveur sur une base temporaire où Tavily et OpenAI sont remplacés par des faux : rien n'est facturé. Ils demandent `uv`, Chrome, et un front construit (`npm run build`).
 
 Les tests tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI. Ils vérifient notamment que :
 

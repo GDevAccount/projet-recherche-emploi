@@ -34,9 +34,29 @@ jobs:
       # L'image Docker refait ce build : s'il échoue ici, rien n'est mis en ligne
       - run: npm run build
 
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      # Un vrai navigateur devant l'application entière, avec de faux Tavily et OpenAI. Playwright pilote le
+      # Chrome déjà présent sur la machine : aucun navigateur à télécharger
+      - run: npm run e2e
+        working-directory: frontend
+
   deploy:
     # Rien n'est mis en ligne si un test échoue, et une pull request n'est jamais déployée
-    needs: [test, frontend]
+    needs: [test, frontend, e2e]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     # Un seul déploiement à la fois : l'application tourne sur une seule machine.

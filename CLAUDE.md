@@ -31,15 +31,18 @@ npm start                                                 # http://localhost:420
 npm test -- --watch=false                                 # tests (Vitest)
 npm run lint                                              # linter
 npm run build                                             # build, servi ensuite par le serveur Python à la racine
+npm run e2e                                               # tests de bout en bout (Playwright), après un build
 ```
 
 Les tests (`tests/`) couvrent le schéma et les migrations, le cloisonnement entre utilisateurs, les services, le graph avec de faux Tavily et OpenAI, l'API, le service du front (`test_frontend.py`) et le sens des imports entre couches (`test_architecture.py`). Ils construisent leur application avec `build_container()` (fixtures de `tests/conftest.py`).
+
+Les tests de bout en bout (`frontend/e2e/`, Playwright) déroulent un parcours complet dans le Chrome de la machine : connexion, dépôt du CV, recherche, suivi des offres, rejets, déconnexion. Playwright lance lui-même `tests/e2e_server.py`, l'application entière sur une base temporaire avec les faux Tavily et OpenAI, et sert le front tel qu'il est dans `frontend/dist/` : reconstruire avant de les lancer. Les scénarios se suivent et partagent leur état. Leurs fichiers se terminent par `.e2e.ts`, pas `.spec.ts`, réservé aux tests unitaires. Ils échouent aussi si la politique de contenu refuse une ressource pendant le parcours.
 
 Les clés `TAVILY_API_KEY` et `OPENAI_API_KEY` sont lues dans `.env` (modèle : `.env.example`), chargé par `load_dotenv()` dans les points d'entrée (`cli.py`, `create_app()` de `api/main.py`). Ne jamais afficher ni committer le contenu de `.env`.
 
 Les autres variables sont les champs de `Settings` (`config.py`) : `DATA_DIR` déplace `jobs.db` et `cv.pdf` vers un volume (voir `Dockerfile`), `FRONTEND_DIR` dit où est le front construit, `APP_PASSWORD` est le mot de passe de l'instance. `GOOGLE_CLIENT_ID` active la connexion Google, qui demande aussi `OWNER_EMAIL` ; `ALLOWED_EMAILS` liste les invités, ou vaut `*` pour accepter tout compte Google (voir le README). `AUTH_COOKIE_SECRET` signe le cookie de session : il est obligatoire dès qu'un mot de passe ou la connexion Google est défini. `CORS_ORIGINS` liste les sites autorisés à appeler l'API depuis un navigateur, ce qui ne sert que si le front est hébergé ailleurs.
 
-L'instance en ligne tourne sur Fly.io (`fly.toml`) et sert, dans un seul processus et à une seule adresse, l'API sous `/api`, les pages légales et le front Angular à la racine. Elle est publiée automatiquement à chaque push sur `main` par `.github/workflows/fly-deploy.yml`, après le linter et les tests des deux côtés et le build du front ; `fly deploy --build-arg PRIMEUI_LICENSE=…` reste possible à la main, sans ce contrôle. Les clés API et `APP_PASSWORD` y sont des secrets Fly, pas un `.env`. Le jeton utilisé par le workflow est le secret GitHub `FLY_API_TOKEN`.
+L'instance en ligne tourne sur Fly.io (`fly.toml`) et sert, dans un seul processus et à une seule adresse, l'API sous `/api`, les pages légales et le front Angular à la racine. Elle est publiée automatiquement à chaque push sur `main` par `.github/workflows/fly-deploy.yml`, après le linter et les tests des deux côtés, le build du front et les tests de bout en bout ; `fly deploy --build-arg PRIMEUI_LICENSE=…` reste possible à la main, sans ce contrôle. Les clés API et `APP_PASSWORD` y sont des secrets Fly, pas un `.env`. Le jeton utilisé par le workflow est le secret GitHub `FLY_API_TOKEN`.
 
 ## Architecture
 
