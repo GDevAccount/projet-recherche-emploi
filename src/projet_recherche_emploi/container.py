@@ -21,6 +21,7 @@ from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.services.account_service import AccountService
 from projet_recherche_emploi.services.auth_service import AuthService
 from projet_recherche_emploi.services.cv_service import CvService
+from projet_recherche_emploi.services.health_service import HealthService
 from projet_recherche_emploi.services.job_service import JobService
 from projet_recherche_emploi.services.query_service import QueryService
 from projet_recherche_emploi.services.search_service import SearchService
@@ -47,6 +48,7 @@ class Container:
         self.search = SearchService(self.database, lambda: self.graph)
         self.account = AccountService(self.database, self.search)
         self.usage = UsageService(self.database)
+        self.health = HealthService(self.database, self.search)
 
     @cached_property
     def graph(self) -> CompiledStateGraph:

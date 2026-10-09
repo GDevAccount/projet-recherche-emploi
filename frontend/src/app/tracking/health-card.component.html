@@ -1,0 +1,146 @@
+<section class="app-card">
+  <header>
+    <div>
+      <span class="app-eyebrow">Santé de l'instance</span>
+      @if (health(); as health) {
+        <h2 [class.down]="!health.healthy">
+          <i aria-hidden="true"></i>
+          @if (health.healthy) {
+            Tout fonctionne
+          } @else {
+            {{ health.incidents | count }} {{ health.incidents > 1 ? 'incidents' : 'incident' }}
+          }
+        </h2>
+      }
+    </div>
+    <div class="tabs" role="group" aria-label="Période">
+      @for (period of periods; track period.days) {
+        <button
+          type="button"
+          [class.on]="days() === period.days"
+          [attr.aria-pressed]="days() === period.days"
+          (click)="choose(period.days)"
+        >
+          {{ period.label }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="hint">{{ error() }}</p>
+  } @else if (health(); as health) {
+    <dl class="figures">
+      <div [class.bad]="health.failed_runs > 0">
+        <dt>Recherches échouées</dt>
+        <dd>
+          <strong>{{ health.failed_runs | count }}</strong>
+          sur {{ health.runs | count }}
+        </dd>
+      </div>
+      <div [class.bad]="health.interrupted_runs > 0">
+        <dt>Recherches interrompues</dt>
+        <dd>
+          <strong>{{ health.interrupted_runs | count }}</strong>
+          par un redémarrage
+        </dd>
+      </div>
+      <div [class.bad]="health.failures > 0">
+        <dt>Pannes du serveur</dt>
+        <dd>
+          <strong>{{ health.failures | count }}</strong>
+          hors recherche
+        </dd>
+      </div>
+      <div>
+        <dt>Demandes refusées</dt>
+        <dd>
+          <strong>{{ health.refusals | count }}</strong>
+          avec un message
+        </dd>
+      </div>
+    </dl>
+
+    @if (incidents().length) {
+      <h3>
+        Ce qui a mal tourné
+        @if (health.failure_rate) {
+          <span>{{ health.failure_rate | share }} des recherches n'ont pas abouti</span>
+        }
+      </h3>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col" class="where">Où</th>
+              <th scope="col">Erreur</th>
+              <th scope="col" class="number">Fois</th>
+              <th scope="col" class="number extra">Comptes</th>
+              <th scope="col" class="number date extra">Dernière fois</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of incidents(); track row.where + row.error) {
+              <tr>
+                <th scope="row">{{ row.where }}</th>
+                <td>
+                  <code>{{ row.error }}</code>
+                </td>
+                <td class="number">
+                  <strong>{{ row.count | count }}</strong>
+                </td>
+                <td class="number extra">{{ row.accounts | count }}</td>
+                <td class="number extra">{{ (row.lastAt | parisDate: 'time') || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (refusals().length) {
+      <h3>Demandes refusées</h3>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col" class="where">Où</th>
+              <th scope="col">Erreur</th>
+              <th scope="col" class="number">Fois</th>
+              <th scope="col" class="number extra">Comptes</th>
+              <th scope="col" class="number date extra">Dernière fois</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of refusals(); track row.where + row.error) {
+              <tr>
+                <th scope="row">{{ row.where }}</th>
+                <td>
+                  <code>{{ row.error }}</code>
+                </td>
+                <td class="number">
+                  <strong>{{ row.count | count }}</strong>
+                </td>
+                <td class="number extra">{{ row.accounts | count }}</td>
+                <td class="number extra">{{ (row.lastAt | parisDate: 'time') || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <small class="note">
+        Une demande refusée n'est pas une panne : la personne a reçu un message qui dit pourquoi.
+        Beaucoup de refus au même endroit signalent pourtant un écran mal compris.
+      </small>
+    }
+
+    @if (!incidents().length && !refusals().length) {
+      <p class="hint">
+        Aucune recherche échouée ni erreur du serveur sur cette période, tous comptes réunis. Seuls
+        le type d'une erreur et sa route sont gardés, jamais son message.
+      </p>
+    }
+  } @else {
+    <p class="hint">Chargement de la santé de l'instance…</p>
+  }
+</section>

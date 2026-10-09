@@ -293,6 +293,27 @@ class Correction(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
 
 
+class ServerError(Base):
+    """Erreur rendue par l'API hors d'une recherche : une demande refusée, ou une panne du serveur.
+
+    Les logs de l'hébergeur ne sont pas conservés : sans cette table, une panne chez un invité ne se verrait pas.
+    Jamais le message de l'erreur, qui peut contenir ce que l'utilisateur a envoyé : son type seulement.
+    """
+
+    __tablename__ = "server_errors"
+    __table_args__ = (Index("ix_server_errors_user", "user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Vide quand l'appelant n'a pas été identifié
+    user_id: Mapped[int | None] = mapped_column(Integer)
+    method: Mapped[str] = mapped_column(Text)
+    # Modèle de la route (« /api/jobs/{job_id} »), jamais l'adresse appelée ; vide si aucune route n'a été trouvée
+    route: Mapped[str | None] = mapped_column(Text)
+    status_code: Mapped[int] = mapped_column(Integer)
+    error_type: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+
 class ArchivedUsage(Base):
     """Consommation d'un compte supprimé, additionnée par mois et par modèle : ni adresse, ni contenu, ni date précise.
 

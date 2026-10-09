@@ -324,6 +324,47 @@ export interface AccountUsage {
   last_search_at: string | null;
 }
 
+/** Recherches échouées sur une même erreur, tous comptes réunis. */
+export interface RunFailureGroup {
+  error_type: string;
+  count: number;
+  accounts: number;
+  last_at: string | null;
+}
+
+/** Erreurs d'un même type rendues par une même route de l'API, tous comptes réunis. */
+export interface ServerErrorGroup {
+  method: string;
+  /** Modèle de la route ; null quand aucune n'a été trouvée */
+  route: string | null;
+  status_code: number;
+  error_type: string;
+  /** Vrai pour une panne du serveur, faux pour une demande qu'il a refusée */
+  is_failure: boolean;
+  count: number;
+  accounts: number;
+  last_at: string | null;
+}
+
+/** Santé de l'instance, pour les administrateurs : ce qui a échoué sur tous les comptes. */
+export interface HealthOverview {
+  since: string | null;
+  /** Recherches échouées ou interrompues et pannes du serveur */
+  incidents: number;
+  healthy: boolean;
+  runs: number;
+  failed_runs: number;
+  interrupted_runs: number;
+  failure_rate: number | null;
+  interrupted_accounts: number;
+  last_interrupted_at: string | null;
+  run_failures: RunFailureGroup[];
+  /** Réponses 5xx hors d'une recherche, puis demandes refusées (4xx) */
+  failures: number;
+  refusals: number;
+  server_errors: ServerErrorGroup[];
+}
+
 /** Consommation de tous les comptes, pour les administrateurs. */
 export interface UsageOverview {
   since: string | null;

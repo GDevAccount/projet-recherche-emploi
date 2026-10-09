@@ -5,6 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
   AccountUsage,
   EvaluationGroup,
+  HealthOverview,
   OutcomeGroup,
   PageEvaluation,
   SearchRun,
@@ -181,6 +182,25 @@ function usage(values: Partial<UsageOverview> = {}): UsageOverview {
   };
 }
 
+function health(values: Partial<HealthOverview> = {}): HealthOverview {
+  return {
+    since: '2026-10-02T12:00:00Z',
+    incidents: 0,
+    healthy: true,
+    runs: 12,
+    failed_runs: 0,
+    interrupted_runs: 0,
+    failure_rate: 0,
+    interrupted_accounts: 0,
+    last_interrupted_at: null,
+    run_failures: [],
+    failures: 0,
+    refusals: 0,
+    server_errors: [],
+    ...values,
+  };
+}
+
 describe('TrackingComponent', () => {
   let fixture: ComponentFixture<TrackingComponent>;
   let http: HttpTestingController;
@@ -218,9 +238,16 @@ describe('TrackingComponent', () => {
     return [...element().querySelectorAll(selector)].map((node) => text(node));
   }
 
-  async function serve(served: SearchStats, runs: SearchRun[] = [run(28)], overview = usage()): Promise<void> {
+  async function serve(
+    served: SearchStats,
+    runs: SearchRun[] = [run(28)],
+    overview = usage(),
+    state = health(),
+  ): Promise<void> {
     http.expectOne({ method: 'GET', url: '/api/searches/stats' }).flush(served);
     http.expectOne({ method: 'GET', url: '/api/searches' }).flush(runs);
+    await fixture.whenStable();
+    http.expectOne({ method: 'GET', url: '/api/admin/health?days=7' }).flush(state);
     await fixture.whenStable();
     if (served.runs) {
       http.expectOne({ method: 'GET', url: '/api/admin/usage?days=30' }).flush(overview);
@@ -336,6 +363,85 @@ describe('TrackingComponent', () => {
     await click('9 oct.', '.runs .row');
     await click('9 oct.', '.runs .row');
     expect(texts('.runs .pages > li').length).toBe(3);
+  });
+
+  it('should say that the instance is fine, even before the first search of the administrator', async () => {
+    await serve(stats({ runs: 0 }), []);
+
+    const card = element().querySelector('app-health-card')!;
+    expect(text(card.querySelector('h2'))).toBe('Tout fonctionne');
+    expect(card.querySelector('h2.down')).toBeNull();
+    expect(texts('app-health-card .figures > div')).toEqual([
+      'Recherches échouées 0 sur 12',
+      'Recherches interrompues 0 par un redémarrage',
+      'Pannes du serveur 0 hors recherche',
+      'Demandes refusées 0 avec un message',
+    ]);
+    expect(card.querySelector('table')).toBeNull();
+    expect(text(card)).toContain('Aucune recherche échouée ni erreur du serveur');
+  });
+
+  it('should list what failed on the instance, and reload it for another period', async () => {
+    const state = health({
+      incidents: 6,
+      healthy: false,
+      failed_runs: 3,
+      interrupted_runs: 1,
+      failure_rate: 0.3333,
+      interrupted_accounts: 1,
+      last_interrupted_at: '2026-10-07T08:30:00Z',
+      run_failures: [{ error_type: 'RateLimitError', count: 3, accounts: 2, last_at: '2026-10-08T10:00:00Z' }],
+      failures: 2,
+      refusals: 5,
+      server_errors: [
+        {
+          method: 'GET',
+          route: '/api/jobs',
+          status_code: 500,
+          error_type: 'OperationalError',
+          is_failure: true,
+          count: 2,
+          accounts: 1,
+          last_at: '2026-10-09T12:12:06Z',
+        },
+        {
+          method: 'PUT',
+          route: '/api/cv',
+          status_code: 422,
+          error_type: 'InvalidInputError',
+          is_failure: false,
+          count: 5,
+          accounts: 3,
+          last_at: null,
+        },
+      ],
+    });
+    await serve(stats(), [run(28)], usage(), state);
+
+    const card = element().querySelector('app-health-card')!;
+    expect(text(card.querySelector('h2.down'))).toBe('6 incidents');
+    expect(texts('app-health-card .figures > .bad')).toEqual([
+      'Recherches échouées 3 sur 12',
+      'Recherches interrompues 1 par un redémarrage',
+      'Pannes du serveur 2 hors recherche',
+    ]);
+    expect(texts('app-health-card h3')).toEqual([
+      "Ce qui a mal tourné 33,3 % des recherches n'ont pas abouti",
+      'Demandes refusées',
+    ]);
+    // Les pannes d'un côté, les demandes refusées de l'autre
+    expect(texts('app-health-card tbody tr')).toEqual([
+      'Recherche RateLimitError 3 2 8 oct., 12:00',
+      'Recherche Interrompue par un redémarrage 1 1 7 oct., 10:30',
+      'GET /api/jobs OperationalError · 500 2 1 9 oct., 14:12',
+      'PUT /api/cv InvalidInputError · 422 5 3 —',
+    ]);
+
+    await click('30 jours');
+    http.expectOne({ method: 'GET', url: '/api/admin/health?days=30' }).flush(health());
+    await fixture.whenStable();
+
+    expect(text(card.querySelector('h2'))).toBe('Tout fonctionne');
   });
 
   it('should tell what each account costs, and reload it for another period', async () => {

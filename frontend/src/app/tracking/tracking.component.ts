@@ -8,6 +8,7 @@ import { CountPipe, DurationPipe, UsdPipe } from '../core/format.pipe';
 import { SearchRunService } from '../core/search-run.service';
 import { TrackingService } from '../core/tracking.service';
 import { CorrectionsCardComponent } from './corrections-card.component';
+import { HealthCardComponent } from './health-card.component';
 import { OutcomesCardComponent } from './outcomes-card.component';
 import { RunListComponent } from './run-list.component';
 import { UsageCardComponent } from './usage-card.component';
@@ -38,6 +39,7 @@ const GROUPS_SHOWN = 8;
     DurationPipe,
     CountPipe,
     CorrectionsCardComponent,
+    HealthCardComponent,
     OutcomesCardComponent,
     RunListComponent,
     UsageCardComponent,
@@ -56,7 +58,7 @@ export class TrackingComponent {
   protected readonly error = signal('');
   protected readonly breakdown = signal<BreakdownKey>('by_query');
   protected readonly allGroups = signal(false);
-  /** Change après chaque recherche : la carte des comptes relit alors ses chiffres. */
+  /** Change après chaque recherche : les cartes de l'instance relisent alors leurs chiffres. */
   protected readonly version = signal(0);
 
   /** Part du moteur de recherche dans le coût total, en pourcentage ; null quand le total n'est pas connu. */

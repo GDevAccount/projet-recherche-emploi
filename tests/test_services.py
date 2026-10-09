@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from helpers import blank_pdf, job, rejected_job
+from sqlalchemy import update
 
 from projet_recherche_emploi.agent.prompts import prompt_version
 from projet_recherche_emploi.config import (
@@ -12,9 +13,10 @@ from projet_recherche_emploi.config import (
     DEFAULT_USER_ID,
     INACTIVE_ACCOUNT_DAYS,
     MAX_SEARCHES_PER_DAY,
+    SERVER_ERROR_DAYS,
 )
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
-from projet_recherche_emploi.data.models import EngineCall
+from projet_recherche_emploi.data.models import EngineCall, ServerError
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.engine_call_repository import EngineCallRepository
@@ -270,6 +272,61 @@ def test_failed_search_still_counts(container, ready_users):
     # L'appel au moteur fait avant l'échec a été payé : il reste compté, sans suite connue
     [call] = search.get_stats(BOB).by_search
     assert (call.calls, call.found, call.known, call.rejected, call.kept) == (1, 1, 0, 0, 0)
+
+
+def test_health_counts_what_failed_on_every_account(container, ready_users):
+    broken = SearchService(container.database, BrokenGraph)
+    for user_id in (BOB, CAROL):
+        with pytest.raises(RuntimeError):
+            broken.run_search(user_id)
+    container.search.run_search(BOB)
+    # Un lancement de Carol que le serveur a coupé en redémarrant
+    with container.database.session() as session:
+        SearchRunRepository(session, CAROL).record_run()
+
+    health = container.health.get_overview()
+
+    assert (health.runs, health.failed_runs, health.interrupted_runs, health.failure_rate) == (4, 2, 1, 0.75)
+    assert (health.healthy, health.since, health.last_interrupted_at is not None) == (False, None, True)
+    assert (health.incidents, health.interrupted_accounts) == (3, 1)
+    [failure] = health.run_failures
+    assert (failure.error_type, failure.count, failure.accounts) == ("RuntimeError", 2, 2)
+
+    # Une recherche en cours n'est pas une recherche interrompue
+    events = container.search.stream_search(DEFAULT_USER_ID)
+    next(events)
+    running = container.health.get_overview()
+    assert (running.runs, running.interrupted_runs, running.failure_rate) == (5, 1, 0.6)
+    list(events)
+
+    # Rien de tout cela n'est dans les trente jours précédant une date lointaine
+    later = container.health.get_overview(days=30, now=datetime.now(UTC) + timedelta(days=60))
+    assert (later.healthy, later.runs, later.failure_rate, later.run_failures) == (True, 0, None, [])
+
+
+def test_server_errors_are_kept_for_a_while_then_forgotten(container):
+    container.health.record_error(BOB, "PUT", "/api/cv", 422, "InvalidInputError")
+    container.health.record_error(None, "GET", None, 500, "KeyError")
+    health = container.health.get_overview()
+    # Les pannes passent avant les demandes refusées, et seules elles disent que l'instance va mal
+    assert [(group.error_type, group.is_failure, group.accounts) for group in health.server_errors] == [
+        ("KeyError", True, 0),
+        ("InvalidInputError", False, 1),
+    ]
+    assert (health.failures, health.refusals, health.incidents, health.healthy) == (1, 1, 1, False)
+
+    # Devenues trop anciennes, elles sont effacées à l'erreur suivante
+    old = datetime.now(UTC) - timedelta(days=SERVER_ERROR_DAYS + 1)
+    with container.database.session() as session:
+        session.execute(update(ServerError).values(created_at=old))
+    container.health.record_error(CAROL, "GET", "/api/jobs", 404, "NotFoundError")
+    health = container.health.get_overview()
+    assert [group.error_type for group in health.server_errors] == ["NotFoundError"]
+    assert health.healthy
+
+    # Une base qui ne répond plus ne doit pas empêcher la réponse d'erreur de partir
+    container.health.database = None
+    container.health.record_error(BOB, "GET", "/api/jobs", 500, "OperationalError")
 
 
 def test_run_left_running_by_a_restart_is_reported_as_interrupted(container, search, ready_users):

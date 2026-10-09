@@ -3,7 +3,7 @@ from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
 from projet_recherche_emploi.api.public_pages import build_routes
-from projet_recherche_emploi.config import INACTIVE_ACCOUNT_DAYS, MAX_SEARCHES_PER_DAY, Settings
+from projet_recherche_emploi.config import INACTIVE_ACCOUNT_DAYS, MAX_SEARCHES_PER_DAY, SERVER_ERROR_DAYS, Settings
 
 
 def client(**settings: str) -> TestClient:
@@ -43,6 +43,7 @@ def test_privacy_rules_state_the_real_retention_period():
     text = client().get("/confidentialite").text
 
     assert f"Un compte resté {INACTIVE_ACCOUNT_DAYS // 30} mois sans utilisation est supprimé automatiquement" in text
+    assert f"elles sont effacées au bout de {SERVER_ERROR_DAYS} jours" in text
 
 
 def test_privacy_rules_name_who_receives_the_data():

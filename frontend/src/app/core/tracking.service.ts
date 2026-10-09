@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
-import { PageEvaluation, SearchRun, SearchStats, UsageOverview } from './api.models';
+import { HealthOverview, PageEvaluation, SearchRun, SearchStats, UsageOverview } from './api.models';
 
 /** Suivi des recherches, réservé aux administrateurs : l'API répond 403 à tout autre compte. */
 @Injectable({ providedIn: 'root' })
@@ -30,5 +30,10 @@ export class TrackingService {
   getUsage(days: number | null): Observable<UsageOverview> {
     const params = days === null ? undefined : { days };
     return this.http.get<UsageOverview>(`${environment.apiUrl}/admin/usage`, { params });
+  }
+
+  /** Recherches échouées et erreurs de l'API sur tous les comptes, pendant les derniers jours. */
+  getHealth(days: number): Observable<HealthOverview> {
+    return this.http.get<HealthOverview>(`${environment.apiUrl}/admin/health`, { params: { days } });
   }
 }
