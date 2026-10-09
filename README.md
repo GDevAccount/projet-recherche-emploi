@@ -93,8 +93,8 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 |---|---|
 | `GET /api/health` | État du serveur (sans connexion) |
 | `GET /api/config` | Ce qu'un front lit avant la connexion (sans connexion) : mode de connexion (`google` ou `password`), identifiant client Google, types de contrat |
-| `GET /api/me` | Utilisateur de la requête (avec l'adresse, le nom et la photo de son compte Google), recherches restantes aujourd'hui, s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché), et si l'une des siennes tourne déjà (`search_running`) |
-| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements, journal des pages évaluées et adresse sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
+| `GET /api/me` | Utilisateur de la requête (avec l'adresse, le nom et la photo de son compte Google), s'il est propriétaire (`is_owner`) ou administrateur (`is_admin`), recherches restantes aujourd'hui, s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché), et si l'une des siennes tourne déjà (`search_running`) |
+| `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements, journal des pages évaluées et adresse sont effacés ; seule sa consommation reste, en totaux mensuels sans adresse (table `archived_usage`). Ils sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
 | `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer |
 | `GET /api/jobs` | Offres retenues |
 | `PATCH /api/jobs/{id}` | Changer l'état d'une candidature (`{"status": "applied"}` ; `todo`, `applied`, `interview` ou `rejected`). Renvoie l'offre mise à jour, avec la date de chaque étape et les états qu'elle peut prendre ensuite (`next_statuses`). Un état que l'offre ne peut pas prendre depuis le sien est refusé (422) |
@@ -103,8 +103,10 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/queries`, `POST /api/queries`, `DELETE /api/queries/{id}` | Postes recherchés |
 | `GET /api/cv`, `PUT /api/cv` | Date du CV en place, dépôt d'un CV (fichier PDF, champ `file`) |
 | `POST /api/searches` | Lancer une recherche, suivie en direct (Server-Sent Events : `progress`, puis `result` ou `error`). Chaque `progress` nomme son étape (`step` : `search`, `dedupe`, `evaluate` ou `save`) et porte, selon l'étape, un décompte (`done`, `total`), le nombre de pages trouvées et à évaluer (`found`, `new`), ou la page qui vient d'être évaluée et son verdict (`title`, `kept`). Refusé (409) si une recherche de l'utilisateur tourne déjà |
-| `GET /api/searches` | Les 100 derniers lancements de l'utilisateur, avec leur bilan : état (`status` : `running`, `done`, `failed` ou `interrupted`), compteurs, durée de chaque étape en millisecondes, appels au moteur de recherche, jetons du modèle, modèle et version du prompt |
+| `GET /api/searches` | Réservée aux administrateurs (le propriétaire et `ADMIN_EMAILS` ; 403 pour un invité), comme les trois suivantes. Les 100 derniers lancements de l'appelant, avec leur bilan : état (`status` : `running`, `done`, `failed` ou `interrupted`), compteurs, durée de chaque étape en millisecondes, appels au moteur de recherche, jetons du modèle, modèle et version du prompt |
+| `GET /api/searches/stats` | Synthèse de toutes les recherches suivies de l'appelant : volumes, jetons, coût en dollars (moteur de recherche, modèle, total, par offre retenue), durée moyenne, et répartition des pages évaluées par poste recherché (`by_query`), par site (`by_site`), par nature (`by_page_kind`) et selon le texte lu (`by_text` : page entière, page tronquée, extrait seul) |
 | `GET /api/searches/{id}/evaluations` | Pages évaluées pendant un lancement, retenues ou non : faits lus par le modèle, avis et règles du verdict, longueur du texte lu, jetons et durée de l'appel |
+| `GET /api/admin/usage` | Consommation de tous les comptes, le plus coûteux en premier : pour chacun, son adresse, ses lancements, ses appels, ses jetons et son coût en dollars et sa formule (`plan`, `free` tant qu'il n'y a pas de paiement) ; puis le total, et la part due aux invités (`guests_cost_usd`). Un compte supprimé y reste, sans adresse (`deleted`), avec ce qu'il avait consommé. `?days=30` limite le calcul aux derniers jours. Aucune page ni recherche d'un autre compte n'en sort |
 
 L'appelant prouve son identité par un en-tête `Authorization: Bearer <jeton>`. La règle :
 
@@ -251,6 +253,7 @@ Google peut aussi demander la preuve que le site vous appartient. Dans [Search C
 | `AUTH_COOKIE_SECRET` | Chaîne aléatoire longue, qui signe le cookie de session (`python -c "import secrets; print(secrets.token_hex(32))"`) |
 | `OWNER_EMAIL` | Adresse Google du propriétaire |
 | `ALLOWED_EMAILS` | Adresses des invités, séparées par des virgules (peut être vide), ou `*` pour accepter tout compte Google |
+| `ADMIN_EMAILS` | Adresses des administrateurs, séparées par des virgules (facultatif). Comme le propriétaire, ils ont accès au suivi des recherches et à la consommation de chaque compte. Un administrateur peut se connecter sans figurer dans `ALLOWED_EMAILS` ; il garde un compte d'invité, avec son quota |
 | `CONTACT_EMAIL` | Adresse de contact affichée sur les deux pages publiques (facultatif, mais attendu par le RGPD) |
 | `GOOGLE_SITE_VERIFICATION_FILE` | Nom du fichier de validation donné par Google Search Console, par exemple `google1a2b3c.html` (facultatif) |
 
@@ -378,6 +381,8 @@ Table `search_runs`, les lancements de recherche. Ils servent au quota journalie
 | `search_ms`, `dedupe_ms`, `evaluate_ms`, `save_ms` | Durée de chaque étape du graph, en millisecondes |
 | `search_calls` | Nombre d'appels à Tavily |
 | `input_tokens`, `output_tokens` | Jetons envoyés au modèle et reçus de lui, toutes pages confondues |
+| `cache_read_tokens`, `cache_write_tokens` | Parts des jetons d'entrée lues ou écrites en cache, facturées à un autre tarif |
+| `reasoning_tokens` | Part des jetons de sortie passée en raisonnement, que la réponse ne montre pas |
 
 Table `page_evaluations`, le journal des pages évaluées, retenues ou non. Contrairement à `rejected_jobs`, il n'est pas vidé quand un nouveau CV est enregistré :
 
@@ -396,9 +401,23 @@ Table `page_evaluations`, le journal des pages évaluées, retenues ou non. Cont
 | `page_chars`, `truncated` | Longueur du texte disponible, et `1` si le modèle n'en a lu que le début (au-delà de `MAX_PAGE_CHARS`) |
 | `full_page` | `1` si le texte complet de la page était disponible, `0` si seul l'extrait de Tavily a été lu |
 | `input_tokens`, `output_tokens`, `duration_ms` | Jetons et durée de l'appel au modèle pour cette page |
+| `cache_read_tokens`, `cache_write_tokens`, `reasoning_tokens` | Détail de ces jetons, comme pour un lancement |
 | `created_at` | Date de l'enregistrement (UTC) |
 
-Le coût en euros n'est pas enregistré : il se calcule à partir des jetons et des appels, avec les tarifs du moment.
+Table `archived_usage`, la consommation des comptes supprimés. Elle est écrite à la suppression d'un compte, juste avant l'effacement de ses lancements, et n'est jamais vidée :
+
+| Colonne | Contenu |
+|---|---|
+| `id` | Identifiant de la ligne |
+| `account_id` | Ancien identifiant du compte : il ne désigne plus personne, sa ligne de `users` n'ayant plus d'adresse |
+| `plan` | Formule du compte à sa suppression (`free` ou `paid`) |
+| `month` | Mois des lancements additionnés (`AAAA-MM`) : la date précise des recherches n'est pas gardée |
+| `model` | Modèle interrogé, dont le tarif dépend |
+| `runs`, `found_count`, `kept_count`, `search_calls` | Lancements, pages trouvées, offres retenues et appels à Tavily du mois |
+| `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens` | Jetons du mois |
+| `deleted_at` | Date de la suppression du compte (UTC) |
+
+Le coût n'est pas enregistré : l'API le calcule à chaque lecture, en dollars, à partir des jetons, des appels et des tarifs de `config.py` (`MODEL_PRICES_USD`, `TAVILY_CREDIT_PRICE_USD`, `TAVILY_CREDITS_PER_SEARCH`). Corriger un tarif corrige donc aussi le coût affiché des recherches passées. Un modèle sans tarif n'a pas de coût affiché. Les routes renvoient `search_cost_usd`, `model_cost_usd` et `cost_usd` pour un lancement, `model_cost_usd` pour une page.
 
 ### Faire évoluer le schéma
 
@@ -485,7 +504,9 @@ src/projet_recherche_emploi/
 ├── services/            # règles métier, sans dépendance à une interface
 │   ├── account_service.py # suppression d'un compte et de tout ce qu'il contient
 │   ├── auth_service.py    # adresse Google -> utilisateur, mot de passe de l'instance, jeton de session
-│   ├── search_service.py  # conditions préalables, quota journalier et lancement d'une recherche
+│   ├── search_service.py  # conditions préalables, quota journalier, lancement d'une recherche, bilans et synthèse
+│   ├── search_costs.py    # coût d'une recherche, à partir de sa consommation et des tarifs
+│   ├── usage_service.py   # consommation et coût de chaque compte, pour les administrateurs
 │   ├── cv_service.py      # enregistrement du CV et de son texte sans coordonnées, oubli des rejets de l'ancien
 │   ├── job_service.py     # offres retenues et pages rejetées
 │   └── query_service.py   # postes recherchés
@@ -506,6 +527,7 @@ src/projet_recherche_emploi/
     │   ├── query_repository.py         # postes recherchés : lecture, ajout, suppression
     │   ├── search_run_repository.py    # lancements de recherche : quota journalier, bilan
     │   ├── page_evaluation_repository.py  # journal des pages évaluées
+    │   ├── usage_repository.py         # consommation additionnée par compte, pour les administrateurs
     │   ├── user_repository.py          # comptes
     │   └── cv_text_repository.py       # texte des CV, coordonnées retirées, et date du dépôt
     └── cv_ingestion/    # du PDF déposé au texte enregistré : le PDF n'est pas conservé

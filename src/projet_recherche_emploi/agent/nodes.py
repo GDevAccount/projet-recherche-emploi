@@ -203,6 +203,10 @@ def format_work_location(evaluation: JobEvaluation) -> str | None:
     return place_text or None
 
 
+# Nombres de jetons d'un appel (EvaluationUsage), additionnés pour le lancement
+TOKEN_COUNTS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens")
+
+
 def elapsed_ms(started: float) -> int:
     """Renvoie le temps écoulé depuis cet instant de time.perf_counter(), en millisecondes."""
     return round((time.perf_counter() - started) * 1000)
@@ -243,6 +247,9 @@ def describe_evaluation(
         "full_page": bool(page.get("raw_content")),
         "input_tokens": usage.input_tokens,
         "output_tokens": usage.output_tokens,
+        "cache_read_tokens": usage.cache_read_tokens,
+        "cache_write_tokens": usage.cache_write_tokens,
+        "reasoning_tokens": usage.reasoning_tokens,
         "duration_ms": usage.duration_ms,
     }
 
@@ -385,8 +392,8 @@ class SearchNodes:
                     "reject_reason": describe_rejection(evaluation, verdict, criteria),
                 }
             )
-        metrics["input_tokens"] = total_tokens(usage.input_tokens for usage in usages)
-        metrics["output_tokens"] = total_tokens(usage.output_tokens for usage in usages)
+        for name in TOKEN_COUNTS:
+            metrics[name] = total_tokens(getattr(usage, name) for usage in usages)
         metrics["evaluate_ms"] = elapsed_ms(started)
         return {
             "filtered_jobs": filtered_jobs,

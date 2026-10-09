@@ -2,7 +2,7 @@ import logging
 import threading
 from datetime import UTC, date, datetime, timedelta
 
-from projet_recherche_emploi.config import INACTIVE_ACCOUNT_DAYS
+from projet_recherche_emploi.config import DEFAULT_PLAN, INACTIVE_ACCOUNT_DAYS
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
@@ -10,6 +10,7 @@ from projet_recherche_emploi.data.repositories.page_evaluation_repository import
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
+from projet_recherche_emploi.data.repositories.usage_repository import UsageRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConflictError
 from projet_recherche_emploi.services.search_service import SearchService
@@ -27,7 +28,9 @@ class AccountService:
     def delete_account(self, user_id: int) -> None:
         """Efface tout ce que l'application garde de l'utilisateur : CV, recherches, offres, rejets, adresse.
 
-        Rien n'est récupérable ensuite. Le propriétaire garde son identifiant, réservé, mais perd ses données
+        Rien n'est récupérable ensuite. Seule reste sa consommation, en totaux mensuels que rien ne relie
+        à lui : le coût de l'instance doit rester connu après son départ. Le propriétaire garde son
+        identifiant, réservé, mais perd ses données
         comme un autre ; un invité encore autorisé qui se reconnecte reçoit un compte neuf.
         """
         # Une recherche en cours écrirait ses offres après l'effacement
@@ -39,6 +42,8 @@ class AccountService:
             JobRepository(session, user_id).delete_all()
             RejectedJobRepository(session, user_id).clear()
             QueryRepository(session, user_id).delete_all()
+            # Avant d'effacer les lancements : ce qu'ils ont consommé reste, en totaux mensuels sans adresse
+            UsageRepository(session).archive_account(user_id, DEFAULT_PLAN, datetime.now(UTC))
             SearchRunRepository(session, user_id).delete_all()
             PageEvaluationRepository(session, user_id).delete_all()
             UserRepository(session).forget_user(user_id)

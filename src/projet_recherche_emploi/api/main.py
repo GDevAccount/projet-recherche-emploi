@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 
 from projet_recherche_emploi.api.frontend import build_frontend_routes
 from projet_recherche_emploi.api.public_pages import build_routes
-from projet_recherche_emploi.api.routers import account, cv, jobs, queries, searches
+from projet_recherche_emploi.api.routers import account, admin, cv, jobs, queries, searches
 from projet_recherche_emploi.api.security import GoogleIdentityVerifier, IdentityVerifier
 from projet_recherche_emploi.api.security_headers import SecurityHeadersMiddleware
 from projet_recherche_emploi.config import configure_logging
@@ -83,7 +83,7 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    for router in (account.router, jobs.router, queries.router, cv.router, searches.router):
+    for router in (account.router, jobs.router, queries.router, cv.router, searches.router, admin.router):
         app.include_router(router, prefix=API_PREFIX)
 
     # Pages légales, fichier de validation Google et fichiers du front, servis sans connexion

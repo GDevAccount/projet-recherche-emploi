@@ -46,8 +46,8 @@ class SearchRunRepository:
         """Renvoie ce lancement, ou None s'il n'existe pas pour cet utilisateur."""
         return self.session.scalar(select(SearchRun).where(SearchRun.id == run_id, SearchRun.user_id == self.user_id))
 
-    def list_runs(self, limit: int) -> list[SearchRun]:
-        """Renvoie les derniers lancements de l'utilisateur, le plus récent en premier."""
+    def list_runs(self, limit: int | None = None) -> list[SearchRun]:
+        """Renvoie les derniers lancements de l'utilisateur, le plus récent en premier ; tous, sans limite."""
         statement = (
             select(SearchRun).where(SearchRun.user_id == self.user_id).order_by(SearchRun.id.desc()).limit(limit)
         )

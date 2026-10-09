@@ -134,6 +134,20 @@ def get_current_user_id(caller: Annotated[Caller, Depends(get_current_caller)]) 
     return caller.user_id
 
 
+def get_admin_id(
+    caller: Annotated[Caller, Depends(get_current_caller)],
+    container: Annotated[Container, Depends(get_container)],
+) -> int:
+    """Renvoie l'utilisateur de la requête s'il est administrateur, et refuse tout autre appelant.
+
+    Les routes de suivi en dépendent : coûts, durées et journal des évaluations ne regardent que ceux qui
+    exploitent l'instance. Le front peut masquer l'écran, c'est ici que l'accès se décide.
+    """
+    if not container.auth.is_admin(caller.user_id, caller.email):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Réservé aux administrateurs de l'instance.")
+    return caller.user_id
+
+
 def set_session_cookie(request: Request, response: Response, token: str) -> None:
     response.set_cookie(
         SESSION_COOKIE,
@@ -208,5 +222,6 @@ def _forbidden() -> HTTPException:
 
 Services = Annotated[Container, Depends(get_container)]
 UserId = Annotated[int, Depends(get_current_user_id)]
+AdminId = Annotated[int, Depends(get_admin_id)]
 CurrentCaller = Annotated[Caller, Depends(get_current_caller)]
 CredentialsCaller = Annotated[Caller, Depends(get_caller_from_credentials)]

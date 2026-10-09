@@ -83,7 +83,8 @@ class AuthService:
         if email == owner_email:
             return DEFAULT_USER_ID
         allowed_emails = self._allowed_emails()
-        if EVERYONE not in allowed_emails and email not in allowed_emails:
+        # Un administrateur est invité d'office : il a un compte d'invité, avec son quota
+        if EVERYONE not in allowed_emails and email not in allowed_emails | self._admin_emails():
             return None
         now = datetime.fromtimestamp(self.clock(), UTC)
         with self.database.session() as session:
@@ -135,13 +136,26 @@ class AuthService:
         message = b"session-api-v1:" + self.settings.app_password.encode()
         return hmac.new(secret.encode(), message, hashlib.sha256).digest()
 
+    def is_admin(self, user_id: int, email: str | None) -> bool:
+        """Dit si cet appelant, déjà identifié, est un administrateur : le propriétaire, ou une adresse d'ADMIN_EMAILS.
+
+        Relu à chaque requête, comme l'autorisation : retirer une adresse d'ADMIN_EMAILS lui retire ce droit.
+        """
+        return user_id == DEFAULT_USER_ID or (bool(email) and _normalize(email) in self._admin_emails())
+
     def _allowed_emails(self) -> set[str]:
-        emails = self.settings.allowed_emails.split(",")
-        return {_normalize(email) for email in emails if email.strip()}
+        return _split_emails(self.settings.allowed_emails)
+
+    def _admin_emails(self) -> set[str]:
+        return _split_emails(self.settings.admin_emails)
 
 
 def _sign(key: bytes, body: bytes) -> str:
     return base64.urlsafe_b64encode(hmac.new(key, body, hashlib.sha256).digest()).decode()
+
+
+def _split_emails(emails: str) -> set[str]:
+    return {_normalize(email) for email in emails.split(",") if email.strip()}
 
 
 def _normalize(email: str | None) -> str:

@@ -1,17 +1,32 @@
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, datetime
 from typing import Protocol
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
-from projet_recherche_emploi.config import DEFAULT_USER_ID, LOCAL_TIMEZONE, MAX_SEARCHES_PER_DAY
+from projet_recherche_emploi.config import DEFAULT_USER_ID, LOCAL_TIMEZONE, MAX_SEARCHES_PER_DAY, OFFER_PAGE_KIND
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
 from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
-from projet_recherche_emploi.schemas import PageEvaluationRead, SearchProgress, SearchRunRead, SearchSummary
+from projet_recherche_emploi.schemas import (
+    EvaluationGroup,
+    PageEvaluationRead,
+    SearchProgress,
+    SearchRunRead,
+    SearchStats,
+    SearchSummary,
+)
+from projet_recherche_emploi.services.search_costs import (
+    COST_DECIMALS,
+    model_cost_usd,
+    search_cost_usd,
+    sum_costs,
+    total_cost_usd,
+)
 
 # Nombre de lancements renvoyés par list_runs
 RUN_HISTORY_SIZE = 100
@@ -26,7 +41,17 @@ RUN_METRICS = (
     "search_calls",
     "input_tokens",
     "output_tokens",
+    "cache_read_tokens",
+    "cache_write_tokens",
+    "reasoning_tokens",
 )
+# Étapes du graph dont les durées, réunies, font celle d'une recherche
+STEP_DURATIONS = ("search_ms", "dedupe_ms", "evaluate_ms", "save_ms")
+# Libellés des groupes de la synthèse selon le texte lu par le modèle
+TEXT_FULL = "Page entière"
+TEXT_TRUNCATED = "Page tronquée"
+TEXT_EXTRACT = "Extrait seul"
+UNKNOWN_LABEL = "Non précisé"
 # Listes de l'état du graph dont la longueur donne un compteur du lancement
 RUN_COUNTS = {
     "found_count": "jobs",
@@ -43,6 +68,64 @@ class SearchGraph(Protocol):
 def start_of_local_day() -> datetime:
     """Renvoie minuit du jour en cours à Paris."""
     return datetime.now(ZoneInfo(LOCAL_TIMEZONE)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def site_of(url: str) -> str:
+    """Renvoie le site d'une page : son nom de domaine, sans « www. »."""
+    return (urlsplit(url).hostname or UNKNOWN_LABEL).removeprefix("www.")
+
+
+def text_read(evaluation: PageEvaluationRead) -> str:
+    """Dit quel texte le modèle a lu pour cette page."""
+    if not evaluation.full_page:
+        return TEXT_EXTRACT
+    return TEXT_TRUNCATED if evaluation.truncated else TEXT_FULL
+
+
+def price_run(run: SearchRunRead) -> SearchRunRead:
+    """Complète un lancement par ses coûts."""
+    run.search_cost_usd = search_cost_usd(run.search_calls)
+    run.model_cost_usd = model_cost_usd(
+        run.model, run.input_tokens, run.output_tokens, run.cache_read_tokens, run.cache_write_tokens
+    )
+    run.cost_usd = total_cost_usd(run.search_cost_usd, run.model_cost_usd, run.input_tokens is not None)
+    return run
+
+
+def price_evaluation(evaluation: PageEvaluationRead, model: str | None) -> PageEvaluationRead:
+    """Complète une page évaluée par le coût de son appel au modèle, qui est celui de son lancement."""
+    evaluation.model_cost_usd = model_cost_usd(
+        model,
+        evaluation.input_tokens,
+        evaluation.output_tokens,
+        evaluation.cache_read_tokens,
+        evaluation.cache_write_tokens,
+    )
+    return evaluation
+
+
+def group_evaluations(
+    evaluations: Iterable[PageEvaluationRead], label_of: Callable[[PageEvaluationRead], str | None]
+) -> list[EvaluationGroup]:
+    """Regroupe des pages évaluées selon un trait, le groupe le plus fourni en premier."""
+    groups: dict[str, list[PageEvaluationRead]] = {}
+    for evaluation in evaluations:
+        groups.setdefault(label_of(evaluation) or UNKNOWN_LABEL, []).append(evaluation)
+    summaries = [
+        EvaluationGroup(
+            label=label,
+            evaluated=len(pages),
+            kept=sum(page.kept for page in pages),
+            not_an_offer=sum(not page.kept and page.page_kind != OFFER_PAGE_KIND for page in pages),
+            rejected_offers=sum(not page.kept and page.page_kind == OFFER_PAGE_KIND for page in pages),
+            input_tokens=sum(page.input_tokens or 0 for page in pages),
+            output_tokens=sum(page.output_tokens or 0 for page in pages),
+            # Une page sans jetons connus n'a rien coûté qu'on puisse compter : seul un tarif manquant rend None
+            model_cost_usd=sum_costs(page.model_cost_usd for page in pages if page.input_tokens is not None),
+        )
+        for label, pages in groups.items()
+    ]
+    return sorted(summaries, key=lambda group: (-group.evaluated, group.label))
 
 
 class RunningSearch:
@@ -146,20 +229,70 @@ class SearchService:
         with self.database.session() as session:
             rows = SearchRunRepository(session, user_id).list_runs(RUN_HISTORY_SIZE)
             runs = [SearchRunRead.model_validate(row) for row in rows]
+        return self._describe_runs(user_id, runs)
+
+    def _describe_runs(self, user_id: int, runs: list[SearchRunRead]) -> list[SearchRunRead]:
         # Seul le dernier lancement peut encore tourner : un autre resté « en cours » a été coupé par un redémarrage
         running_id = runs[0].id if runs and self.is_running(user_id) else None
         for run in runs:
             if run.status == "running" and run.id != running_id:
                 run.status = "interrupted"
+            price_run(run)
         return runs
 
     def list_evaluations(self, user_id: int, run_id: int) -> list[PageEvaluationRead]:
         """Renvoie les pages évaluées pendant ce lancement, retenues ou non."""
         with self.database.session() as session:
-            if SearchRunRepository(session, user_id).get_run(run_id) is None:
+            run = SearchRunRepository(session, user_id).get_run(run_id)
+            if run is None:
                 raise NotFoundError("Cette recherche n'existe pas.")
             rows = PageEvaluationRepository(session, user_id).list_for_run(run_id)
-            return [PageEvaluationRead.model_validate(row) for row in rows]
+            return [price_evaluation(PageEvaluationRead.model_validate(row), run.model) for row in rows]
+
+    def get_stats(self, user_id: int) -> SearchStats:
+        """Renvoie la synthèse de toutes les recherches suivies de l'utilisateur : volumes, coûts, répartitions."""
+        with self.database.session() as session:
+            run_rows = SearchRunRepository(session, user_id).list_runs()
+            runs = [SearchRunRead.model_validate(row) for row in run_rows]
+            evaluation_rows = PageEvaluationRepository(session, user_id).list_all()
+            evaluations = [PageEvaluationRead.model_validate(row) for row in evaluation_rows]
+        # Un lancement d'avant le suivi n'a que sa date : il n'entre pas dans la synthèse
+        runs = [run for run in self._describe_runs(user_id, runs) if run.status is not None]
+        models = {run.id: run.model for run in runs}
+        for evaluation in evaluations:
+            price_evaluation(evaluation, models.get(evaluation.search_run_id))
+
+        def total(name: str) -> int:
+            return sum(getattr(run, name) or 0 for run in runs)
+
+        done = [run for run in runs if run.status == "done"]
+        durations = [sum(getattr(run, step) or 0 for step in STEP_DURATIONS) for run in done]
+        model_cost = sum_costs(run.model_cost_usd for run in runs if run.input_tokens is not None)
+        search_cost = round(sum(run.search_cost_usd or 0 for run in runs), COST_DECIMALS)
+        cost = None if model_cost is None else round(search_cost + model_cost, COST_DECIMALS)
+        kept = total("kept_count")
+        return SearchStats(
+            runs=len(runs),
+            unfinished_runs=len(runs) - len(done),
+            found_count=total("found_count"),
+            new_count=total("new_count"),
+            kept_count=kept,
+            rejected_count=total("rejected_count"),
+            search_calls=total("search_calls"),
+            input_tokens=total("input_tokens"),
+            output_tokens=total("output_tokens"),
+            cache_read_tokens=total("cache_read_tokens"),
+            reasoning_tokens=total("reasoning_tokens"),
+            search_cost_usd=search_cost,
+            model_cost_usd=model_cost,
+            cost_usd=cost,
+            cost_per_kept_usd=round(cost / kept, COST_DECIMALS) if cost is not None and kept else None,
+            average_duration_ms=round(sum(durations) / len(durations)) if durations else None,
+            by_query=group_evaluations(evaluations, lambda page: page.query),
+            by_site=group_evaluations(evaluations, lambda page: site_of(page.url)),
+            by_page_kind=group_evaluations(evaluations, lambda page: page.page_kind),
+            by_text=group_evaluations(evaluations, text_read),
+        )
 
     def _stream(self, user_id: int, run_id: int) -> Iterator[SearchProgress | SearchSummary]:
         state = {}

@@ -13,7 +13,7 @@ L'application est un projet personnel, exploité par un particulier. Pour toute 
 - **Vos recherches** : les phrases de recherche, les types de contrat et les lieux que vous enregistrez.
 - **Les offres trouvées pour vous** : titre, lien, extrait, type de contrat et lieu lus sur l'annonce, raison pour laquelle l'offre a été retenue, et le suivi que vous en faites : candidature envoyée, entretien obtenu, refus de l'employeur, avec la date de chaque étape, et offre supprimée.
 - **Les pages écartées** : titre, lien, type de contrat et lieu lus sur la page, raison du rejet et critères en défaut, pour ne pas les évaluer une seconde fois.
-- **Le bilan de chaque recherche lancée** : sa date, pour appliquer la limite quotidienne, et des mesures techniques (nombre de pages trouvées, retenues et écartées, durée, volume de texte échangé avec OpenAI), pour suivre le coût et le bon fonctionnement du service.
+- **Le bilan de chaque recherche lancée** : sa date, pour appliquer la limite quotidienne, et des mesures techniques (nombre de pages trouvées, retenues et écartées, durée, volume de texte échangé avec OpenAI), pour suivre le coût et le bon fonctionnement du service. Les administrateurs de l'application voient, pour chaque compte, son adresse e-mail et le total de ces mesures ; ils ne voient ni vos recherches, ni votre CV, ni les pages trouvées pour vous.
 - **Le journal des pages évaluées** : pour chaque page lue lors d'une recherche, retenue ou non, son titre, son lien, ce qui y a été lu (type de contrat, lieu, mode de travail), le verdict critère par critère et sa raison. Il sert à comprendre et à corriger le tri. Contrairement aux pages écartées, il n'est pas effacé quand vous remplacez votre CV.
 - **La date de votre dernière utilisation**, au jour près, pour supprimer les comptes qui ne servent plus.
 
@@ -37,6 +37,8 @@ Ces quatre sociétés sont établies aux États-Unis. Les données hébergées p
 ## Durée de conservation
 
 Vos données sont conservées tant que vous utilisez l'application. Un compte resté {inactive_months} mois sans utilisation est supprimé automatiquement, avec tout ce qu'il contient : adresse e-mail, CV, recherches, offres, pages écartées, bilans des recherches et journal des pages évaluées. Vous n'en êtes pas prévenu, l'application n'envoyant aucun e-mail.
+
+À la suppression d'un compte, par vous ou automatiquement, une seule chose est conservée : le total, par mois, de ce que ses recherches ont consommé (nombre de recherches, de pages lues et volume de texte échangé avec OpenAI et Tavily). Ces totaux ne portent ni adresse e-mail, ni contenu, ni date précise : ils ne permettent pas de vous identifier, et servent uniquement à connaître le coût du service dans la durée.
 
 Si votre accès est retiré, vous ne pouvez plus vous connecter : votre compte est supprimé au terme de ce même délai, ou plus tôt si vous le demandez. Tant que vous avez accès à l'application, vous pouvez supprimer votre compte vous-même.
 
