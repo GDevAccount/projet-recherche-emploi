@@ -1,11 +1,14 @@
+import json
 from pathlib import Path
 
 import pytest
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
-from projet_recherche_emploi.api.frontend import build_frontend_routes
+from projet_recherche_emploi.api.frontend import HASHED_FILE_PATTERN, build_frontend_routes
 from projet_recherche_emploi.config import Settings
+
+FRONTEND = Path(__file__).parent.parent / "frontend"
 
 
 @pytest.fixture
@@ -22,13 +25,33 @@ def client(tmp_path):
 
 def test_home_page_describes_the_application_without_javascript():
     # Lu par les robots de Google pour valider l'écran de connexion : ils n'exécutent pas le JavaScript
-    page = (Path(__file__).parent.parent / "frontend" / "src" / "index.html").read_text(encoding="utf-8")
+    page = (FRONTEND / "src" / "index.html").read_text(encoding="utf-8")
 
     assert "<h1>Tamis</h1>" in page
     assert '<meta name="description"' in page
     assert "offres d'emploi" in page
     assert 'href="/confidentialite"' in page
     assert 'href="/conditions"' in page
+
+
+def test_public_files_are_not_taken_for_hashed_files():
+    # Un nom qui finit comme une empreinte serait gardé un an par le navigateur, alors que le fichier peut changer
+    names = [path.name for path in (FRONTEND / "public").iterdir()]
+
+    assert names
+    assert [name for name in names if HASHED_FILE_PATTERN.search(name)] == []
+
+
+def test_manifest_names_the_application_and_icons_that_exist():
+    public = FRONTEND / "public"
+    manifest = json.loads((public / "manifest.webmanifest").read_text(encoding="utf-8"))
+
+    assert manifest["short_name"] == "Tamis"
+    assert manifest["start_url"] == "/"
+    assert manifest["icons"]
+    for icon in manifest["icons"]:
+        assert (public / icon["src"]).is_file()
+    assert 'href="manifest.webmanifest"' in (FRONTEND / "src" / "index.html").read_text(encoding="utf-8")
 
 
 def test_front_is_served_at_the_root(client):
