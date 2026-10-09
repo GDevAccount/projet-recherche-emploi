@@ -1,0 +1,114 @@
+:host {
+  display: block;
+}
+
+header {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+
+  p {
+    max-width: 46rem;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--app-muted);
+  }
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--app-muted);
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+th,
+td {
+  padding: 0.65rem 0.75rem;
+  border-top: 1px solid var(--app-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+thead th {
+  border-top: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--app-muted);
+}
+
+tbody th {
+  font-weight: 600;
+}
+
+td {
+  color: var(--app-muted);
+
+  strong {
+    font-size: 1rem;
+    color: var(--app-text);
+  }
+
+  small {
+    display: block;
+    font-size: 0.75rem;
+  }
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+h3 {
+  margin: 1.5rem 0 0.6rem;
+  font-family: var(--app-font);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--app-muted);
+}
+
+.reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    color: var(--app-muted);
+  }
+
+  strong {
+    margin-right: 0.25rem;
+    color: var(--app-text);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// Sur un téléphone, il reste la version du prompt et ses deux taux
+@media (max-width: 44rem) {
+  .extra {
+    display: none;
+  }
+
+  th,
+  td {
+    padding-inline: 0.4rem;
+  }
+}

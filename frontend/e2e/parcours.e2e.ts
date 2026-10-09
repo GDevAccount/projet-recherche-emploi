@@ -140,6 +140,9 @@ test('une offre supprimée ne revient pas, même après une nouvelle recherche',
   // Une offre à laquelle on n'a pas postulé ne peut pas avoir été refusée : la fenêtre ne propose que de la supprimer
   await expect(dialog.getByRole('button', { name: /L'employeur a refusé/ })).toHaveCount(0);
   await dialog.getByRole('button', { name: /Supprimer cette annonce/ }).click();
+  // La fenêtre demande pourquoi, avec les motifs que l'API propose
+  await expect(dialog.getByRole('heading', { name: 'Pourquoi la supprimer ?' })).toBeVisible();
+  await dialog.getByRole('button', { name: "Ce n'est pas mon métier" }).click();
   await expect(dialog).toBeHidden();
   await expect(cards).toHaveCount(before - 1);
 
@@ -162,6 +165,13 @@ test('les pages écartées sont listées avec leur motif', async () => {
   const rejected = page.locator('ol.pages > li').filter({ hasText: QUERY });
   await expect(rejected.locator('.motive')).not.toBeEmpty();
   await expect(rejected).toContainText('hors profil');
+
+  // Une page écartée à tort se remet dans les offres, où elle attend d'être traitée
+  const title = (await rejected.first().getByRole('heading').innerText()).trim();
+  await rejected.first().getByRole('button', { name: "C'était une bonne offre" }).click();
+  await expect(rejected.first().locator('.restored')).toContainText('De retour dans vos offres');
+  await rejected.first().locator('.restored').getByRole('link', { name: 'offres' }).click();
+  await expect(page.locator('.column.todo').getByRole('heading', { name: title, exact: true })).toBeVisible();
 });
 
 test('le suivi montre le bilan des recherches et le détail de leurs pages', async () => {
@@ -179,6 +189,11 @@ test('le suivi montre le bilan des recherches et le détail de leurs pages', asy
   const pages = page.locator('app-run-list ol.pages > li');
   await expect(pages.filter({ hasText: 'Retenue' }).first()).toBeVisible();
   await expect(pages.filter({ hasText: 'Écartée' }).first()).toContainText('en défaut : compétences');
+
+  // Une offre supprimée pour son métier, une page écartée remise : les deux corrections sont comptées
+  const corrections = page.locator('app-corrections-card');
+  await expect(corrections.locator('tbody tr')).toHaveCount(1);
+  await expect(corrections.locator('.reasons')).toContainText("Ce n'est pas mon métier");
 
   await expect(page.locator('app-usage-card tbody th').first()).toHaveText('Propriétaire');
 });

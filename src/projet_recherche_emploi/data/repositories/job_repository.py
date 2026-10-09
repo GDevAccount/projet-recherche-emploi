@@ -49,6 +49,11 @@ class JobRepository:
         )
         return self.session.scalar(statement)
 
+    def get_job_by_url(self, url: str) -> Job | None:
+        """Renvoie l'offre à cette adresse, ou None si elle est inconnue ou supprimée."""
+        statement = select(Job).where(Job.user_id == self.user_id, Job.url == url, Job.deleted == false())
+        return self.session.scalar(statement)
+
     def list_known_urls(self) -> set[str]:
         """Renvoie les URL de toutes les offres en base, y compris celles supprimées."""
         return set(self.session.scalars(select(Job.url).where(Job.user_id == self.user_id)))

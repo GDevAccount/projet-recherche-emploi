@@ -72,6 +72,15 @@ describe('JobsComponent', () => {
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(JobsComponent);
     fixture.detectChanges();
+    http.expectOne('/api/config').flush({
+      login_mode: 'google',
+      google_client_id: 'id',
+      contract_types: ['CDI'],
+      delete_reasons: [
+        { code: 'not_my_job', label: "Ce n'est pas mon métier" },
+        { code: 'not_interested', label: "Elle ne m'intéresse pas" },
+      ],
+    });
   });
 
   afterEach(() => http.verify());
@@ -371,12 +380,35 @@ describe('JobsComponent', () => {
     http.expectNone({ method: 'DELETE', url: '/api/jobs/1' });
     expect(text(dialog())).toContain('ne reviendra pas');
 
+    // La fenêtre demande d'abord pourquoi : rien n'est supprimé avant la réponse
     await click(dialog(), 'Supprimer cette annonce');
-    http.expectOne({ method: 'DELETE', url: '/api/jobs/1' }).flush(null, NO_CONTENT);
+    http.expectNone((request) => request.method === 'DELETE');
+    expect(text(dialog())).toContain('Pourquoi la supprimer ?');
+
+    await click(dialog(), "Ce n'est pas mon métier");
+    const request = http.expectOne((sent) => sent.method === 'DELETE' && sent.url === '/api/jobs/1');
+    expect(request.request.params.get('reason')).toBe('not_my_job');
+    request.flush(null, NO_CONTENT);
     await fixture.whenStable();
 
     expect(titles('todo')).toEqual(['Offre 2']);
     expect(dialog().hasAttribute('open')).toBe(false);
+  });
+
+  it('should delete an offer without a reason when none is given', async () => {
+    await serve([job(1)]);
+
+    await openDiscard('Offre 1');
+    await click(dialog(), 'Supprimer cette annonce');
+    await click(dialog(), 'Supprimer sans préciser');
+    const request = http.expectOne((sent) => sent.method === 'DELETE' && sent.url === '/api/jobs/1');
+    expect(request.request.params.has('reason')).toBe(false);
+    request.flush(null, NO_CONTENT);
+    await fixture.whenStable();
+
+    expect(titles('todo')).toEqual([]);
+    // La fenêtre rouverte repart de sa première question
+    expect(text(dialog())).not.toContain('Pourquoi la supprimer ?');
   });
 
   it('should leave an offer in place and say why when the API refuses', async () => {

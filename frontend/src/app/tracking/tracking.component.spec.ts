@@ -49,6 +49,8 @@ function stats(values: Partial<SearchStats> = {}): SearchStats {
     by_site: [group('indeed.com'), group('apec.fr', { evaluated: 5, kept: 0 })],
     by_page_kind: [group('offre')],
     by_text: [group('Page entière', { evaluated: 30 }), group('Extrait seul', { evaluated: 7 })],
+    corrections: [],
+    delete_reasons: [],
     ...values,
   };
 }
@@ -347,6 +349,45 @@ describe('TrackingComponent', () => {
 
     expect(text()).toContain("Réservé aux administrateurs de l'instance.");
     expect(element().querySelector('.tiles')).toBeNull();
+  });
+
+  it('should show what the user corrected, by prompt version', async () => {
+    await serve(
+      stats({
+        corrections: [
+          {
+            prompt_version: 'a1b2c3d4e5f6',
+            evaluated: 37,
+            kept: 11,
+            rejected: 26,
+            restored: 2,
+            wrongly_kept: 1,
+            other_deleted: 3,
+            restored_rate: 0.0769,
+            wrongly_kept_rate: 0.0909,
+          },
+        ],
+        delete_reasons: [
+          { label: "Elle ne m'intéresse pas", count: 3 },
+          { label: "Ce n'est pas mon métier", count: 1 },
+        ],
+      }),
+    );
+
+    const card = element().querySelector('app-corrections-card')!;
+    expect(text(card.querySelector('tbody tr'))).toBe('a1b2c3d4e5f6 37 7,7 % 2 sur 26 9,1 % 1 sur 11 3');
+    expect([...card.querySelectorAll('.reasons li')].map((reason) => text(reason))).toEqual([
+      "3 Elle ne m'intéresse pas",
+      "1 Ce n'est pas mon métier",
+    ]);
+  });
+
+  it('should say how to correct the sorting while nothing has been corrected', async () => {
+    await serve(stats());
+
+    const card = element().querySelector('app-corrections-card')!;
+    expect(card.querySelector('table')).toBeNull();
+    expect(text(card)).toContain('Aucune correction pour l\'instant');
   });
 });
 

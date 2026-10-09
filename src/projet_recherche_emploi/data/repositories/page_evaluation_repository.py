@@ -65,6 +65,16 @@ class PageEvaluationRepository:
         )
         return list(self.session.scalars(statement))
 
+    def get_last_for_url(self, url: str) -> PageEvaluation | None:
+        """Renvoie la dernière évaluation de cette page, ou None si le journal ne la connaît pas."""
+        statement = (
+            select(PageEvaluation)
+            .where(PageEvaluation.user_id == self.user_id, PageEvaluation.url == url)
+            .order_by(PageEvaluation.id.desc())
+            .limit(1)
+        )
+        return self.session.scalar(statement)
+
     def list_all(self) -> list[PageEvaluation]:
         """Renvoie tout le journal de l'utilisateur, dans l'ordre de son enregistrement."""
         statement = select(PageEvaluation).where(PageEvaluation.user_id == self.user_id).order_by(PageEvaluation.id)

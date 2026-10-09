@@ -464,10 +464,22 @@
       color: #ef4444;
     }
 
+    // Un motif de suppression : une ligne, plus serrée qu'un choix expliqué
+    &.reason {
+      padding-block: 0.7rem;
+      font-weight: 550;
+    }
+
     &.danger:hover {
       border-color: #ef4444;
       background: color-mix(in srgb, #ef4444, transparent 92%);
     }
+  }
+
+  .why {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--app-muted);
   }
 
   .cancel {

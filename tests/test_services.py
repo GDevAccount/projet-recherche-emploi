@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from helpers import blank_pdf, job, rejected_job
 
+from projet_recherche_emploi.agent.prompts import prompt_version
 from projet_recherche_emploi.config import (
     DEFAULT_QUERIES,
     DEFAULT_USER_ID,
@@ -13,6 +14,7 @@ from projet_recherche_emploi.config import (
     MAX_SEARCHES_PER_DAY,
 )
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
+from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
 from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
@@ -69,6 +71,61 @@ def ready_users(container, valid_pdf):
 def insert_rejected(container, user_id: int, url: str) -> None:
     with container.database.session() as session:
         RejectedJobRepository(session, user_id).insert_rejected_jobs([rejected_job(url)])
+
+
+def test_a_rejected_page_can_be_put_back_among_the_offers(container):
+    with container.database.session() as session:
+        unfit = {**rejected_job("https://r/1"), "matches_skills": False}
+        RejectedJobRepository(session, BOB).insert_rejected_jobs([unfit])
+    insert_rejected(container, CAROL, "https://r/1")
+
+    with pytest.raises(NotFoundError):
+        container.jobs.restore_rejected_job(BOB, "https://r/inconnue")
+    restored = container.jobs.restore_rejected_job(BOB, "https://r/1")
+
+    assert (restored.url, restored.status, restored.next_statuses) == ("https://r/1", "todo", ["applied"])
+    assert [saved.url for saved in container.jobs.list_jobs(BOB)] == ["https://r/1"]
+    assert container.jobs.list_rejected_jobs(BOB) == []
+    # Le rejet du même lien par un autre utilisateur reste le sien
+    assert container.jobs.list_jobs(CAROL) == [] and len(container.jobs.list_rejected_jobs(CAROL)) == 1
+    with container.database.session() as session:
+        [correction] = CorrectionRepository(session, BOB).list_all()
+        # Le verdict contredit est gardé : c'est lui qui dit sur quoi le tri s'est trompé
+        assert (correction.kind, correction.reason, correction.matches_skills) == ("restored", None, False)
+        # Une page que le journal ne connaît pas n'a pas de version de prompt
+        assert correction.prompt_version is None
+
+    # Supprimée ensuite, l'offre ne peut pas être remise une seconde fois : son adresse est déjà connue
+    container.jobs.delete_job(BOB, restored.id)
+    insert_rejected(container, BOB, "https://r/1")
+    with pytest.raises(ConflictError):
+        container.jobs.restore_rejected_job(BOB, "https://r/1")
+    assert len(container.jobs.list_rejected_jobs(BOB)) == 1
+
+
+def test_corrections_are_counted_by_prompt_version(container, ready_users):
+    container.search.run_search(BOB)
+    [kept] = container.jobs.list_jobs(BOB)
+    [rejected] = container.jobs.list_rejected_jobs(BOB)
+
+    assert container.search.get_stats(BOB).corrections == []
+    container.jobs.restore_rejected_job(BOB, rejected.url)
+    container.jobs.delete_job(BOB, kept.id, "not_my_job")
+    stats = container.search.get_stats(BOB)
+
+    [version] = stats.corrections
+    assert version.prompt_version == prompt_version()
+    assert (version.evaluated, version.kept, version.rejected) == (2, 1, 1)
+    assert (version.restored, version.wrongly_kept, version.other_deleted) == (1, 1, 0)
+    assert (version.restored_rate, version.wrongly_kept_rate) == (1.0, 1.0)
+    assert [(reason.label, reason.count) for reason in stats.delete_reasons] == [("Ce n'est pas mon métier", 1)]
+
+    # Une offre qui n'intéresse pas, ou supprimée sans motif, ne reproche rien au tri
+    [restored] = container.jobs.list_jobs(BOB)
+    container.jobs.delete_job(BOB, restored.id, "not_interested")
+    [version] = container.search.get_stats(BOB).corrections
+    assert (version.wrongly_kept, version.other_deleted) == (1, 1)
+    assert container.search.get_stats(CAROL).corrections == []
 
 
 def test_search_runs_for_its_user_and_reports_progress(search, graph, ready_users):
@@ -273,9 +330,14 @@ def test_jobs_are_tracked_and_private(container):
     assert container.jobs.delete_jobs(CAROL, [ids["https://a/2"]]) == 0
     with pytest.raises(NotFoundError):
         container.jobs.delete_job(CAROL, ids["https://a/2"])
-    container.jobs.delete_job(BOB, ids["https://a/2"])
+    container.jobs.delete_job(BOB, ids["https://a/2"], "profile")
     with pytest.raises(NotFoundError):
         container.jobs.delete_job(BOB, ids["https://a/2"])
+    # La suppression laisse une correction, avec son motif : une seule, celle qui a réussi
+    with container.database.session() as session:
+        [correction] = CorrectionRepository(session, BOB).list_all()
+        assert (correction.kind, correction.url, correction.reason) == ("deleted", "https://a/2", "profile")
+        assert CorrectionRepository(session, CAROL).list_all() == []
 
     [saved] = container.jobs.list_jobs(BOB)
     assert (saved.url, saved.status) == ("https://a/1", "applied")
@@ -406,6 +468,7 @@ def test_deleting_an_account_leaves_nothing_behind(container, valid_pdf):
     container.cv.save_cv(user_id, valid_pdf)
     container.queries.add_query(user_id, "CDI", "data engineer")
     container.search.run_search(user_id)
+    container.jobs.delete_job(user_id, container.jobs.list_jobs(user_id)[0].id, "location")
     with container.database.session() as session:
         bob_id = UserRepository(session).get_or_create_user_id("bob@exemple.fr")
     container.queries.add_query(bob_id, "CDI", "data engineer")
@@ -419,6 +482,8 @@ def test_deleting_an_account_leaves_nothing_behind(container, valid_pdf):
     container.account.delete_account(user_id)
 
     assert container.jobs.list_jobs(user_id) == [] and container.jobs.list_rejected_jobs(user_id) == []
+    with container.database.session() as session:
+        assert CorrectionRepository(session, user_id).list_all() == []
     assert container.queries.list_queries(user_id) == []
     assert container.cv.get_status(user_id).updated_at is None
     assert stored_cv_text(container, user_id) is None

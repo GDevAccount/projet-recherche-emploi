@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { RejectedJob } from '../core/api.models';
 import { RejectedComponent } from './rejected.component';
@@ -31,7 +32,7 @@ describe('RejectedComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [RejectedComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(RejectedComponent);
@@ -184,5 +185,36 @@ describe('RejectedComponent', () => {
     await fixture.whenStable();
 
     expect(text()).toContain('Erreur du serveur.');
+  });
+
+  it('should put a page back among the offers and say so', async () => {
+    await serve([page(1), page(2)]);
+
+    await click("C'était une bonne offre", '.pages li:first-child button');
+    const request = http.expectOne({ method: 'POST', url: '/api/rejected-jobs/restore' });
+    expect(request.request.body).toEqual({ url: 'https://www.exemple-emploi.fr/pages/1' });
+    request.flush({ id: 7, title: 'Page 1', status: 'todo' });
+    await fixture.whenStable();
+
+    // La page reste à sa place pour le dire, sans son bouton, et ne compte plus parmi les pages écartées
+    expect(titles()).toEqual(['Page 1', 'Page 2']);
+    const restored = element().querySelector('.pages li.done')!;
+    expect(text(restored)).toContain('De retour dans vos offres');
+    expect(restored.querySelector('button.restore')).toBeNull();
+    expect(text(element().querySelector('.insight h2')!)).toBe('1 page écartée');
+  });
+
+  it('should leave a page in place and say why when the API refuses to put it back', async () => {
+    await serve([page(1)]);
+
+    await click("C'était une bonne offre", '.pages button');
+    http
+      .expectOne({ method: 'POST', url: '/api/rejected-jobs/restore' })
+      .flush({ detail: 'Cette page est déjà passée par vos offres.' }, { status: 409, statusText: 'Conflict' });
+    await fixture.whenStable();
+
+    expect(titles()).toEqual(['Page 1']);
+    expect(text()).toContain('Cette page est déjà passée par vos offres.');
+    expect(element().querySelector('.restored')).toBeNull();
   });
 });

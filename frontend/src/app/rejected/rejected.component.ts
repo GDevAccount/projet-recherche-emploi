@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Message } from 'primeng/message';
 
 import { apiErrorMessage } from '../core/api-error';
 import { RejectedJob } from '../core/api.models';
 import { JobService } from '../core/job.service';
 import { ParisDatePipe } from '../core/paris-date.pipe';
+import { JOBS_PATH } from '../core/paths';
 import { SearchRunService } from '../core/search-run.service';
 import { normalize, siteOf } from '../core/text';
 
@@ -26,7 +28,7 @@ function toggled(selected: ReadonlySet<string>, value: string): ReadonlySet<stri
  */
 @Component({
   selector: 'app-rejected',
-  imports: [FormsModule, Message, ParisDatePipe],
+  imports: [FormsModule, RouterLink, Message, ParisDatePipe],
   templateUrl: './rejected.component.html',
   styleUrl: './rejected.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -43,13 +45,19 @@ export class RejectedComponent {
   protected readonly shown = signal(PAGE_SIZE);
   protected readonly expanded = signal<ReadonlySet<string>>(new Set());
   protected readonly error = signal('');
+  protected readonly jobsPath = `/${JOBS_PATH}`;
+  /** Pages dont la remise dans les offres est en cours */
+  protected readonly busy = signal<ReadonlySet<string>>(new Set());
+  /** Pages remises dans les offres depuis l'ouverture : elles restent affichées, mais ne comptent plus */
+  protected readonly restored = signal<ReadonlySet<string>>(new Set());
 
-  protected readonly total = computed(() => this.pages()?.length ?? 0);
+  private readonly rejected = computed(() => (this.pages() ?? []).filter((page) => !this.restored().has(page.url)));
+  protected readonly total = computed(() => this.rejected().length);
 
   /** Répartition par motif, du plus fréquent au plus rare. Les parts sont relatives au motif le plus fréquent. */
   protected readonly breakdown = computed(() => {
     const counts = new Map<string, number>();
-    for (const page of this.pages() ?? []) {
+    for (const page of this.rejected()) {
       counts.set(page.motive, (counts.get(page.motive) ?? 0) + 1);
     }
     const largest = Math.max(1, ...counts.values());
@@ -85,16 +93,25 @@ export class RejectedComponent {
   });
   protected readonly listed = computed(() => this.visible().slice(0, this.shown()));
   protected readonly remaining = computed(() => this.visible().length - this.listed().length);
-  protected readonly filtered = computed(() => this.visible().length !== this.total());
+  /** Pages écartées qui passent les filtres : celles remises dans les offres restent affichées sans compter */
+  protected readonly matching = computed(
+    () => this.visible().filter((page) => !this.restored().has(page.url)).length,
+  );
+  protected readonly filtered = computed(() => this.matching() !== this.total());
+
+  private readonly jobService = inject(JobService);
 
   constructor() {
-    const jobService = inject(JobService);
+    const jobService = this.jobService;
     const run = inject(SearchRunService);
     // À l'ouverture, puis après chaque recherche : elle a pu écarter de nouvelles pages
     effect(() => {
       run.completed();
       jobService.listRejected().subscribe({
-        next: (pages) => this.pages.set(pages),
+        next: (pages) => {
+          this.pages.set(pages);
+          this.restored.set(new Set());
+        },
         error: (error: unknown) => this.error.set(apiErrorMessage(error)),
       });
     });
@@ -124,6 +141,24 @@ export class RejectedComponent {
 
   protected showMore(): void {
     this.shown.update((shown) => shown + PAGE_SIZE);
+  }
+
+  protected restore(page: RejectedJob): void {
+    if (this.busy().has(page.url)) {
+      return;
+    }
+    this.error.set('');
+    this.busy.update((busy) => toggled(busy, page.url));
+    this.jobService.restore(page.url).subscribe({
+      next: () => {
+        this.restored.update((restored) => new Set(restored).add(page.url));
+        this.busy.update((busy) => toggled(busy, page.url));
+      },
+      error: (error: unknown) => {
+        this.busy.update((busy) => toggled(busy, page.url));
+        this.error.set(apiErrorMessage(error));
+      },
+    });
   }
 
   protected toggleReason(url: string): void {

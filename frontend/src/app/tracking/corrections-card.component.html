@@ -1,0 +1,65 @@
+<section class="app-card">
+  <header>
+    <span class="app-eyebrow">Ce que vous avez corrigé du tri</span>
+    <p>
+      Une page écartée remise dans vos offres est une offre manquée ; une offre supprimée avec un motif qui vise
+      le tri, une offre retenue à tort. Ces taux sont des planchers : une erreur non signalée n'y est pas.
+    </p>
+  </header>
+
+  @if (stats().corrections.length) {
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Prompt</th>
+            <th scope="col" class="number extra">Pages évaluées</th>
+            <th scope="col" class="number">Écartées à tort</th>
+            <th scope="col" class="number">Retenues à tort</th>
+            <th scope="col" class="number extra">Autres suppressions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (version of stats().corrections; track version.prompt_version) {
+            <tr>
+              <th scope="row">
+                @if (version.prompt_version) {
+                  <code>{{ version.prompt_version }}</code>
+                } @else {
+                  Avant le suivi
+                }
+              </th>
+              <td class="number extra">{{ version.evaluated | count }}</td>
+              <td class="number">
+                <strong>{{ version.restored_rate | share }}</strong>
+                <small>{{ version.restored }} sur {{ version.rejected }}</small>
+              </td>
+              <td class="number">
+                <strong>{{ version.wrongly_kept_rate | share }}</strong>
+                <small>{{ version.wrongly_kept }} sur {{ version.kept }}</small>
+              </td>
+              <td class="number extra">{{ version.other_deleted | count }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (stats().delete_reasons.length) {
+      <h3>Pourquoi des offres sont supprimées</h3>
+      <ul class="reasons">
+        @for (reason of stats().delete_reasons; track reason.label) {
+          <li>
+            <strong>{{ reason.count }}</strong>
+            {{ reason.label }}
+          </li>
+        }
+      </ul>
+    }
+  } @else {
+    <p class="hint">
+      Aucune correction pour l'instant. Remettez une page écartée dans vos offres, ou donnez un motif en supprimant
+      une offre : le taux d'erreur du tri apparaîtra ici, pour chaque version du prompt.
+    </p>
+  }
+</section>

@@ -29,6 +29,20 @@ REJECT_PAGE_KINDS = {
 }
 
 
+# Motif d'une suppression d'offre. Une liste fermée, pas un texte libre : c'est ce qui permet de les compter
+DeleteReason = Literal["not_my_job", "profile", "location", "contract", "not_an_offer", "not_interested"]
+DELETE_REASONS: dict[DeleteReason, str] = {
+    "not_my_job": "Ce n'est pas mon métier",
+    "profile": "Compétences ou niveau qui ne collent pas",
+    "location": "Lieu qui ne convient pas",
+    "contract": "Contrat qui ne convient pas",
+    "not_an_offer": "Annonce expirée, ou page sans offre",
+    "not_interested": "Elle ne m'intéresse pas",
+}
+# Motifs qui ne reprochent rien au tri : l'offre était bien une offre pour ce profil
+DELETE_REASONS_WITHOUT_ERROR: frozenset[DeleteReason] = frozenset({"not_interested"})
+DELETE_REASON_NOT_GIVEN = "Sans motif"
+
 # État d'une candidature : à traiter, postulée, entretien obtenu, refusée par l'employeur
 JobStatus = Literal["todo", "applied", "interview", "rejected"]
 
@@ -233,6 +247,34 @@ class EvaluationGroup(BaseModel):
     model_cost_usd: float | None
 
 
+class CorrectionStats(BaseModel):
+    """Ce que l'utilisateur a corrigé du tri rendu avec une version du prompt.
+
+    Les taux sont des planchers : une erreur que l'utilisateur n'a pas signalée n'y est pas.
+    """
+
+    # None : pages évaluées avant le suivi, dont la version du prompt n'est pas connue
+    prompt_version: str | None
+    # Pages jugées avec cette version, d'après le journal
+    evaluated: int
+    kept: int
+    rejected: int
+    # Pages écartées que l'utilisateur a remises dans ses offres
+    restored: int
+    # Offres retenues que l'utilisateur a supprimées en reprochant quelque chose au tri
+    wrongly_kept: int
+    # Offres supprimées sans motif, ou parce qu'elles ne l'intéressaient pas
+    other_deleted: int
+    # Parts des pages écartées remises, et des offres retenues à tort ; None sans page à comparer
+    restored_rate: float | None
+    wrongly_kept_rate: float | None
+
+
+class ReasonCount(BaseModel):
+    label: str
+    count: int
+
+
 class SearchStats(BaseModel):
     """Synthèse de toutes les recherches suivies d'un utilisateur. Les coûts sont en dollars, aux tarifs actuels."""
 
@@ -261,6 +303,10 @@ class SearchStats(BaseModel):
     by_page_kind: list[EvaluationGroup]
     # Selon le texte lu par le modèle : page entière, page tronquée, ou extrait du moteur de recherche
     by_text: list[EvaluationGroup]
+    # Corrections du tri par version du prompt, la plus récente en premier
+    corrections: list[CorrectionStats]
+    # Motifs des suppressions d'offres, le plus fréquent en premier
+    delete_reasons: list[ReasonCount]
 
 
 class SearchSummary(BaseModel):
@@ -279,6 +325,13 @@ class AppConfig(BaseModel):
     # Identifiant public de l'application chez Google, pour le bouton de connexion ; None hors connexion Google
     google_client_id: str | None
     contract_types: list[str]
+    # Motifs proposés à la suppression d'une offre, dans l'ordre où les présenter
+    delete_reasons: list["DeleteReasonOption"]
+
+
+class DeleteReasonOption(BaseModel):
+    code: DeleteReason
+    label: str
 
 
 # Formule d'un compte. Il n'y a pas encore de paiement : tout compte est « free » (DEFAULT_PLAN de config.py)

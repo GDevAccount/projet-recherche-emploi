@@ -7,6 +7,7 @@ import { EvaluationGroup, SearchRun, SearchStats } from '../core/api.models';
 import { CountPipe, DurationPipe, UsdPipe } from '../core/format.pipe';
 import { SearchRunService } from '../core/search-run.service';
 import { TrackingService } from '../core/tracking.service';
+import { CorrectionsCardComponent } from './corrections-card.component';
 import { RunListComponent } from './run-list.component';
 import { UsageCardComponent } from './usage-card.component';
 
@@ -29,7 +30,15 @@ const GROUPS_SHOWN = 8;
  */
 @Component({
   selector: 'app-tracking',
-  imports: [Message, UsdPipe, DurationPipe, CountPipe, RunListComponent, UsageCardComponent],
+  imports: [
+    Message,
+    UsdPipe,
+    DurationPipe,
+    CountPipe,
+    CorrectionsCardComponent,
+    RunListComponent,
+    UsageCardComponent,
+  ],
   templateUrl: './tracking.component.html',
   styleUrl: './tracking.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

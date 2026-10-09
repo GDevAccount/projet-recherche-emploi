@@ -375,6 +375,68 @@
   }
 }
 
+// Discret tant qu'on ne le vise pas : la liste reste une liste de rejets, pas une liste de boutons
+.restore {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+  padding: 0.35rem 0.8rem 0.35rem 0.65rem;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: none;
+  color: var(--app-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s,
+    color 0.15s;
+
+  svg {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--app-accent);
+    background: var(--app-accent);
+    color: var(--app-accent-ink, #0a0b0d);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.restored {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.3rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+
+  svg {
+    flex: none;
+    width: 1.1rem;
+    height: 1.1rem;
+    padding: 0.15rem;
+    border-radius: 50%;
+    background: var(--app-accent);
+    color: var(--app-accent-ink);
+  }
+}
+
+// Une page remise dans les offres s'efface derrière sa confirmation
+.pages > li.done > :not(.restored) {
+  opacity: 0.45;
+}
+
 .more {
   display: flex;
   align-items: center;

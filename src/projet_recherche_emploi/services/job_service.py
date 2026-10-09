@@ -3,10 +3,27 @@ from datetime import UTC, datetime
 
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.models import Job
+from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
+from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
-from projet_recherche_emploi.errors import InvalidInputError, NotFoundError
-from projet_recherche_emploi.schemas import JobRead, JobStatus, RejectedJobRead
+from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
+from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError
+from projet_recherche_emploi.schemas import DeleteReason, JobRead, JobStatus, RejectedJobRead
+
+# Ce qu'une offre remise par l'utilisateur affiche à la place de la justification du modèle
+RESTORED_MATCH_REASON = "Vous avez remis cette page dans vos offres : le tri l'avait écartée."
+CORRECTION_RESTORED = "restored"
+CORRECTION_DELETED = "deleted"
+# Critères du verdict d'une page écartée, recopiés dans la correction qui le contredit
+VERDICT_FIELDS = (
+    "page_kind",
+    "matches_search",
+    "matches_contract",
+    "matches_skills",
+    "matches_level",
+    "matches_location",
+)
 
 
 def next_statuses(status: str, had_interview: bool) -> list[JobStatus]:
@@ -64,10 +81,68 @@ class JobService:
                 )
             return _read(jobs.get_job(job_id))
 
-    def delete_job(self, user_id: int, job_id: int) -> None:
-        """Supprime l'offre."""
-        if self.delete_jobs(user_id, [job_id]) == 0:
-            raise NotFoundError("Cette offre n'existe pas.")
+    def delete_job(self, user_id: int, job_id: int, reason: DeleteReason | None = None) -> None:
+        """Supprime l'offre, et garde la trace de cette suppression avec le motif donné."""
+        with self.database.session() as session:
+            jobs = JobRepository(session, user_id)
+            job = jobs.get_job(job_id)
+            if job is None:
+                raise NotFoundError("Cette offre n'existe pas.")
+            jobs.delete_jobs([job_id])
+            correction = {
+                "kind": CORRECTION_DELETED,
+                "url": job.url,
+                "title": job.title,
+                "query": job.query,
+                "reason": reason,
+                "model_reason": job.match_reason,
+            }
+            self._record_correction(session, user_id, correction)
+
+    def restore_rejected_job(self, user_id: int, url: str) -> JobRead:
+        """Remet une page écartée dans les offres de l'utilisateur, à traiter, et renvoie l'offre créée.
+
+        Le rejet est oublié, et la correction enregistrée avec le verdict qu'elle contredit.
+        """
+        with self.database.session() as session:
+            rejected_jobs = RejectedJobRepository(session, user_id)
+            rejected = rejected_jobs.get_rejected_job(url)
+            if rejected is None:
+                raise NotFoundError("Cette page n'est plus parmi vos pages écartées.")
+            jobs = JobRepository(session, user_id)
+            offer = {
+                "url": rejected.url,
+                "title": rejected.title,
+                "contract_type": rejected.contract_type,
+                "work_location": rejected.work_location,
+                "query": rejected.query,
+                "match_reason": RESTORED_MATCH_REASON,
+            }
+            # Aucune ligne ajoutée : l'adresse est celle d'une offre déjà en base, peut-être supprimée
+            if jobs.insert_jobs([offer]) == 0:
+                raise ConflictError("Cette page est déjà passée par vos offres.")
+            correction = {
+                "kind": CORRECTION_RESTORED,
+                "url": rejected.url,
+                "title": rejected.title,
+                "query": rejected.query,
+                "model_reason": rejected.reject_reason,
+                **{field: getattr(rejected, field) for field in VERDICT_FIELDS},
+            }
+            self._record_correction(session, user_id, correction)
+            rejected_jobs.delete_rejected_job(url)
+            return _read(jobs.get_job_by_url(url))
+
+    def _record_correction(self, session, user_id: int, correction: dict) -> None:
+        # Le journal dit quel lancement avait jugé la page, donc avec quel modèle et quel prompt
+        evaluation = PageEvaluationRepository(session, user_id).get_last_for_url(correction["url"])
+        run = None
+        if evaluation is not None and evaluation.search_run_id is not None:
+            run = SearchRunRepository(session, user_id).get_run(evaluation.search_run_id)
+        if run is not None:
+            judged_by = {"search_run_id": run.id, "model": run.model, "prompt_version": run.prompt_version}
+            correction = {**correction, **judged_by}
+        CorrectionRepository(session, user_id).insert_correction(correction)
 
     def delete_jobs(self, user_id: int, job_ids: Iterable[int]) -> int:
         """Supprime les offres de la liste, et renvoie le nombre réellement supprimé."""

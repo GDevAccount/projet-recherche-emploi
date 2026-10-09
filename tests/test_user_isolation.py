@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from helpers import job, rejected_job
 
 from projet_recherche_emploi.config import DEFAULT_QUERIES
+from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
 from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
@@ -190,6 +191,33 @@ def test_a_run_and_its_evaluations_belong_to_their_user(session):
     [evaluation] = PageEvaluationRepository(session, ALICE).list_for_run(alice_run)
     assert (evaluation.url, evaluation.kept, evaluation.input_tokens) == ("https://a/1", True, 10)
     assert PageEvaluationRepository(session, ALICE).delete_all() == 1
+
+
+def test_each_user_has_their_own_corrections(session):
+    correction = {"kind": "deleted", "url": "https://a/1", "title": "Offre", "reason": "location"}
+    CorrectionRepository(session, ALICE).insert_correction(correction)
+
+    assert CorrectionRepository(session, BOB).list_all() == []
+    assert CorrectionRepository(session, BOB).delete_all() == 0
+    [saved] = CorrectionRepository(session, ALICE).list_all()
+    assert (saved.kind, saved.url, saved.reason) == ("deleted", "https://a/1", "location")
+    assert CorrectionRepository(session, ALICE).delete_all() == 1
+
+
+def test_looking_up_a_page_stays_within_its_user(session):
+    JobRepository(session, ALICE).insert_jobs([job("https://a/1")])
+    RejectedJobRepository(session, ALICE).insert_rejected_jobs([rejected_job("https://r/1")])
+    page = {"url": "https://a/1", "title": "Offre", "kept": True}
+    PageEvaluationRepository(session, ALICE).insert_evaluations(None, [page])
+
+    assert JobRepository(session, BOB).get_job_by_url("https://a/1") is None
+    assert RejectedJobRepository(session, BOB).get_rejected_job("https://r/1") is None
+    assert PageEvaluationRepository(session, BOB).get_last_for_url("https://a/1") is None
+    assert RejectedJobRepository(session, BOB).delete_rejected_job("https://r/1") is False
+    assert JobRepository(session, ALICE).get_job_by_url("https://a/1").url == "https://a/1"
+    assert RejectedJobRepository(session, ALICE).get_rejected_job("https://r/1").url == "https://r/1"
+    assert PageEvaluationRepository(session, ALICE).get_last_for_url("https://a/1").title == "Offre"
+    assert RejectedJobRepository(session, ALICE).delete_rejected_job("https://r/1") is True
 
 
 def test_erasing_everything_does_not_touch_another_user(session):

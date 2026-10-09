@@ -230,6 +230,41 @@ class PageEvaluation(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
 
 
+class Correction(Base):
+    """Correction du tri par l'utilisateur : une page écartée qu'il a remise dans ses offres, ou une offre supprimée.
+
+    Elle garde le verdict qu'elle contredit et la version du prompt qui l'avait rendu : c'est ce qui mesure
+    la qualité du tri. Le journal des pages évaluées dit ce que le modèle a décidé, ceci s'il avait raison.
+    """
+
+    __tablename__ = "corrections"
+    __table_args__ = (Index("ix_corrections_user", "user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer)
+    # « restored » : page écartée remise dans les offres ; « deleted » : offre retenue puis supprimée
+    kind: Mapped[str] = mapped_column(Text)
+    url: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(Text)
+    query: Mapped[str | None] = mapped_column(Text)
+    # Motif choisi à la suppression (DeleteReason) ; vide s'il n'a pas été précisé, et pour une page remise
+    reason: Mapped[str | None] = mapped_column(Text)
+    # Verdict contredit : nature de la page et critères d'une page écartée, vides pour une offre supprimée
+    page_kind: Mapped[str | None] = mapped_column(Text)
+    matches_search: Mapped[bool | None] = mapped_column(IntBool)
+    matches_contract: Mapped[bool | None] = mapped_column(IntBool)
+    matches_skills: Mapped[bool | None] = mapped_column(IntBool)
+    matches_level: Mapped[bool | None] = mapped_column(IntBool)
+    matches_location: Mapped[bool | None] = mapped_column(IntBool)
+    # Justification que le modèle avait donnée
+    model_reason: Mapped[str | None] = mapped_column(Text)
+    # Lancement qui avait évalué la page, avec son modèle et son prompt ; vides si le journal ne la connaît pas
+    search_run_id: Mapped[int | None] = mapped_column(Integer)
+    model: Mapped[str | None] = mapped_column(Text)
+    prompt_version: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+
 class ArchivedUsage(Base):
     """Consommation d'un compte supprimé, additionnée par mois et par modèle : ni adresse, ni contenu, ni date précise.
 
