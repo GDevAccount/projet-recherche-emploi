@@ -210,6 +210,13 @@ test('le suivi montre le bilan des recherches et le détail de leurs pages', asy
   const journeys = page.locator('app-journeys-card');
   await expect(journeys.locator('h2')).toContainText('0 invité');
   await expect(journeys.locator('tbody tr')).toContainText(['Propriétaire']);
+  // Sa fiche raconte le parcours qui précède : des recherches, des candidatures, une offre supprimée
+  await journeys.getByRole('button', { name: 'Propriétaire' }).click();
+  const events = journeys.locator('.detail .events li');
+  await expect(events.filter({ hasText: 'Recherche lancée' }).first()).toContainText('pages évaluées');
+  await expect(events.filter({ hasText: 'Candidature envoyée' }).first()).toBeVisible();
+  await expect(events.filter({ hasText: 'Offre supprimée' }).first()).toBeVisible();
+  await expect(journeys.locator('.detail .rejections li').first()).toContainText('Compétences');
 
   // Le budget du mois compte les deux recherches du parcours, et les semaines montrent celle en cours
   await expect(page.locator('app-budget-card .note')).toContainText('pour 2 recherches ce mois-ci');

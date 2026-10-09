@@ -8,9 +8,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
+from zoneinfo import ZoneInfo
 
-from projet_recherche_emploi.config import DEFAULT_USER_ID, SESSION_DAYS, Settings
+from projet_recherche_emploi.config import DEFAULT_USER_ID, LOCAL_TIMEZONE, SESSION_DAYS, Settings
 from projet_recherche_emploi.data.database import Database
+from projet_recherche_emploi.data.repositories.activity_repository import ActivityRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 from projet_recherche_emploi.errors import ConfigurationError
 
@@ -92,6 +94,11 @@ class AuthService:
             user_id = users.get_or_create_user_id(email)
             # Sans cela, un compte qui sert encore serait supprimé comme inactif
             users.record_activity(user_id, now, now - ACTIVITY_PRECISION)
+            # Chaque jour où il vient, noté une fois : c'est ce qui dit qu'un invité revient
+            days = ActivityRepository(session, user_id)
+            day = now.astimezone(ZoneInfo(LOCAL_TIMEZONE)).date().isoformat()
+            if not days.has_day(day):
+                days.record_day(day)
             return user_id
 
     def create_session_token(self, email: str | None, name: str | None = None, picture: str | None = None) -> str:

@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -154,6 +155,8 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/admin/budget"),
         ("POST", "/api/client-errors"),
         ("GET", "/api/admin/journeys"),
+        ("GET", "/api/admin/journeys/1"),
+        ("POST", "/api/jobs/1/open"),
     ],
 )
 def test_every_data_route_requires_an_identity(client, method, path):
@@ -165,7 +168,7 @@ def test_every_route_is_covered_by_the_identity_test(client):
     # Une route ajoutée sans figurer dans le test ci-dessus ferait échouer celui-ci
     tested = test_every_data_route_requires_an_identity.pytestmark[0].args[1]
     routes = {
-        (method.upper(), path.replace("{query_id}", "1").replace("{job_id}", "1").replace("{run_id}", "1"))
+        (method.upper(), re.sub(r"\{\w+\}", "1", path))
         for path, operations in client.app.openapi()["paths"].items()
         # Routes publiques : elles ne lisent aucune donnée d'utilisateur, et ont leurs propres tests
         if path not in ("/api/health", "/api/config")
@@ -532,7 +535,13 @@ def test_administrator_follows_how_far_each_guest_goes(tmp_path, valid_pdf):
     client.post("/api/queries", headers=ALICE, json=QUERY)
     client.post("/api/searches", headers=ALICE)
     [job] = client.get("/api/jobs", headers=ALICE).json()
+    # Elle ouvre l'annonce deux fois : seule la première est datée ; celle d'un autre compte ne la concerne pas
+    for _ in range(2):
+        assert client.post(f"/api/jobs/{job['id']}/open", headers=ALICE).status_code == 204
+    assert client.post(f"/api/jobs/{job['id']}/open", headers=BOB).status_code == 204
     client.patch(f"/api/jobs/{job['id']}", headers=ALICE, json={"status": "applied"})
+    # Un poste déjà enregistré, refusé : l'erreur fera partie de son parcours
+    assert client.post("/api/queries", headers=ALICE, json=QUERY).status_code == 409
 
     journeys = client.get("/api/admin/journeys", headers=OWNER).json()
 
@@ -543,6 +552,7 @@ def test_administrator_follows_how_far_each_guest_goes(tmp_path, valid_pdf):
         ("Poste recherché saisi", 1, 0.3333),
         ("Recherche lancée", 1, 0.3333),
         ("Offre retenue", 1, 0.3333),
+        ("Annonce ouverte", 1, 0.3333),
         ("Candidature envoyée", 1, 0.3333),
         ("Revenu un autre jour", 0, 0.0),
     ]
@@ -557,8 +567,42 @@ def test_administrator_follows_how_far_each_guest_goes(tmp_path, valid_pdf):
     # Des nombres et une adresse : rien de ce qu'Alice cherche ni des pages trouvées pour elle
     assert "data engineer" not in json.dumps(journeys) and "https://x/" not in json.dumps(journeys)
 
-    # Un compte supprimé quitte le parcours
+    # Chacun s'est arrêté à une étape, et n'est venu qu'un jour
+    assert (alice["step"], alice["opened"]) == ("Candidature envoyée", 1)
+    assert (alice["active_days"], alice["idle_days"]) == (1, 0)
+    assert accounts["bob@exemple.fr"]["step"] == "CV déposé"
+    assert accounts["carol@exemple.fr"]["step"] == "Compte créé"
+
+    # La fiche d'Alice : ce qu'elle a fait, dans l'ordre, et ce qui écarte ses pages
+    assert client.get(f"/api/admin/journeys/{alice['user_id']}", headers=ALICE).status_code == 403
+    detail = client.get(f"/api/admin/journeys/{alice['user_id']}", headers=OWNER).json()
+    assert detail["account"] == alice
+    labels = [event["label"] for event in reversed(detail["events"])]
+    assert labels[0] == "Compte créé" and sorted(labels) == sorted(
+        [
+            "Compte créé",
+            "CV déposé",
+            "Poste recherché ajouté",
+            "Recherche lancée",
+            "Annonce ouverte",
+            "Candidature envoyée",
+            "Demande refusée",
+        ]
+    )
+    by_label = {event["label"]: event for event in detail["events"]}
+    assert by_label["Recherche lancée"]["detail"] == "2 pages évaluées sur 2 trouvées, 1 retenues"
+    assert by_label["Demande refusée"]["detail"] == "POST /api/queries · ConflictError"
+    # La page écartée l'a été pour ses compétences, seul critère que le faux modèle refuse
+    assert (detail["evaluated"], detail["rejected"]) == (2, 1)
+    assert detail["rejections"] == [{"label": "Compétences", "count": 1, "rate": 1.0}]
+    # Ni intitulé, ni lien, ni phrase de recherche
+    assert "data engineer" not in json.dumps(detail) and "https://x/" not in json.dumps(detail)
+    assert client.get("/api/admin/journeys/9999", headers=OWNER).status_code == 404
+
+    # Un compte supprimé quitte le parcours, et n'a plus de fiche
+    bob_id = accounts["bob@exemple.fr"]["user_id"]
     assert client.delete("/api/me", headers=BOB).status_code == 204
+    assert client.get(f"/api/admin/journeys/{bob_id}", headers=OWNER).status_code == 404
     after = client.get("/api/admin/journeys", headers=OWNER).json()
     assert after["guests"] == 2 and "bob" not in json.dumps(after)
 

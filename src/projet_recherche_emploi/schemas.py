@@ -569,18 +569,59 @@ class AccountJourney(BaseModel):
     runs: int
     # Offres retenues par le tri ou remises par l'utilisateur, supprimées comprises
     kept: int
+    # Offres dont l'annonce a été ouverte depuis l'application
+    opened: int
     applied: int
     interviews: int
     corrections: int
     # Vu un autre jour que celui de la création du compte
     returned: bool
+    # Jours où le compte s'est servi de l'application ; 0 pour le propriétaire, dont l'activité n'est pas datée
+    active_days: int
+    # Dernière étape du parcours franchie, et jours écoulés depuis la dernière visite
+    step: str
+    idle_days: int | None
+
+
+class JourneyEvent(BaseModel):
+    """Un moment du parcours d'un compte : ce qu'il a fait, jamais sur quoi."""
+
+    at: datetime
+    # account, cv, query, search, opened, applied, interview, refused, restored, deleted, error
+    kind: str
+    label: str
+    detail: str | None = None
+
+
+class RejectionCount(BaseModel):
+    """Pages écartées pour une raison donnée. Une page peut en avoir plusieurs."""
+
+    label: str
+    count: int
+    # Part des pages écartées
+    rate: float | None
+
+
+class AccountDetail(BaseModel):
+    """Fiche d'un compte, pour les administrateurs : sa chronologie et ce qui écarte ses pages.
+
+    Des dates, des nombres et des motifs : ni intitulé d'offre, ni lien, ni phrase de recherche.
+    """
+
+    account: AccountJourney
+    evaluated: int
+    rejected: int
+    # Pourquoi ses pages sont écartées, la raison la plus fréquente en premier
+    rejections: list[RejectionCount]
+    # Le plus récent en premier
+    events: list[JourneyEvent]
 
 
 class JourneyOverview(BaseModel):
     """Parcours des invités, pour les administrateurs : qui va jusqu'à postuler, et qui revient."""
 
     guests: int
-    # Du compte créé au retour un autre jour ; le propriétaire n'y est pas compté
+    # Du compte créé au retour un autre jour, dans l'ordre du parcours ; le propriétaire n'y est pas compté
     steps: list[JourneyStep]
     # Tous les comptes, le dernier vu en premier ; un compte supprimé n'y est plus
     accounts: list[AccountJourney]

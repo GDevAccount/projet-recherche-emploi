@@ -434,11 +434,43 @@ export interface AccountJourney {
   queries: number;
   runs: number;
   kept: number;
+  /** Offres dont l'annonce a été ouverte depuis l'application */
+  opened: number;
   applied: number;
   interviews: number;
   corrections: number;
   /** Vu un autre jour que celui de la création du compte */
   returned: boolean;
+  /** Jours où le compte s'est servi de l'application ; 0 pour le propriétaire */
+  active_days: number;
+  /** Dernière étape du parcours franchie, et jours écoulés depuis la dernière visite */
+  step: string;
+  idle_days: number | null;
+}
+
+/** Un moment du parcours d'un compte : ce qu'il a fait, jamais sur quoi. */
+export interface JourneyEvent {
+  at: string;
+  kind: string;
+  label: string;
+  detail: string | null;
+}
+
+/** Pages écartées pour une raison donnée. */
+export interface RejectionCount {
+  label: string;
+  count: number;
+  rate: number | null;
+}
+
+/** Fiche d'un compte, pour les administrateurs : sa chronologie et ce qui écarte ses pages. */
+export interface AccountDetail {
+  account: AccountJourney;
+  evaluated: number;
+  rejected: number;
+  rejections: RejectionCount[];
+  /** Le plus récent en premier */
+  events: JourneyEvent[];
 }
 
 /** Parcours des invités, pour les administrateurs. */

@@ -40,3 +40,9 @@ def list_rejected_jobs(user_id: UserId, services: Services) -> list[RejectedJobR
 def restore_rejected_job(restoration: Restoration, user_id: UserId, services: Services) -> JobRead:
     # L'adresse est dans le corps : une page rejetée n'a pas d'autre identifiant
     return services.jobs.restore_rejected_job(user_id, restoration.url)
+
+
+@router.post("/jobs/{job_id}/open", status_code=status.HTTP_204_NO_CONTENT)
+def mark_opened(job_id: int, user_id: UserId, services: Services) -> None:
+    """Le front l'appelle quand l'utilisateur ouvre l'annonce : seule la première ouverture est datée."""
+    services.jobs.mark_opened(user_id, job_id)

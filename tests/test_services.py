@@ -19,10 +19,12 @@ from projet_recherche_emploi.config import (
     MAX_SEARCHES_PER_DAY,
     SERVER_ERROR_DAYS,
     WEEKS_SHOWN,
+    Settings,
 )
 from projet_recherche_emploi.container import build_container
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
 from projet_recherche_emploi.data.models import EngineCall, SearchRun, ServerError
+from projet_recherche_emploi.data.repositories.activity_repository import ActivityRepository
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
 from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
 from projet_recherche_emploi.data.repositories.engine_call_repository import EngineCallRepository
@@ -261,6 +263,34 @@ def test_week_starts_on_monday_in_paris():
     # Dimanche 22 h 30 en UTC, c'est déjà lundi à Paris
     assert start_of_local_week(datetime(2026, 10, 11, 22, 30, tzinfo=UTC)).isoformat() == "2026-10-12"
     assert start_of_local_week(datetime(2026, 10, 11, 21, 30, tzinfo=UTC)).isoformat() == "2026-10-05"
+
+
+def test_guest_coming_on_several_days_is_counted_each_day(tmp_path):
+    # Une horloge en avance sur la vraie : la création du compte, elle, est datée par la base
+    now = [(datetime.now(UTC) + timedelta(days=10)).timestamp()]
+    settings = Settings(
+        data_dir=tmp_path, google_client_id="id", owner_email="proprietaire@exemple.fr", allowed_emails="*"
+    )
+    container = build_container(settings, FakeSearchEngine(), FakeEvaluator())
+    container.auth.clock = lambda: now[0]
+
+    alice = container.auth.resolve_user_id("alice@exemple.fr", True)
+    # Plusieurs requêtes le même jour, puis une le surlendemain
+    container.auth.resolve_user_id("alice@exemple.fr", True)
+    now[0] += 2 * 24 * 3600
+    container.auth.resolve_user_id("alice@exemple.fr", True)
+    # L'activité du propriétaire n'est pas datée
+    container.auth.resolve_user_id("proprietaire@exemple.fr", True)
+
+    journeys = container.usage.get_journeys(datetime.fromtimestamp(now[0], UTC) + timedelta(days=4))
+    [account] = [row for row in journeys.accounts if row.user_id == alice]
+    assert (account.active_days, account.returned, account.idle_days) == (2, True, 4)
+    [owner] = [row for row in journeys.accounts if row.is_owner]
+    assert owner.active_days == 0
+    # Les jours partent avec le compte
+    container.account.delete_account(alice)
+    with container.database.session() as session:
+        assert ActivityRepository(session, alice).list_days() == []
 
 
 def test_guest_seen_on_another_day_has_returned(container):

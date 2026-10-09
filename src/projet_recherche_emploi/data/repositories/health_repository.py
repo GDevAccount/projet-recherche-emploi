@@ -58,6 +58,16 @@ class HealthRepository:
             for table in (ServerError, ClientError)
         )
 
+    def list_errors_of(self, user_id: int) -> list[ServerError]:
+        """Renvoie les erreurs que l'API a rendues à ce compte, la plus ancienne en premier."""
+        statement = select(ServerError).where(ServerError.user_id == user_id).order_by(ServerError.id)
+        return list(self.session.scalars(statement))
+
+    def list_client_errors_of(self, user_id: int) -> list[ClientError]:
+        """Renvoie les erreurs survenues dans le navigateur de ce compte, la plus ancienne en premier."""
+        statement = select(ClientError).where(ClientError.user_id == user_id).order_by(ClientError.id)
+        return list(self.session.scalars(statement))
+
     def summarize_client_errors(self, since: datetime | None = None) -> list[Row]:
         """Renvoie, par écran, type et emplacement, le nombre d'erreurs du front, leurs comptes et la dernière."""
         statement = (

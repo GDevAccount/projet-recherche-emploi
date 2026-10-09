@@ -167,6 +167,21 @@ describe('JobsComponent', () => {
     expect(text()).not.toContain('Lancez une recherche');
   });
 
+  it('should tell the API when an offer is opened, without waiting for its answer', async () => {
+    await serve([job(7)]);
+    const link = element().querySelector<HTMLAnchorElement>('app-job-card h3 a')!;
+    // Le navigateur de test n'ouvre pas d'onglet : seul le signalement compte ici
+    link.addEventListener('click', (event) => event.preventDefault());
+
+    link.click();
+
+    const request = http.expectOne({ method: 'POST', url: '/api/jobs/7/open' });
+    // Un refus de l'API ne doit rien afficher : l'annonce, elle, s'est ouverte
+    request.flush(null, { status: 500, statusText: 'Erreur' });
+    await fixture.whenStable();
+    expect(element().querySelector('.p-message-error')).toBeNull();
+  });
+
   it('should sort offers by the state of the application, in the order of the API', async () => {
     await serve([job(5, REJECTED), job(4, INTERVIEW), job(3), job(2, APPLIED), job(1)]);
 

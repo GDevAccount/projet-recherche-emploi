@@ -609,10 +609,14 @@ describe('TrackingComponent', () => {
           queries: 2,
           runs: 5,
           kept: 9,
+          opened: 6,
           applied: 3,
           interviews: 1,
           corrections: 4,
           returned: true,
+          active_days: 3,
+          step: 'Candidature envoyée',
+          idle_days: 1,
         },
         {
           user_id: 1,
@@ -624,10 +628,14 @@ describe('TrackingComponent', () => {
           queries: 0,
           runs: 0,
           kept: 0,
+          opened: 0,
           applied: 0,
           interviews: 0,
           corrections: 0,
           returned: false,
+          active_days: 0,
+          step: 'Compte créé',
+          idle_days: null,
         },
       ],
     });
@@ -643,9 +651,53 @@ describe('TrackingComponent', () => {
     const widths = [...card.querySelectorAll('.steps .track span')].map((bar) => (bar as HTMLElement).style.width);
     expect(widths).toEqual(['100%', '50%', '25%']);
     expect([...card.querySelectorAll('tbody tr')].map((row) => text(row))).toEqual([
-      'alice@exemple.fr revenu Déposé 2 5 9 3 1 4 8 oct.',
-      'Propriétaire — 0 0 0 0 0 0 —',
+      'alice@exemple.fr revenu Candidature envoyée Déposé 2 5 9 6 3 1 4 8 oct.',
+      'Propriétaire Compte créé — 0 0 0 0 0 0 0 —',
     ]);
+    expect(card.querySelector('.detail')).toBeNull();
+
+    // Un clic sur un compte ouvre sa fiche : où il s'est arrêté, ce qui écarte ses pages, ce qu'il a fait
+    const alice = card.querySelector<HTMLButtonElement>('tbody th button')!;
+    alice.click();
+    await fixture.whenStable();
+    expect(text(card.querySelector('.detail'))).toBe('Chargement de la fiche…');
+    http.expectOne({ method: 'GET', url: '/api/admin/journeys/2' }).flush({
+      account: guests.accounts[0],
+      evaluated: 40,
+      rejected: 31,
+      rejections: [
+        { label: 'Métier', count: 20, rate: 0.6452 },
+        { label: 'Pas une offre', count: 11, rate: 0.3548 },
+      ],
+      events: [
+        { at: '2026-10-08T09:30:00Z', kind: 'applied', label: 'Candidature envoyée', detail: null },
+        { at: '2026-10-07T16:00:00Z', kind: 'error', label: 'Demande refusée', detail: 'PUT /api/cv · InvalidInputError' },
+        { at: '2026-10-01T08:00:00Z', kind: 'account', label: 'Compte créé', detail: null },
+      ],
+    });
+    await fixture.whenStable();
+
+    const detail = card.querySelector('.detail')!;
+    expect(alice.getAttribute('aria-expanded')).toBe('true');
+    expect(text(detail.querySelector('header p'))).toBe(
+      'Arrêté à Candidature envoyée · dernière visite il y a 1 jour · venu 3 jours',
+    );
+    expect(text(detail.querySelector('h4'))).toBe('Pourquoi ses pages sont écartées 31 écartées sur 40 évaluées');
+    expect([...detail.querySelectorAll('.rejections li')].map((reason) => text(reason))).toEqual([
+      'Métier 20 64,5 %',
+      'Pas une offre 11 35,5 %',
+    ]);
+    expect([...detail.querySelectorAll('.events li')].map((event) => text(event))).toEqual([
+      '8 oct., 11:30 Candidature envoyée',
+      '7 oct., 18:00 Demande refusée PUT /api/cv · InvalidInputError',
+      '1 oct., 10:00 Compte créé',
+    ]);
+    expect(detail.querySelector('.events li.error')).not.toBeNull();
+
+    // Un second clic sur le même compte la referme
+    alice.click();
+    await fixture.whenStable();
+    expect(card.querySelector('.detail')).toBeNull();
   });
 
   it('should say when nobody has been invited yet', async () => {

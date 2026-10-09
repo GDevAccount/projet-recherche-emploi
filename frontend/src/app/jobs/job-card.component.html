@@ -34,7 +34,14 @@
 </header>
 
 <h3>
-  <a [href]="offer.url" target="_blank" rel="noopener noreferrer">{{ offer.title }}</a>
+  <a
+    [href]="offer.url"
+    target="_blank"
+    rel="noopener noreferrer"
+    (click)="opened.emit()"
+    (auxclick)="opened.emit()"
+    >{{ offer.title }}</a
+  >
 </h3>
 
 <ul class="facts">
@@ -71,7 +78,15 @@
     </button>
   }
   @if (offer.status === 'todo') {
-    <a class="ghost link" aria-label="Voir l'annonce" [href]="offer.url" target="_blank" rel="noopener noreferrer">
+    <a
+      class="ghost link"
+      aria-label="Voir l'annonce"
+      [href]="offer.url"
+      target="_blank"
+      rel="noopener noreferrer"
+      (click)="opened.emit()"
+      (auxclick)="opened.emit()"
+    >
       <span>Voir l'annonce</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M8 16 16 8M9 8h7v7" />
