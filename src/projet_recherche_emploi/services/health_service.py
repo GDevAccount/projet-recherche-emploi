@@ -116,6 +116,19 @@ class HealthService:
             self.alerts.notify("interrupted", "Recherche interrompue", message)
         return interrupted
 
+    def is_alive(self) -> bool:
+        """Dit si l'application peut servir : la base répond. Prévient si ce n'est pas le cas. Ne lève jamais.
+
+        C'est ce qu'interroge la sonde extérieure : un serveur qui répond sans sa base ne sert à personne.
+        """
+        try:
+            with self.database.session() as session:
+                return HealthRepository(session).ping()
+        except Exception as error:
+            logger.exception("La base ne répond pas")
+            self.alerts.notify("database", "Base injoignable", f"{type(error).__name__} à la lecture de la base")
+            return False
+
     def send_test_alert(self) -> bool:
         """Envoie une alerte d'essai, et dit si elle est partie : faux aussi quand aucune alerte n'est réglée."""
         return self.alerts.send_test()

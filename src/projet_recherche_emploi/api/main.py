@@ -95,9 +95,14 @@ def create_app(
         record_error(request, error, status.HTTP_500_INTERNAL_SERVER_ERROR)
         return JSONResponse({"detail": INTERNAL_ERROR_MESSAGE}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    # HEAD aussi : c'est la méthode des sondes de disponibilité, et FastAPI ne l'accepte pas de lui-même
+    @app.head(f"{API_PREFIX}/health", include_in_schema=False)
     @app.get(f"{API_PREFIX}/health", tags=["état"])
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
+    def health() -> JSONResponse:
+        """État du serveur et de sa base, pour une sonde extérieure : 200 si tout répond, 503 sinon."""
+        if container.health.is_alive():
+            return JSONResponse({"status": "ok"})
+        return JSONResponse({"status": "error"}, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     for router in (account.router, jobs.router, queries.router, cv.router, searches.router, admin.router):
         app.include_router(router, prefix=API_PREFIX)

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Row, delete, distinct, func, insert, select
+from sqlalchemy import Row, delete, distinct, func, insert, literal, select
 from sqlalchemy.orm import Session
 
 from projet_recherche_emploi.data.models import SearchRun, ServerError
@@ -17,6 +17,11 @@ class HealthRepository:
 
     def __init__(self, session: Session):
         self.session = session
+
+    def ping(self) -> bool:
+        """Dit si la base répond, en lui faisant lire une table."""
+        self.session.execute(select(literal(1)).select_from(ServerError).limit(1))
+        return True
 
     def record_error(
         self, user_id: int | None, method: str, route: str | None, status_code: int, error_type: str
