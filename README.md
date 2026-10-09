@@ -92,7 +92,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 
 | Route | Rôle |
 |---|---|
-| `GET /api/health` | État du serveur (sans connexion) |
+| `GET /api/health` | État du serveur et de sa base, sans connexion : `{"status": "ok"}`, ou 503 et `{"status": "error"}` si la base ne répond pas. Accepte aussi `HEAD`, pour une sonde de disponibilité |
 | `GET /api/config` | Ce qu'un front lit avant la connexion (sans connexion) : mode de connexion (`google` ou `password`), identifiant client Google, types de contrat, motifs proposés à la suppression d'une offre (`delete_reasons`) |
 | `GET /api/me` | Utilisateur de la requête (avec l'adresse, le nom et la photo de son compte Google), s'il est propriétaire (`is_owner`) ou administrateur (`is_admin`), recherches restantes aujourd'hui, s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché), et si l'une des siennes tourne déjà (`search_running`) |
 | `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements, journal des pages évaluées, appels au moteur de recherche, corrections du tri, erreurs rencontrées et adresse sont effacés ; seule sa consommation reste, en totaux mensuels sans adresse (table `archived_usage`). Ils sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
@@ -238,7 +238,18 @@ Une même alerte ne part pas deux fois dans l'heure (`ALERT_QUIET_MINUTES`). Un 
 3. Le donner à l'instance, ce qui la redémarre : `fly secrets set NTFY_TOPIC=...` (ou `NTFY_TOPIC=...` dans `.env` en local).
 4. Dans la rubrique Suivi, la carte « Santé de l'instance » indique « Alertes actives » : le bouton « Envoyer une alerte d'essai » vérifie qu'elles arrivent.
 
+L'instance prévient aussi quand sa **base ne répond plus**, si quelque chose l'interroge à ce moment-là.
+
 `NTFY_URL` remplace `https://ntfy.sh` par un serveur ntfy à soi. Les délais sont en mémoire : après un redémarrage, une alerte déjà envoyée peut repartir.
+
+### Savoir que l'instance est tombée
+
+Une instance arrêtée ne peut prévenir personne : ses alertes partent d'elle. Il faut donc un service extérieur qui l'interroge, par exemple [UptimeRobot](https://uptimerobot.com), gratuit :
+
+1. Créer un moniteur de type « HTTP(s) » sur `https://<adresse de l'instance>/api/health`. La route répond 200 quand le serveur et sa base fonctionnent, 503 quand la base ne répond pas, et accepte `HEAD`.
+2. Choisir l'intervalle. Chaque appel réveille la machine, mise en veille par Fly.io quand personne ne s'en sert (`auto_stop_machines` de `fly.toml`) : toutes les 5 minutes, elle ne dort plus jamais et se paie à plein temps ; toutes les 30 ou 60 minutes, elle ne veille que quelques minutes par heure.
+3. Régler le délai d'attente à 30 secondes : le réveil prend une seconde, un démarrage à froid davantage.
+4. Choisir où recevoir l'alerte : e-mail, ou l'application UptimeRobot.
 
 ## Plusieurs utilisateurs : connexion Google
 

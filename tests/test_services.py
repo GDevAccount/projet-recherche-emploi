@@ -493,6 +493,16 @@ def test_unusual_daily_cost_sends_one_alert_a_day(alerting, notifier, ready_user
     assert notifier.sent == [("Coût anormal", "0.03 $ en 24 heures pour 2 recherches, tous comptes réunis")]
 
 
+def test_unreachable_database_is_reported_once(alerting, notifier):
+    assert alerting.health.is_alive() and notifier.sent == []
+
+    alerting.health.database = None
+
+    # La sonde revient toutes les quelques minutes : l'alerte, elle, ne part qu'une fois dans l'heure
+    assert not alerting.health.is_alive() and not alerting.health.is_alive()
+    assert notifier.sent == [("Base injoignable", "AttributeError à la lecture de la base")]
+
+
 def test_restart_reports_the_searches_it_has_cut(alerting, notifier, ready_users):
     assert alerting.health.alert_on_interrupted_runs() == 0
     with alerting.database.session() as session:

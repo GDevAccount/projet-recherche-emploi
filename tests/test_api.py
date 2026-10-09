@@ -84,6 +84,18 @@ def test_health_and_legal_pages_are_public(client):
     assert client.get("/confidentialite").status_code == 200
 
 
+def test_health_answers_an_uptime_probe_and_fails_with_the_database(client):
+    # Les sondes de disponibilité appellent en HEAD, sans corps
+    probe = client.head("/api/health")
+    assert (probe.status_code, probe.content) == (200, b"")
+
+    # Un serveur qui répond sans sa base ne sert à personne : la sonde doit le voir
+    client.app.state.container.health.database = None
+    broken = client.get("/api/health")
+    assert (broken.status_code, broken.json()) == (503, {"status": "error"})
+    assert client.head("/api/health").status_code == 503
+
+
 def test_config_tells_the_front_how_to_log_in(client, tmp_path):
     # Sans identité : le front la lit pour afficher son écran de connexion
     assert client.get("/api/config").json() == {
