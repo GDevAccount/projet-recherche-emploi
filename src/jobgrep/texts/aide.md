@@ -80,7 +80,7 @@ Quand il est proposé sur l'écran de connexion, l'essai permet de déposer un C
 
 ## L'assistant
 
-L'assistant répond aux questions sur JobGrep : son fonctionnement, vos données et vos droits. Il ne connaît que les textes du site : il ne voit ni votre CV, ni vos offres, ni votre compte, et ne donne pas de conseils de carrière. Chaque compte peut lui poser {max_questions} questions par jour. Vos questions et ses réponses sont enregistrées pendant {assistant_days} jours, pour améliorer l'aide : n'y écrivez rien de personnel.
+L'assistant répond aux questions sur JobGrep : son fonctionnement, vos données et vos droits. Il ne connaît que les textes du site : il ne voit ni votre CV, ni vos offres, ni votre compte, et ne donne pas de conseils de carrière. Chaque compte peut lui poser {max_questions} questions par jour. Vos questions et ses réponses sont enregistrées pendant {assistant_days} jours, pour améliorer l'aide. Une adresse e-mail, un numéro de téléphone ou un lien écrits dans une question en sont retirés automatiquement, mais n'y écrivez rien de personnel.
 
 ## Qui a créé JobGrep
 

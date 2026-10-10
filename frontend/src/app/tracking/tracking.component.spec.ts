@@ -1103,6 +1103,22 @@ describe('TrackingComponent', () => {
       "Guide d'utilisation · Déposer ou remplacer son CV cité",
     ]);
 
+    // Une question se copie au format du jeu d'évaluation, pour y être collée puis complétée
+    const copies: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: (text: string) => (copies.push(text), Promise.resolve()) },
+    });
+    await click('Copier pour le jeu', 'app-assistant-card button');
+    expect(JSON.parse(copies[0].replace(/,$/, ''))).toEqual({
+      id: '',
+      question: 'Une application mobile ?',
+      outcome: 'answered',
+      sections: [],
+      reference: '',
+    });
+    expect(text(card)).toContain('Copié : à coller dans evaluation_cases.json');
+
     await click('Sans réponse', 'app-assistant-card button');
     expect(texts('app-assistant-card .question')).toEqual(['Une application mobile ?']);
 

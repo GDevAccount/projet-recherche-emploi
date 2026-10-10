@@ -73,6 +73,7 @@ class Container:
             answer_model or OpenAIAnswerModel(),
             settings.contact_email,
             self.usage.daily_budget_reached,
+            self.cv_ingestion.anonymizer,
         )
         self.evaluation = AssistantEvaluationService(
             self.database,

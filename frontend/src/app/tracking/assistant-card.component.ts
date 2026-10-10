@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -68,6 +69,10 @@ export class AssistantCardComponent {
   // undefined : en cours de lecture
   protected readonly overview = signal<AssistantOverview | undefined>(undefined);
   protected readonly error = signal('');
+  /** Dernière question copiée pour le jeu d'évaluation, et si la copie a réussi. */
+  protected readonly copied = signal<{ question: string; state: 'copied' | 'failed' } | null>(null);
+
+  private readonly window = inject(DOCUMENT).defaultView;
 
   private readonly filtered = computed(() => {
     const filter = this.filter();
@@ -98,6 +103,34 @@ export class AssistantCardComponent {
     return entry.sources.some(
       (cited) => cited.title === source.title && cited.section === source.section,
     );
+  }
+
+  /**
+   * Copie la question au format du jeu d'évaluation (evaluation_cases.json), à coller dans le fichier puis à
+   * compléter : un identifiant, les sections des textes qui portent la réponse, et la réponse attendue.
+   */
+  protected copyCase(entry: AssistantJournalEntry): void {
+    const skeleton = {
+      id: '',
+      question: entry.question,
+      outcome: 'answered',
+      sections: [],
+      reference: '',
+    };
+    const done = (state: 'copied' | 'failed') =>
+      this.copied.set({ question: entry.question, state });
+    // Refusé hors d'une page sécurisée, ou si le navigateur l'interdit : on le dit plutôt que de se taire
+    const copy = this.window?.navigator.clipboard?.writeText(
+      `${JSON.stringify(skeleton, null, 2)},`,
+    );
+    if (copy) {
+      copy.then(
+        () => done('copied'),
+        () => done('failed'),
+      );
+    } else {
+      done('failed');
+    }
   }
 
   protected choose(days: Days): void {

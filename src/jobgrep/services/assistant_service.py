@@ -26,7 +26,9 @@ from jobgrep.config import (
     DEFAULT_USER_ID,
     LOCAL_TIMEZONE,
     MAX_ASSISTANT_QUESTIONS_PER_DAY,
+    MAX_ASSISTANT_QUESTIONS_PER_MINUTE,
 )
+from jobgrep.data.cv_ingestion.anonymizer import CvAnonymizer
 from jobgrep.data.database import Database
 from jobgrep.data.repositories.assistant_message_repository import (
     AssistantJournalRepository,
@@ -87,8 +89,11 @@ class AssistantService:
         answer_model: AnswerModel,
         contact_email: str = "",
         budget_reached: Callable[[], bool] = lambda: False,
+        anonymizer: CvAnonymizer | None = None,
     ):
         self.database = database
+        # Retire d'une question ce qui a la forme d'une coordonnée, comme d'un CV
+        self.anonymizer = anonymizer or CvAnonymizer()
         self.embedder = embedder
         self.answer_model = answer_model
         self.contact_email = contact_email
@@ -115,6 +120,9 @@ class AssistantService:
             raise InvalidInputError("Écrivez votre question.")
         if len(question) > MAX_QUESTION_CHARS:
             raise InvalidInputError(f"Une question tient en {MAX_QUESTION_CHARS} caractères au plus.")
+        # Avant tout envoi et tout enregistrement : une question est lue par OpenAI, puis par les
+        # administrateurs, qui n'ont à connaître ni l'adresse ni le téléphone de celui qui la pose
+        question = self.anonymizer.anonymize(question)
         # Ni le budget ni le quota ne s'appliquent au propriétaire, qui paie les clés API
         limited = user_id != DEFAULT_USER_ID
         if limited and self.budget_reached():
@@ -125,6 +133,8 @@ class AssistantService:
             messages = AssistantMessageRepository(session, user_id)
             if limited and messages.count_since(_day_start(now)) >= MAX_ASSISTANT_QUESTIONS_PER_DAY:
                 raise QuotaExceededError("Vous avez posé toutes vos questions d'aujourd'hui : revenez demain.")
+            if limited and messages.count_since(now - timedelta(minutes=1)) >= MAX_ASSISTANT_QUESTIONS_PER_MINUTE:
+                raise QuotaExceededError("Vous posez vos questions trop vite : attendez une minute.")
             recent = messages.list_recent(ASSISTANT_HISTORY_TURNS, now - timedelta(minutes=ASSISTANT_HISTORY_MINUTES))
             history = [Exchange(row.question, row.answer) for row in recent]
 

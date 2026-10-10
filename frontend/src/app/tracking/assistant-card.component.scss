@@ -177,6 +177,29 @@ dl {
   }
 }
 
+.copy {
+  margin-bottom: 0.9rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: none;
+  color: var(--app-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--app-muted);
+    color: var(--app-text);
+  }
+}
+
+.copied {
+  margin-left: 0.6rem;
+  font-size: 0.75rem;
+  color: var(--app-muted);
+}
+
 .outcome {
   padding: 0.1rem 0.55rem;
   border: 1px solid var(--app-border);
