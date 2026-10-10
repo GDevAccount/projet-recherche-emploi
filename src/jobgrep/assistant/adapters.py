@@ -4,10 +4,11 @@ Les clients ne sont créés qu'au premier appel : construire le conteneur ne dem
 """
 
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from functools import cached_property
 from typing import Any
 
+from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.runnables import Runnable
@@ -49,21 +50,36 @@ class OpenAIAnswerModel:
 
     @cached_property
     def _chat_model(self) -> BaseChatModel:
+        # stream_usage : sans lui, une réponse lue en flux ne dit pas ses jetons
         return self._injected_chat_model or ChatOpenAI(
-            model=ASSISTANT_MODEL, timeout=ASSISTANT_TIMEOUT_SECONDS, max_retries=ASSISTANT_RETRIES
+            model=ASSISTANT_MODEL, timeout=ASSISTANT_TIMEOUT_SECONDS, max_retries=ASSISTANT_RETRIES, stream_usage=True
         )
 
     def answer(
-        self, question: str, passages: Sequence[Passage], history: Sequence[Exchange]
+        self,
+        question: str,
+        passages: Sequence[Passage],
+        history: Sequence[Exchange],
+        on_answer: Callable[[str], None] | None = None,
     ) -> tuple[DraftAnswer, ModelUsage]:
-        # La réponse brute accompagne le verdict : c'est elle qui porte le nombre de jetons
-        chain = ANSWER_PROMPT | self._chat_model.with_structured_output(DraftAnswer, include_raw=True)
+        # Un schéma JSON plutôt que la classe : la réponse se lit alors à mesure qu'elle s'écrit, champ après champ
+        schema = DraftAnswer.model_json_schema()
+        chain = ANSWER_PROMPT | self._chat_model.with_structured_output(schema, method="json_schema", strict=True)
         messages: list[BaseMessage] = []
         for exchange in history:
             messages += [HumanMessage(exchange.question), AIMessage(exchange.answer)]
-
         inputs = {"passages": describe_passages(passages), "history": messages, "question": question}
-        return _invoke(chain, inputs)
+
+        usage = UsageMetadataCallbackHandler()
+        started = time.perf_counter()
+        draft: dict = {}
+        for draft in chain.stream(inputs, config={"callbacks": [usage]}):
+            # L'issue s'écrit avant la réponse : tant qu'elle n'est pas « answered » en entier, rien n'est montré
+            if on_answer and draft.get("outcome") == "answered" and draft.get("answer"):
+                on_answer(draft["answer"])
+        duration_ms = round((time.perf_counter() - started) * 1000)
+        consumed = next(iter(usage.usage_metadata.values()), {})
+        return DraftAnswer.model_validate(draft), _describe_usage(consumed, duration_ms)
 
 
 class OpenAIAnswerJudge:
@@ -98,9 +114,12 @@ def _invoke(chain: Runnable, inputs: dict) -> tuple[Any, ModelUsage]:
     duration_ms = round((time.perf_counter() - started) * 1000)
     if reply["parsing_error"]:
         raise reply["parsing_error"]
-    usage = getattr(reply["raw"], "usage_metadata", None) or {}
+    return reply["parsed"], _describe_usage(getattr(reply["raw"], "usage_metadata", None) or {}, duration_ms)
+
+
+def _describe_usage(usage: Mapping, duration_ms: int) -> ModelUsage:
     input_details = usage.get("input_token_details") or {}
-    return reply["parsed"], ModelUsage(
+    return ModelUsage(
         input_tokens=usage.get("input_tokens"),
         output_tokens=usage.get("output_tokens"),
         cache_read_tokens=input_details.get("cache_read"),

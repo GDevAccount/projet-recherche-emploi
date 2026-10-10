@@ -1,4 +1,6 @@
+import re
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from conftest import FakeAnswerModel, FakeEmbedder, FakeEvaluator, FakeSearchEngine
@@ -23,9 +25,15 @@ from jobgrep.container import build_container
 from jobgrep.data.models import AssistantMessage, AssistantPassage
 from jobgrep.data.repositories.assistant_message_repository import AssistantMessageRepository
 from jobgrep.data.repositories.user_repository import UserRepository
-from jobgrep.errors import AssistantUnavailableError, BudgetReachedError, InvalidInputError, QuotaExceededError
+from jobgrep.errors import (
+    AssistantUnavailableError,
+    BudgetReachedError,
+    InvalidInputError,
+    NotFoundError,
+    QuotaExceededError,
+)
 from jobgrep.schemas import MAX_QUESTION_CHARS
-from jobgrep.site_texts import SITE_TEXTS, read_site_text
+from jobgrep.site_texts import GUIDE_NAME, GUIDE_SCREENS, SITE_TEXTS, read_site_text
 
 BOB = 2
 CAROL = 3
@@ -141,6 +149,7 @@ def test_answer_comes_from_the_site_texts_and_names_them(container, embedder, an
     [source] = reply.message.sources
     # Le guide n'est pas une page du site : il est cité sans adresse
     assert (source.title, source.section, source.url) == ("Guide d'utilisation", "Déposer ou remplacer son CV", None)
+    assert source.screen == "/profil"
     assert reply.remaining_questions == MAX_ASSISTANT_QUESTIONS_PER_DAY - 1
     # Rien d'un compte n'est envoyé : ni au modèle qui situe, ni à celui qui répond
     assert embedder.embedded[-1] == [QUESTION]
@@ -161,7 +170,8 @@ def test_a_public_page_is_cited_with_its_address(container, answer_model):
 
     _, passages, _ = answer_model.asked[0]
     assert passages[0].source == "confidentialite"
-    assert reply.message.sources[0].url == "/confidentialite"
+    # L'adresse mène à la section, pas seulement à la page
+    assert reply.message.sources[0].url == "/confidentialite#a-qui-elles-sont-transmises"
     assert reply.message.sources[0].title == "Règles de confidentialité"
 
 
@@ -314,7 +324,7 @@ def test_daily_budget_stops_the_questions_except_the_owner_s(container, answer_m
 
 
 def test_a_failing_model_is_told_to_the_user_and_costs_no_question(container, answer_model):
-    def fail(*call):
+    def fail(*call, **options):
         raise TimeoutError("le modèle ne répond pas à : " + call[0])
 
     answer_model.answer = fail
@@ -448,3 +458,85 @@ def test_each_user_has_their_own_questions(session):
 
     assert bob.delete_all() == 2
     assert bob.list_recent(10) == [] and [row.question for row in carol.list_recent(10)] == ["autre"]
+
+
+def test_an_answer_is_followed_while_it_is_written(container, answer_model):
+    events = list(container.assistant.stream_answer(BOB, QUESTION, NOON))
+
+    *progress, reply = events
+    assert [event.step for event in progress] == ["retrieve", "generate", "generate", "generate"]
+    # La réponse arrive par morceaux, entière à chaque fois, et finit par être celle qui est enregistrée
+    written = [event.answer for event in progress if event.answer]
+    assert len(written) == 2 and reply.message.answer.startswith(written[0]) and written[1] == reply.message.answer
+    assert container.assistant.get_conversation(BOB, NOON).messages == [reply.message]
+
+    # Un refus n'est pas écrit par le modèle : rien ne s'affiche avant le texte du serveur
+    answer_model.outcome = "off_topic"
+    *progress, refusal = container.assistant.stream_answer(BOB, "Quelle heure est-il ?", NOON)
+    assert [event.answer for event in progress] == [None, None] and refusal.message.answer == OFF_TOPIC_ANSWER
+
+
+def test_a_refused_question_is_refused_before_the_stream_starts(container, answer_model):
+    # À l'appel, pas au premier élément lu : l'API peut encore répondre par une erreur ordinaire
+    with pytest.raises(InvalidInputError):
+        container.assistant.stream_answer(BOB, "   ", NOON)
+    container.assistant.budget_reached = lambda: True
+    with pytest.raises(BudgetReachedError):
+        container.assistant.stream_answer(BOB, QUESTION, NOON)
+
+    assert answer_model.asked == []
+
+
+def test_a_new_conversation_forgets_the_previous_exchanges(container, answer_model):
+    container.assistant.ask(BOB, "Combien de recherches par jour ?", NOON)
+    fresh = container.assistant.ask(BOB, "Comment changer de thème ?", NOON + timedelta(minutes=1), True)
+    follow_up = container.assistant.ask(BOB, "Et où est le bouton ?", NOON + timedelta(minutes=2))
+
+    # La question qui ouvre une conversation part sans passé ; la suivante ne se souvient que d'elle
+    assert answer_model.asked[1][2] == []
+    assert [exchange.question for exchange in answer_model.asked[2][2]] == ["Comment changer de thème ?"]
+    # Après un rechargement, seule la conversation en cours est réaffichée
+    shown = container.assistant.get_conversation(BOB, NOON + timedelta(minutes=3)).messages
+    assert shown == [fresh.message, follow_up.message]
+    # Rien n'est effacé pour autant : les administrateurs lisent toujours les trois questions
+    assert container.assistant.get_overview(now=NOON + timedelta(minutes=3)).questions == 3
+
+
+def test_each_user_rates_their_own_answers(container):
+    answer = container.assistant.ask(BOB, QUESTION, NOON).message
+    other = container.assistant.ask(CAROL, QUESTION, NOON).message
+
+    container.assistant.set_feedback(BOB, answer.id, "down")
+    container.assistant.set_feedback(CAROL, other.id, "up")
+    # La réponse d'un autre ne se note pas
+    with pytest.raises(NotFoundError):
+        container.assistant.set_feedback(BOB, other.id, "down")
+
+    assert container.assistant.get_conversation(BOB, NOON).messages[0].feedback == "down"
+    overview = container.assistant.get_overview(now=NOON)
+    assert (overview.helpful, overview.unhelpful) == (1, 1)
+    assert [entry.feedback for entry in overview.entries] == ["up", "down"]
+
+    # Une note se retire
+    container.assistant.set_feedback(BOB, answer.id, None)
+    assert container.assistant.get_conversation(BOB, NOON).messages[0].feedback is None
+    assert container.assistant.get_overview(now=NOON).unhelpful == 0
+
+
+def test_texts_can_be_made_ready_before_the_first_question(container, embedder):
+    total = container.assistant.index_texts()
+
+    assert total == count_rows(container, AssistantPassage) and [len(texts) for texts in embedder.embedded] == [total]
+    # La première question ne situe plus qu'elle-même, et recommencer ne situe rien
+    container.assistant.ask(BOB, QUESTION, NOON)
+    assert container.assistant.index_texts() == total
+    assert [len(texts) for texts in embedder.embedded] == [total, 1]
+
+
+def test_sections_of_the_guide_lead_to_screens_that_exist():
+    sections = {passage.section for passage in split_text(GUIDE_NAME, read_site_text(GUIDE_NAME))}
+    paths = Path(__file__).parents[1] / "frontend" / "src" / "app" / "core" / "paths.ts"
+    screens = {f"/{path}" for path in re.findall(r"_PATH = '([a-z]+)'", paths.read_text(encoding="utf-8"))}
+
+    assert set(GUIDE_SCREENS) <= sections
+    assert set(GUIDE_SCREENS.values()) <= screens

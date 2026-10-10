@@ -5,17 +5,39 @@
         <span class="app-eyebrow">Assistant</span>
         <h2 id="assistant-title">Une question sur JobGrep ?</h2>
       </div>
-      <button type="button" class="close" aria-label="Fermer l'assistant" (click)="close()">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.2"
-          stroke-linecap="round"
-        >
-          <path d="M6 6l12 12M18 6 6 18" />
-        </svg>
-      </button>
+      <div class="tools">
+        @if (messages().length && !pending()) {
+          <button
+            type="button"
+            class="close"
+            aria-label="Nouvelle conversation"
+            title="Nouvelle conversation"
+            (click)="startOver()"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5M18 3v6M15 6h6" />
+            </svg>
+          </button>
+        }
+        <button type="button" class="close" aria-label="Fermer l'assistant" (click)="close()">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+          >
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
     </header>
 
     <div #thread class="thread" aria-live="polite">
@@ -53,17 +75,71 @@
                     @if (source.section) {
                       · {{ source.section }}
                     }
+                    @if (source.screen) {
+                      <a class="screen" [routerLink]="source.screen" (click)="close()"
+                        >Ouvrir l'écran</a
+                      >
+                    }
                   </li>
                 }
               </ul>
             }
+            <div class="rating" role="group" aria-label="Cette réponse vous a-t-elle aidé ?">
+              <button
+                type="button"
+                aria-label="Réponse utile"
+                [class.on]="message.feedback === 'up'"
+                [attr.aria-pressed]="message.feedback === 'up'"
+                (click)="rate(message, 'up')"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M7 11v9H4v-9h3Zm0 0 4-8a2 2 0 0 1 2 2v4h5a2 2 0 0 1 2 2.3l-1 6A2 2 0 0 1 17 20H7"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                aria-label="Réponse pas utile"
+                [class.on]="message.feedback === 'down'"
+                [attr.aria-pressed]="message.feedback === 'down'"
+                (click)="rate(message, 'down')"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M17 13V4h3v9h-3Zm0 0-4 8a2 2 0 0 1-2-2v-4H6a2 2 0 0 1-2-2.3l1-6A2 2 0 0 1 7 4h10"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
         }
         @if (pending()) {
           <p class="question">{{ pending() }}</p>
-          <p class="answer waiting" role="status" aria-label="L'assistant cherche la réponse">
-            <span></span><span></span><span></span>
-          </p>
+          @if (writing()) {
+            <div class="answer">
+              <p>{{ writing() }}</p>
+            </div>
+          } @else {
+            <p class="answer waiting" role="status">
+              <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              {{ stepLabel() }}
+            </p>
+          }
         }
       } @else if (!error()) {
         <p class="loading">Chargement…</p>

@@ -240,6 +240,20 @@ test("l'assistant répond à partir des textes du site, et la conversation reste
   await expect(assistant.locator('.question')).toHaveText(
     'Puis-je remplacer mon fichier par un autre PDF scanné ?',
   );
+  // Une réponse se note, et la note tient après rechargement ; une nouvelle conversation vide l'écran
+  await assistant.getByRole('button', { name: 'Réponse utile' }).click();
+  await expect(assistant.getByRole('button', { name: 'Réponse utile' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.reload();
+  await page.locator('app-assistant').getByRole('button', { name: "Ouvrir l'assistant" }).click();
+  await expect(assistant.getByRole('button', { name: 'Réponse utile' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await assistant.getByRole('button', { name: 'Nouvelle conversation' }).click();
+  await expect(assistant.locator('.question')).toHaveCount(0);
   await assistant.getByRole('button', { name: "Fermer l'assistant" }).first().click();
   await expect(assistant.getByRole('dialog')).toHaveCount(0);
 });

@@ -7,7 +7,7 @@ passages gardés en base, journal des questions. Rien d'un compte n'entre dans u
 import json
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Sequence
 from datetime import UTC, datetime, timedelta
 from functools import cached_property
 from zoneinfo import ZoneInfo
@@ -30,24 +30,33 @@ from jobgrep.config import (
 )
 from jobgrep.data.cv_ingestion.anonymizer import CvAnonymizer
 from jobgrep.data.database import Database
+from jobgrep.data.models import AssistantMessage
 from jobgrep.data.repositories.assistant_message_repository import (
     AssistantJournalRepository,
     AssistantMessageRepository,
 )
 from jobgrep.data.repositories.assistant_passage_repository import AssistantPassageRepository
 from jobgrep.data.repositories.usage_repository import UsageRepository
-from jobgrep.errors import AssistantUnavailableError, BudgetReachedError, InvalidInputError, QuotaExceededError
+from jobgrep.errors import (
+    AssistantUnavailableError,
+    BudgetReachedError,
+    InvalidInputError,
+    NotFoundError,
+    QuotaExceededError,
+)
 from jobgrep.schemas import (
     MAX_QUESTION_CHARS,
     AssistantConversation,
+    AssistantFeedback,
     AssistantJournalEntry,
     AssistantMessageRead,
     AssistantOverview,
+    AssistantProgress,
     AssistantReply,
     AssistantSource,
 )
 from jobgrep.services.search_costs import model_cost_usd, sum_costs
-from jobgrep.site_texts import SITE_TEXTS, read_site_text
+from jobgrep.site_texts import SITE_TEXTS, read_site_text, section_screen, section_url
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +85,32 @@ def _sources_of(passages: list[Passage]) -> list[AssistantSource]:
     """Renvoie les textes d'où viennent ces passages, sans doublon, dans leur ordre."""
     sections = dict.fromkeys((passage.source, passage.page_title, passage.section) for passage in passages)
     return [
-        AssistantSource(title=page_title, section=section or None, url=SITE_TEXTS[source].url)
+        AssistantSource(
+            title=page_title,
+            section=section or None,
+            url=section_url(source, section),
+            screen=section_screen(source, section),
+        )
         for source, page_title, section in sections
     ]
+
+
+def _current_conversation(rows: Sequence[AssistantMessage]) -> Sequence[AssistantMessage]:
+    """Renvoie, parmi ces questions de la plus ancienne à la plus récente, celles de la conversation en cours."""
+    starts = [position for position, row in enumerate(rows) if row.starts_conversation]
+    return rows[starts[-1] :] if starts else rows
+
+
+def _read_message(row: AssistantMessage) -> AssistantMessageRead:
+    return AssistantMessageRead(
+        id=row.id,
+        created_at=row.created_at,
+        question=row.question,
+        answer=row.answer,
+        outcome=row.outcome,
+        sources=_read_sources(row.sources),
+        feedback=row.feedback,
+    )
 
 
 class AssistantService:
@@ -108,10 +140,24 @@ class AssistantService:
         nodes = AssistantNodes(self.embedder, self.answer_model, self._passages, self.contact_email)
         return build_graph(nodes)
 
-    def ask(self, user_id: int, question: str, now: datetime | None = None) -> AssistantReply:
+    def ask(
+        self, user_id: int, question: str, now: datetime | None = None, new_conversation: bool = False
+    ) -> AssistantReply:
         """Répond à une question sur l'application, l'enregistre, et dit ce que l'utilisateur peut encore demander.
 
         Une question hors sujet est comptée et enregistrée comme les autres : elle a coûté autant.
+        """
+        *_, reply = self.stream_answer(user_id, question, now, new_conversation)
+        return reply
+
+    def stream_answer(
+        self, user_id: int, question: str, now: datetime | None = None, new_conversation: bool = False
+    ) -> Iterator[AssistantProgress | AssistantReply]:
+        """Répond à une question en disant où il en est : ses étapes, la réponse qui s'écrit, puis le bilan.
+
+        Un refus (question vide, quota, budget) est levé à l'appel, avant le premier élément, pour que l'API
+        puisse encore répondre par une erreur. « new_conversation » ouvre une conversation : les échanges
+        précédents ne sont plus rappelés au modèle, ni réaffichés.
         """
         # À la seconde, comme la base l'enregistre : la réponse rendue ici est celle qui sera relue
         now = (now or datetime.now(UTC)).replace(microsecond=0)
@@ -136,10 +182,22 @@ class AssistantService:
             if limited and messages.count_since(now - timedelta(minutes=1)) >= MAX_ASSISTANT_QUESTIONS_PER_MINUTE:
                 raise QuotaExceededError("Vous posez vos questions trop vite : attendez une minute.")
             recent = messages.list_recent(ASSISTANT_HISTORY_TURNS, now - timedelta(minutes=ASSISTANT_HISTORY_MINUTES))
-            history = [Exchange(row.question, row.answer) for row in recent]
+            remembered = [] if new_conversation else _current_conversation(recent)
+            history = [Exchange(row.question, row.answer) for row in remembered]
 
+        return self._answer(user_id, question, history, limited, now, new_conversation)
+
+    def _answer(
+        self, user_id: int, question: str, history: list[Exchange], limited: bool, now: datetime, new_conversation: bool
+    ) -> Iterator[AssistantProgress | AssistantReply]:
+        result: dict = {}
         try:
-            result = self.graph.invoke({"question": question, "history": history})
+            events = self.graph.stream({"question": question, "history": history}, stream_mode=["custom", "values"])
+            for mode, chunk in events:
+                if mode == "custom":
+                    yield AssistantProgress(**chunk)
+                else:
+                    result = chunk
         except Exception as error:
             # Le type seulement : le message d'une erreur du modèle peut reprendre la question posée
             logger.warning("L'assistant n'a pas pu répondre : %s", type(error).__name__)
@@ -159,6 +217,7 @@ class AssistantService:
                     "sources": _write_sources(sources),
                     "retrieved": _write_sources(retrieved),
                     "outcome": outcome,
+                    "starts_conversation": new_conversation,
                     "model": self.answer_model.model_name,
                     "prompt_version": prompt_version(),
                     "input_tokens": usage.input_tokens,
@@ -174,13 +233,25 @@ class AssistantService:
             used = messages.count_since(_day_start(now))
 
         message = AssistantMessageRead(
-            id=message_id, created_at=now, question=question, answer=answer, outcome=outcome, sources=sources
+            id=message_id,
+            created_at=now,
+            question=question,
+            answer=answer,
+            outcome=outcome,
+            sources=sources,
+            feedback=None,
         )
         remaining = max(0, MAX_ASSISTANT_QUESTIONS_PER_DAY - used) if limited else None
-        return AssistantReply(message=message, remaining_questions=remaining)
+        yield AssistantReply(message=message, remaining_questions=remaining)
+
+    def set_feedback(self, user_id: int, message_id: int, feedback: AssistantFeedback | None) -> None:
+        """Note une réponse de l'assistant, utile ou non, ou retire la note. Chacun ne note que ses réponses."""
+        with self.database.session() as session:
+            if not AssistantMessageRepository(session, user_id).set_feedback(message_id, feedback):
+                raise NotFoundError("Cette réponse n'existe pas.")
 
     def get_conversation(self, user_id: int, now: datetime | None = None) -> AssistantConversation:
-        """Renvoie les derniers échanges de l'utilisateur avec l'assistant, et ce qu'il peut encore demander."""
+        """Renvoie la conversation en cours de l'utilisateur avec l'assistant, et ce qu'il peut encore demander."""
         now = now or datetime.now(UTC)
         with self.database.session() as session:
             messages = AssistantMessageRepository(session, user_id)
@@ -189,17 +260,7 @@ class AssistantService:
             used = messages.count_since(_day_start(now))
         remaining = None if user_id == DEFAULT_USER_ID else max(0, MAX_ASSISTANT_QUESTIONS_PER_DAY - used)
         return AssistantConversation(
-            messages=[
-                AssistantMessageRead(
-                    id=row.id,
-                    created_at=row.created_at,
-                    question=row.question,
-                    answer=row.answer,
-                    outcome=row.outcome,
-                    sources=_read_sources(row.sources),
-                )
-                for row in rows
-            ],
+            messages=[_read_message(row) for row in _current_conversation(rows)],
             remaining_questions=remaining,
             max_questions_per_day=MAX_ASSISTANT_QUESTIONS_PER_DAY,
             max_question_chars=MAX_QUESTION_CHARS,
@@ -218,6 +279,7 @@ class AssistantService:
         with self.database.session() as session:
             journal = AssistantJournalRepository(session)
             counts = {row.outcome: row.count for row in journal.summarize(since)}
+            notes = {row.feedback: row.count for row in journal.count_feedback(since)}
             accounts = journal.count_accounts(since)
             rows = journal.list_recent(MAX_JOURNAL_ENTRIES, max(since or readable_since, readable_since))
             rows_used = UsageRepository(session).summarize_assistant(since)
@@ -234,6 +296,8 @@ class AssistantService:
             answered=counts.get("answered", 0),
             unknown=counts.get("unknown", 0),
             off_topic=counts.get("off_topic", 0),
+            helpful=notes.get("up", 0),
+            unhelpful=notes.get("down", 0),
             accounts=accounts,
             cost_usd=sum_costs(costs),
             entries=[
@@ -244,10 +308,18 @@ class AssistantService:
                     outcome=row.outcome,
                     sources=_read_sources(row.sources),
                     retrieved=_read_sources(row.retrieved),
+                    feedback=row.feedback,
                 )
                 for row in rows
             ],
         )
+
+    def index_texts(self) -> int:
+        """Situe les passages des textes du site qui ne le sont pas encore, et renvoie le nombre de passages.
+
+        La première question le ferait d'elle-même : le faire au déploiement lui épargne cette attente.
+        """
+        return len(self._passages())
 
     def _passages(self) -> list[IndexedPassage]:
         with self._index_lock:

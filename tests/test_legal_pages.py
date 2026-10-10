@@ -3,6 +3,7 @@ from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
 from jobgrep.api.public_pages import PAGES, build_routes
+from jobgrep.assistant.passages import split_text
 from jobgrep.config import (
     INACTIVE_ACCOUNT_DAYS,
     JOB_SITES,
@@ -13,6 +14,7 @@ from jobgrep.config import (
     TRIAL_START_DAYS,
     Settings,
 )
+from jobgrep.site_texts import read_site_text, section_anchor
 
 
 def client(**settings: str) -> TestClient:
@@ -32,7 +34,8 @@ def test_public_page_is_plain_html_readable_without_javascript(path, title):
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    assert f"<h1>{title}</h1>" in response.text
+    # Chaque titre porte une ancre : l'assistant renvoie à la section d'où vient sa réponse
+    assert f'<h1 id="{section_anchor(title)}">{title}</h1>' in response.text
     assert '<meta name="description" content="' in response.text
     # Un seul script, celui du thème, servi par le site : la politique de contenu refuse tout script écrit ici
     assert response.text.count("<script") == 1 and '<script src="/theme-init.js"></script>' in response.text
@@ -143,3 +146,14 @@ def test_unexpected_verification_file_names_are_ignored(name):
     paths = [route.path for route in build_routes(Settings(google_site_verification_file=name))]
 
     assert paths == ["/fonctionnement", "/confidentialite", "/conditions", "/robots.txt"]
+
+
+@pytest.mark.parametrize("path", PAGES)
+def test_every_section_of_a_public_page_can_be_linked_to(path):
+    page = client().get(f"/{path}").text
+
+    sections = {passage.section for passage in split_text(path, read_site_text(path)) if passage.section}
+    assert sections
+    for section in sections:
+        # L'assistant cite « /page#ancre » : l'ancre doit être celle que la page donne à son titre
+        assert f'id="{section_anchor(section)}"' in page, section

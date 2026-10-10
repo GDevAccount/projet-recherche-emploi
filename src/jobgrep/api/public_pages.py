@@ -152,7 +152,8 @@ def render_page(path: str, settings: Settings) -> str:
         description=html.escape(page.description),
         canonical=canonical,
         style=PAGE_STYLE,
-        body=markdown.markdown(text),
+        # « toc » donne une ancre à chaque titre : l'assistant renvoie à la section d'où vient sa réponse
+        body=markdown.markdown(text, extensions=["toc"]),
         links="".join(links),
     )
 

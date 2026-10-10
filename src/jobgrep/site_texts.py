@@ -7,6 +7,8 @@ lisent le même texte, avec les mêmes valeurs à la place des champs entre acco
 from dataclasses import dataclass
 from pathlib import Path
 
+from markdown.extensions.toc import slugify
+
 from jobgrep.config import (
     ASSISTANT_MESSAGE_DAYS,
     INACTIVE_ACCOUNT_DAYS,
@@ -20,6 +22,8 @@ from jobgrep.config import (
 )
 
 TEXTS_DIR = Path(__file__).parent / "texts"
+# Le guide d'utilisation, que seul l'assistant lit
+GUIDE_NAME = "aide"
 
 
 @dataclass(frozen=True)
@@ -40,9 +44,37 @@ SITE_TEXTS = {
         SiteText("fonctionnement"),
         SiteText("confidentialite"),
         SiteText("conditions"),
-        SiteText("aide", public=False),
+        SiteText(GUIDE_NAME, public=False),
     )
 }
+
+
+# Écran de l'application dont parle une section du guide, quand il y en a un : l'assistant y renvoie.
+# Les chemins sont ceux du front (frontend/src/app/core/paths.ts)
+GUIDE_SCREENS = {
+    "Déposer ou remplacer son CV": "/profil",
+    "Ajouter ou supprimer un poste recherché": "/profil",
+    "Suivre ses candidatures": "/offres",
+    "Supprimer une offre": "/offres",
+    "Retrouver une offre écartée à tort": "/rejets",
+    "Aucune offre retenue après une recherche": "/rejets",
+    "Supprimer son compte et ses données": "/compte",
+}
+
+def section_anchor(section: str) -> str:
+    """Renvoie l'ancre d'une section dans sa page : celle que le rendu en HTML donne à son titre."""
+    return slugify(section, "-")
+
+
+def section_url(name: str, section: str) -> str | None:
+    """Renvoie l'adresse d'une section d'un texte du site, ou None si ce texte n'est pas une page."""
+    url = SITE_TEXTS[name].url
+    return f"{url}#{section_anchor(section)}" if url and section else url
+
+
+def section_screen(name: str, section: str) -> str | None:
+    """Renvoie l'écran de l'application dont parle cette section du guide, ou None."""
+    return GUIDE_SCREENS.get(section) if name == GUIDE_NAME else None
 
 
 def fill_fields(text: str, contact_email: str = "") -> str:

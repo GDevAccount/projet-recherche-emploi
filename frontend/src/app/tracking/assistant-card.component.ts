@@ -29,11 +29,15 @@ const PERIODS = [
 
 type Days = (typeof PERIODS)[number]['days'];
 
+/** Ce que la liste montre : tout, une issue, ou les réponses que leur lecteur a jugées inutiles. */
+type Filter = AssistantOutcome | 'all' | 'down';
+
 /** Filtres de la liste, dans l'ordre des onglets. */
-const FILTERS: { key: AssistantOutcome | 'all'; label: string }[] = [
+const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Toutes' },
   { key: 'unknown', label: 'Sans réponse' },
   { key: 'off_topic', label: 'Hors sujet' },
+  { key: 'down', label: 'Mal notées' },
 ];
 
 const OUTCOME_LABELS: Record<AssistantOutcome, string> = {
@@ -64,7 +68,7 @@ export class AssistantCardComponent {
   protected readonly filters = FILTERS;
   protected readonly labels = OUTCOME_LABELS;
   protected readonly days = signal<Days>(30);
-  protected readonly filter = signal<AssistantOutcome | 'all'>('all');
+  protected readonly filter = signal<Filter>('all');
   protected readonly all = signal(false);
   // undefined : en cours de lecture
   protected readonly overview = signal<AssistantOverview | undefined>(undefined);
@@ -77,7 +81,12 @@ export class AssistantCardComponent {
   private readonly filtered = computed(() => {
     const filter = this.filter();
     const entries = this.overview()?.entries ?? [];
-    return filter === 'all' ? entries : entries.filter((entry) => entry.outcome === filter);
+    if (filter === 'all') {
+      return entries;
+    }
+    return entries.filter((entry) =>
+      filter === 'down' ? entry.feedback === 'down' : entry.outcome === filter,
+    );
   });
   protected readonly entries = computed(() =>
     this.filtered().slice(0, this.all() ? undefined : ENTRIES_SHOWN),
@@ -138,7 +147,7 @@ export class AssistantCardComponent {
     this.all.set(false);
   }
 
-  protected show(filter: AssistantOutcome | 'all'): void {
+  protected show(filter: Filter): void {
     this.filter.set(filter);
     this.all.set(false);
   }

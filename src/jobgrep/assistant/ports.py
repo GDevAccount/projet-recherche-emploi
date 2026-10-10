@@ -1,10 +1,10 @@
 """Ce que l'assistant attend de l'extérieur. Les tests y branchent des faux, sans réseau ni facture."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from jobgrep.assistant.passages import Passage
 
@@ -19,10 +19,13 @@ class DraftAnswer(BaseModel):
     Il dit d'abord ce qu'il en est, puis répond : c'est le service qui écrit le refus d'une question hors sujet.
     """
 
+    # Aucun champ en plus ni en moins : c'est ce qu'OpenAI exige pour garantir la forme de la réponse
+    model_config = ConfigDict(extra="forbid")
+
     outcome: Outcome
     answer: str
     # Numéros des passages d'où vient la réponse, tels qu'ils lui ont été donnés
-    passages: list[int] = []
+    passages: list[int]
 
 
 @dataclass(frozen=True)
@@ -59,9 +62,17 @@ class AnswerModel(Protocol):
     model_name: str
 
     def answer(
-        self, question: str, passages: Sequence[Passage], history: Sequence[Exchange]
+        self,
+        question: str,
+        passages: Sequence[Passage],
+        history: Sequence[Exchange],
+        on_answer: Callable[[str], None] | None = None,
     ) -> tuple[DraftAnswer, ModelUsage]:
-        """Répond à la question à partir de ces seuls passages, numérotés à partir de 1."""
+        """Répond à la question à partir de ces seuls passages, numérotés à partir de 1.
+
+        « on_answer » reçoit le texte de la réponse à mesure qu'il s'écrit, entier à chaque fois, et seulement
+        quand le modèle répond : un refus ou un renvoi vers l'exploitant ne s'écrit pas ici.
+        """
         ...
 
 

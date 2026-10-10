@@ -271,6 +271,8 @@ function assistant(values: Partial<AssistantOverview> = {}): AssistantOverview {
     answered: 0,
     unknown: 0,
     off_topic: 0,
+    helpful: 0,
+    unhelpful: 0,
     accounts: 0,
     cost_usd: 0,
     entries: [],
@@ -1061,11 +1063,18 @@ describe('TrackingComponent', () => {
       title: "Guide d'utilisation",
       section: 'Déposer ou remplacer son CV',
       url: null,
+      screen: '/profil',
     };
-    const terms = { title: "Conditions d'utilisation", section: 'Accès', url: '/conditions' };
+    const terms = {
+      title: "Conditions d'utilisation",
+      section: 'Accès',
+      url: '/conditions#acces',
+      screen: null,
+    };
     const entry = {
       created_at: '2026-10-10T08:00:00Z',
       answer: 'Réponse.',
+      feedback: null,
       sources: [],
       retrieved: [terms],
     };
@@ -1078,7 +1087,7 @@ describe('TrackingComponent', () => {
       cost_usd: 0.0012,
       entries: [
         { ...entry, question: 'Une application mobile ?', outcome: 'unknown' },
-        { ...entry, question: 'Écris ma lettre', outcome: 'off_topic' },
+        { ...entry, question: 'Écris ma lettre', outcome: 'off_topic', feedback: 'down' },
         {
           ...entry,
           question: 'Comment déposer mon CV ?',
@@ -1118,6 +1127,11 @@ describe('TrackingComponent', () => {
       reference: '',
     });
     expect(text(card)).toContain('Copié : à coller dans evaluation_cases.json');
+
+    // Ce que les lecteurs ont pensé des réponses, et celles qu'ils ont jugées inutiles
+    expect(text(card)).toContain('Jugée inutile');
+    await click('Mal notées', 'app-assistant-card button');
+    expect(texts('app-assistant-card .question')).toEqual(['Écris ma lettre']);
 
     await click('Sans réponse', 'app-assistant-card button');
     expect(texts('app-assistant-card .question')).toEqual(['Une application mobile ?']);

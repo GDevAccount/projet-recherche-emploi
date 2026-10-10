@@ -174,6 +174,8 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/admin/assistant"),
         ("GET", "/api/admin/assistant/evaluations"),
         ("GET", "/api/admin/assistant/evaluations/1"),
+        ("POST", "/api/assistant/questions/stream"),
+        ("PUT", "/api/assistant/messages/1/feedback"),
     ],
 )
 def test_every_data_route_requires_an_identity(client, method, path):
@@ -1186,7 +1188,14 @@ def test_assistant_answers_about_the_application_and_keeps_the_conversation(clie
     message = reply.json()["message"]
     assert (message["question"], message["outcome"]) == (question["question"], "answered")
     [source] = message["sources"]
-    assert source == {"title": "Guide d'utilisation", "section": "Déposer ou remplacer son CV", "url": None}
+    # Le guide n'est pas une page : il renvoie à l'écran dont il parle
+    assert source == {
+        "title": "Guide d'utilisation",
+        "section": "Déposer ou remplacer son CV",
+        "url": None,
+        "screen": "/profil",
+    }
+    assert message["feedback"] is None
     assert reply.json()["remaining_questions"] == MAX_ASSISTANT_QUESTIONS_PER_DAY - 1
     # Après un rechargement, la conversation est rendue telle quelle, à son seul auteur
     assert client.get("/api/assistant", headers=ALICE).json()["messages"] == [message]
@@ -1222,7 +1231,7 @@ def test_only_administrators_read_what_is_asked_and_never_by_whom(client):
     assert overview.status_code == 200
     assert (overview.json()["questions"], overview.json()["accounts"]) == (1, 1)
     [entry] = overview.json()["entries"]
-    assert set(entry) == {"created_at", "question", "answer", "outcome", "sources", "retrieved"}
+    assert set(entry) == {"created_at", "question", "answer", "outcome", "sources", "retrieved", "feedback"}
     assert "alice" not in overview.text
 
     # Les questions partent avec le compte
@@ -1246,7 +1255,7 @@ def test_only_administrators_read_the_evaluations_of_the_assistant(client):
 
 
 def test_assistant_out_of_order_answers_503_and_leaves_a_trace(client):
-    def fail(*call):
+    def fail(*call, **options):
         raise TimeoutError("délai dépassé")
 
     client.app.state.container.assistant.answer_model.answer = fail
@@ -1259,3 +1268,71 @@ def test_assistant_out_of_order_answers_503_and_leaves_a_trace(client):
     assert [(error["route"], error["error_type"]) for error in health["server_errors"]] == [
         ("/api/assistant/questions", "AssistantUnavailableError")
     ]
+
+
+def test_an_answer_of_the_assistant_is_followed_live(client):
+    question = {"question": "Puis-je remplacer mon fichier par un autre PDF scanné ?"}
+
+    response = client.post("/api/assistant/questions/stream", json=question, headers=ALICE)
+
+    assert response.status_code == 200 and response.headers["content-type"].startswith("text/event-stream")
+    # Compressé, le flux serait retenu jusqu'à la fin
+    assert "content-encoding" not in response.headers
+    events = server_sent_events(response.text)
+    assert [name for name, _ in events] == ["progress", "progress", "progress", "progress", "result"]
+    assert events[0][1] == {"step": "retrieve", "answer": None}
+    result = events[-1][1]
+    assert events[-2][1]["answer"] == result["message"]["answer"]
+    assert result["remaining_questions"] == MAX_ASSISTANT_QUESTIONS_PER_DAY - 1
+    # La réponse suivie en direct est bien celle qui est gardée
+    assert client.get("/api/assistant", headers=ALICE).json()["messages"] == [result["message"]]
+
+    # Un refus arrive avant tout flux, comme une erreur ordinaire
+    refused = client.post("/api/assistant/questions/stream", json={"question": "  "}, headers=ALICE)
+    assert refused.status_code == 422 and refused.headers["content-type"] == "application/json"
+
+
+def test_a_failure_while_the_answer_is_followed_ends_the_stream_with_an_error(client):
+    def fail(*call, **options):
+        raise TimeoutError("délai dépassé")
+
+    client.app.state.container.assistant.answer_model.answer = fail
+
+    response = client.post("/api/assistant/questions/stream", json={"question": "Comment faire ?"}, headers=ALICE)
+
+    name, payload = server_sent_events(response.text)[-1]
+    assert name == "error"
+    assert payload == {"detail": "L'assistant ne répond pas pour l'instant. Réessayez dans un moment."}
+    # La réponse était déjà partie : la panne laisse quand même sa trace
+    health = client.get("/api/admin/health", headers=OWNER).json()
+    assert [(error["route"], error["error_type"]) for error in health["server_errors"]] == [
+        ("/api/assistant/questions/stream", "AssistantUnavailableError")
+    ]
+    assert client.get("/api/assistant", headers=ALICE).json()["remaining_questions"] == MAX_ASSISTANT_QUESTIONS_PER_DAY
+
+
+def test_an_answer_is_rated_by_the_one_who_received_it(client):
+    question = {"question": "Comment supprimer mon compte ?"}
+    message = client.post("/api/assistant/questions", json=question, headers=ALICE).json()["message"]
+    path = f"/api/assistant/messages/{message['id']}/feedback"
+
+    assert client.put(path, json={"feedback": "down"}, headers=ALICE).status_code == 204
+    assert client.get("/api/assistant", headers=ALICE).json()["messages"][0]["feedback"] == "down"
+    # Ni la réponse d'un autre, ni une note qui n'existe pas
+    assert client.put(path, json={"feedback": "up"}, headers=BOB).status_code == 404
+    assert client.put(path, json={"feedback": "bof"}, headers=ALICE).status_code == 422
+    overview = client.get("/api/admin/assistant", headers=OWNER).json()
+    assert (overview["unhelpful"], overview["entries"][0]["feedback"]) == (1, "down")
+
+    assert client.put(path, json={"feedback": None}, headers=ALICE).status_code == 204
+    assert client.get("/api/assistant", headers=ALICE).json()["messages"][0]["feedback"] is None
+
+
+def test_a_new_conversation_starts_from_nothing(client):
+    for text in ("Comment supprimer mon compte ?", "Comment changer de thème ?"):
+        first = text == "Comment supprimer mon compte ?"
+        body = {"question": text, "new_conversation": not first}
+        assert client.post("/api/assistant/questions", json=body, headers=ALICE).status_code == 200
+
+    shown = client.get("/api/assistant", headers=ALICE).json()["messages"]
+    assert [message["question"] for message in shown] == ["Comment changer de thème ?"]

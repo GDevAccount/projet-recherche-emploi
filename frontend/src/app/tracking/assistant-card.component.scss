@@ -111,7 +111,11 @@ dl {
 
   summary {
     display: grid;
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: 1fr repeat(3, auto);
+
+    time {
+      grid-column: -2;
+    }
     align-items: baseline;
     gap: 0.5rem 1rem;
     padding: 0.7rem 0;

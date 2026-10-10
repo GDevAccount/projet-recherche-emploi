@@ -698,8 +698,29 @@ MAX_QUESTION_CHARS = 500
 AssistantOutcome = Literal["answered", "unknown", "off_topic"]
 
 
+# Note donnée par l'utilisateur à une réponse : utile, ou non
+AssistantFeedback = Literal["up", "down"]
+# Où en est l'assistant : il cherche les passages, puis il écrit sa réponse
+AssistantStep = Literal["retrieve", "generate"]
+
+
 class AssistantQuestion(BaseModel):
     question: str = Field(min_length=1, max_length=MAX_QUESTION_CHARS)
+    # Vrai pour ouvrir une conversation : les échanges précédents ne sont plus rappelés à l'assistant
+    new_conversation: bool = False
+
+
+class AssistantFeedbackUpdate(BaseModel):
+    # None retire la note
+    feedback: AssistantFeedback | None
+
+
+class AssistantProgress(BaseModel):
+    """Avancement d'une réponse en cours, dans le flux de « POST /api/assistant/questions/stream »."""
+
+    step: AssistantStep
+    # Texte de la réponse écrit jusqu'ici, entier à chaque fois ; None tant que rien n'est écrit
+    answer: str | None = None
 
 
 class AssistantSource(BaseModel):
@@ -708,8 +729,10 @@ class AssistantSource(BaseModel):
     title: str
     # Section du texte ; None pour son introduction
     section: str | None
-    # Adresse de la page ; None pour le guide d'utilisation, qui n'est pas une page du site
+    # Adresse de la section dans sa page ; None pour le guide d'utilisation, qui n'est pas une page du site
     url: str | None
+    # Écran de l'application dont parle la section (« /profil ») ; None si elle ne parle d'aucun
+    screen: str | None = None
 
 
 class AssistantMessageRead(BaseModel):
@@ -719,6 +742,8 @@ class AssistantMessageRead(BaseModel):
     answer: str
     outcome: AssistantOutcome
     sources: list[AssistantSource]
+    # Note que l'utilisateur a donnée à la réponse ; None s'il ne l'a pas notée
+    feedback: AssistantFeedback | None
 
 
 class AssistantConversation(BaseModel):
@@ -749,6 +774,8 @@ class AssistantJournalEntry(BaseModel):
     # Textes d'où venaient les passages donnés au modèle, le plus proche en premier : ceux de « sources »
     # en font partie. Vide pour une question d'avant leur enregistrement
     retrieved: list[AssistantSource]
+    # Note donnée par celui qui a posé la question ; None s'il n'a pas noté la réponse
+    feedback: AssistantFeedback | None
 
 
 class AssistantOverview(BaseModel):
@@ -761,6 +788,9 @@ class AssistantOverview(BaseModel):
     # Questions sur l'application restées sans réponse : ce qui manque aux textes du site
     unknown: int
     off_topic: int
+    # Réponses notées utiles, et pas utiles, par ceux qui les ont reçues
+    helpful: int
+    unhelpful: int
     # Comptes qui ont posé au moins une question
     accounts: int
     # Coût en dollars ; None si le tarif d'un modèle manque

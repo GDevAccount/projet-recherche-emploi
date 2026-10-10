@@ -12,6 +12,7 @@ INSERTED_FIELDS = (
     "sources",
     "retrieved",
     "outcome",
+    "starts_conversation",
     "model",
     "prompt_version",
     "input_tokens",
@@ -33,7 +34,8 @@ class AssistantMessageRepository:
 
     def insert_message(self, message: Mapping) -> int:
         """Enregistre une question et sa réponse, et renvoie l'identifiant de la ligne."""
-        values = {field: message.get(field) for field in INSERTED_FIELDS}
+        # Un champ absent garde la valeur que la base lui donne
+        values = {field: message[field] for field in INSERTED_FIELDS if field in message}
         result = self.session.execute(insert(AssistantMessage).values(user_id=self.user_id, **values))
         return result.inserted_primary_key[0]
 
@@ -55,6 +57,15 @@ class AssistantMessageRepository:
         if since is not None:
             statement = statement.where(AssistantMessage.created_at >= since)
         return list(self.session.scalars(statement))[::-1]
+
+    def set_feedback(self, message_id: int, feedback: str | None) -> bool:
+        """Note une réponse reçue par l'utilisateur, ou retire sa note, et renvoie faux si elle n'est pas à lui."""
+        statement = (
+            update(AssistantMessage)
+            .where(AssistantMessage.user_id == self.user_id, AssistantMessage.id == message_id)
+            .values(feedback=feedback)
+        )
+        return self.session.execute(statement).rowcount == 1
 
     def delete_all(self) -> int:
         """Efface toutes les questions de l'utilisateur, et renvoie leur nombre."""
@@ -90,6 +101,7 @@ class AssistantJournalRepository:
                 AssistantMessage.sources,
                 AssistantMessage.retrieved,
                 AssistantMessage.outcome,
+                AssistantMessage.feedback,
             )
             .where(AssistantMessage.question.is_not(None))
             .order_by(AssistantMessage.id.desc())
@@ -102,6 +114,17 @@ class AssistantJournalRepository:
     def summarize(self, since: datetime | None = None) -> list[Row]:
         """Renvoie le nombre de questions par issue."""
         statement = select(AssistantMessage.outcome, func.count().label("count")).group_by(AssistantMessage.outcome)
+        if since is not None:
+            statement = statement.where(AssistantMessage.created_at >= since)
+        return list(self.session.execute(statement))
+
+    def count_feedback(self, since: datetime | None = None) -> list[Row]:
+        """Renvoie le nombre de réponses par note donnée ; celles qui n'en ont pas n'y sont pas."""
+        statement = (
+            select(AssistantMessage.feedback, func.count().label("count"))
+            .where(AssistantMessage.feedback.is_not(None))
+            .group_by(AssistantMessage.feedback)
+        )
         if since is not None:
             statement = statement.where(AssistantMessage.created_at >= since)
         return list(self.session.execute(statement))
