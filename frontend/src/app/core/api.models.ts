@@ -1,11 +1,15 @@
 // Objets renvoyés par l'API (schemas.py côté Python)
 
 export type LoginMode = 'google' | 'password';
+/** « exhausted » : plus d'essai sans compte aujourd'hui, pour personne */
+export type TrialStatus = 'available' | 'exhausted';
 
 export interface AppConfig {
   /** null : l'instance n'est pas protégée, et l'API refuse tout */
   login_mode: LoginMode | null;
   google_client_id: string | null;
+  /** Essai sans compte ; null si l'instance n'en propose pas */
+  trial: TrialStatus | null;
   contract_types: string[];
   /** Motifs proposés à la suppression d'une offre, dans l'ordre où les présenter */
   delete_reasons: DeleteReasonOption[];
@@ -19,6 +23,8 @@ export interface DeleteReasonOption {
 export interface Account {
   user_id: number;
   is_owner: boolean;
+  /** Compte d'essai, ouvert sans connexion : une seule recherche, et ce navigateur pour seule identité */
+  is_trial: boolean;
   /** Le propriétaire, ou une adresse d'ADMIN_EMAILS : la rubrique Suivi lui est ouverte */
   is_admin: boolean;
   /** Adresse, nom et photo du compte Google ; null avec le mot de passe de l'instance */
@@ -28,7 +34,7 @@ export interface Account {
   can_search: boolean;
   /** Une recherche de cet utilisateur tourne sur le serveur, lancée d'ici ou d'ailleurs */
   search_running: boolean;
-  /** null pour le propriétaire, qui n'a pas de quota */
+  /** null pour le propriétaire, qui n'a pas de quota ; pour un compte d'essai, ce qu'il lui reste en tout */
   remaining_searches: number | null;
   max_searches_per_day: number;
 }
@@ -304,7 +310,7 @@ export interface ReasonCount {
   count: number;
 }
 
-export type AccountPlan = 'free' | 'paid';
+export type AccountPlan = 'free' | 'paid' | 'trial';
 
 /** Ce qu'un compte a consommé et coûté. */
 export interface AccountUsage {
@@ -415,11 +421,11 @@ export interface WeekStats {
   applications: number;
 }
 
-/** Une étape du parcours, et les invités qui l'ont franchie. */
+/** Une étape du parcours, et les comptes qui l'ont franchie. */
 export interface JourneyStep {
   label: string;
   count: number;
-  /** Part des invités ; null sans invité */
+  /** Part des comptes comptés ; null sans aucun */
   rate: number | null;
 }
 
@@ -428,6 +434,8 @@ export interface AccountJourney {
   user_id: number;
   email: string | null;
   is_owner: boolean;
+  /** Compte d'essai : il n'est pas compté parmi les utilisateurs */
+  is_trial: boolean;
   created_at: string;
   last_seen_at: string | null;
   has_cv: boolean;
@@ -473,10 +481,13 @@ export interface AccountDetail {
   events: JourneyEvent[];
 }
 
-/** Parcours des invités, pour les administrateurs. */
+/** Parcours des utilisateurs, pour les administrateurs. */
 export interface JourneyOverview {
   guests: number;
   steps: JourneyStep[];
+  /** Comptes d'essai encore en place, et les mêmes étapes comptées sur eux seuls */
+  trials: number;
+  trial_steps: JourneyStep[];
   accounts: AccountJourney[];
 }
 
@@ -499,6 +510,10 @@ export interface BudgetOverview {
   projected_rate: number | null;
   over_budget: boolean;
   projected_over_budget: boolean;
+  /** Budget du jour et ce qui en est dépensé ; 0 : aucun n'est fixé. Atteint, seul le propriétaire cherche encore */
+  daily_budget_usd: number;
+  today_spent_usd: number;
+  daily_budget_reached: boolean;
 }
 
 /** Consommation de tous les comptes, pour les administrateurs. */

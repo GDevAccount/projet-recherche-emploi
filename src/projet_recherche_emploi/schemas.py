@@ -392,6 +392,10 @@ class SearchSummary(BaseModel):
     inserted: int
 
 
+# « available » : un essai sans compte peut s'ouvrir ; « exhausted » : plus aujourd'hui, pour personne
+TrialStatus = Literal["available", "exhausted"]
+
+
 class AppConfig(BaseModel):
     """Ce qu'un front doit savoir avant toute connexion. Servi sans identité : rien de secret ici."""
 
@@ -399,6 +403,8 @@ class AppConfig(BaseModel):
     login_mode: Literal["google", "password"] | None
     # Identifiant public de l'application chez Google, pour le bouton de connexion ; None hors connexion Google
     google_client_id: str | None
+    # Essai sans compte, par « POST /api/session/trial » ; None si l'instance n'en propose pas
+    trial: TrialStatus | None
     contract_types: list[str]
     # Motifs proposés à la suppression d'une offre, dans l'ordre où les présenter
     delete_reasons: list["DeleteReasonOption"]
@@ -409,15 +415,17 @@ class DeleteReasonOption(BaseModel):
     label: str
 
 
-# Formule d'un compte. Il n'y a pas encore de paiement : tout compte est « free » (DEFAULT_PLAN de config.py)
-AccountPlan = Literal["free", "paid"]
+# Formule d'un compte. Il n'y a pas encore de paiement : tout compte est « free » (DEFAULT_PLAN de config.py),
+# sauf un compte d'essai, ouvert sans connexion, qui est « trial » (TRIAL_PLAN)
+AccountPlan = Literal["free", "paid", "trial"]
 
 
 class AccountUsage(BaseModel):
     """Ce qu'un compte a consommé et coûté sur la période. Des nombres seulement, plus l'adresse du compte."""
 
     user_id: int
-    # None pour le propriétaire, que la table des comptes ne connaît pas par son adresse, et pour un compte supprimé
+    # None pour le propriétaire, que la table des comptes ne connaît pas par son adresse, pour un compte
+    # d'essai, qui n'en a pas, et pour un compte supprimé
     email: str | None
     is_owner: bool
     # Compte supprimé : seuls ses totaux restent, et « last_search_at » n'est plus connu
@@ -546,11 +554,11 @@ class AlertTest(BaseModel):
 
 
 class JourneyStep(BaseModel):
-    """Une étape du parcours, et les invités qui l'ont franchie."""
+    """Une étape du parcours, et les comptes qui l'ont franchie."""
 
     label: str
     count: int
-    # Part des invités ; None sans invité
+    # Part des comptes comptés ; None sans aucun
     rate: float | None
 
 
@@ -558,9 +566,11 @@ class AccountJourney(BaseModel):
     """Où en est un compte : des nombres seulement, plus l'adresse du compte."""
 
     user_id: int
-    # None pour le propriétaire, que la table des comptes ne connaît pas par son adresse
+    # None pour le propriétaire, que la table des comptes ne connaît pas par son adresse, et pour un compte d'essai
     email: str | None
     is_owner: bool
+    # Compte d'essai, ouvert sans connexion : il n'est pas compté parmi les utilisateurs
+    is_trial: bool
     created_at: datetime
     # Au jour près
     last_seen_at: datetime | None
@@ -618,11 +628,15 @@ class AccountDetail(BaseModel):
 
 
 class JourneyOverview(BaseModel):
-    """Parcours des invités, pour les administrateurs : qui va jusqu'à postuler, et qui revient."""
+    """Parcours des utilisateurs, pour les administrateurs : qui va jusqu'à postuler, et qui revient."""
 
     guests: int
-    # Du compte créé au retour un autre jour, dans l'ordre du parcours ; le propriétaire n'y est pas compté
+    # Du compte créé au retour un autre jour, dans l'ordre du parcours ; ni le propriétaire ni les comptes
+    # d'essai n'y sont comptés
     steps: list[JourneyStep]
+    # Comptes d'essai encore en place, et les mêmes étapes comptées sur eux seuls
+    trials: int
+    trial_steps: list[JourneyStep]
     # Tous les comptes, le dernier vu en premier ; un compte supprimé n'y est plus
     accounts: list[AccountJourney]
 
@@ -649,11 +663,18 @@ class BudgetOverview(BaseModel):
     projected_rate: float | None
     over_budget: bool
     projected_over_budget: bool
+    # Budget du jour, à l'heure de Paris, et ce qui en est dépensé. 0 : aucun budget du jour n'est fixé.
+    # Atteint, il refuse les recherches jusqu'au lendemain, sauf celles du propriétaire
+    daily_budget_usd: float
+    today_spent_usd: float
+    daily_budget_reached: bool
 
 
 class Account(BaseModel):
     user_id: int
     is_owner: bool
+    # Compte d'essai, ouvert sans connexion : reconnu par son seul cookie, et limité à MAX_TRIAL_SEARCHES recherches
+    is_trial: bool
     # Le propriétaire, ou une adresse d'ADMIN_EMAILS : il a accès au suivi des recherches et des coûts
     is_admin: bool
     # Adresse, nom et photo du compte Google ; None avec le mot de passe de l'instance
@@ -664,6 +685,7 @@ class Account(BaseModel):
     can_search: bool
     # Une recherche de cet utilisateur tourne sur le serveur : il ne peut pas en lancer une autre
     search_running: bool
-    # None pour le propriétaire, qui n'a pas de quota
+    # None pour le propriétaire, qui n'a pas de quota. Pour un compte d'essai, ce qu'il lui reste en tout,
+    # et non pour aujourd'hui
     remaining_searches: int | None
     max_searches_per_day: int

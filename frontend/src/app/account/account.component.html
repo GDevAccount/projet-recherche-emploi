@@ -11,13 +11,19 @@
         <p class="origin">
           Connecté avec Google{{ account.is_owner ? ', en tant que propriétaire de cette instance' : '' }}.
         </p>
+      } @else if (account.is_trial) {
+        <h2>Compte d'essai</h2>
+        <p class="origin">
+          Ouvert sans connexion : seul ce navigateur le reconnaît. Pour continuer à chercher, quittez l'essai et
+          connectez-vous. Ce que contient l'essai ne suit pas.
+        </p>
       } @else {
         <h2>Propriétaire</h2>
         <p class="origin">Session ouverte avec le mot de passe de cette instance.</p>
       }
     </div>
     <p-button
-      label="Se déconnecter"
+      [label]="account.is_trial ? 'Quitter l\'essai' : 'Se déconnecter'"
       severity="secondary"
       [outlined]="true"
       [loading]="closing()"
@@ -40,6 +46,9 @@
       @if (account.email && !account.is_owner) {
         <li>La date de votre dernière utilisation : un compte resté un an sans servir est supprimé.</li>
       }
+      @if (account.is_trial) {
+        <li>La date d'ouverture de votre essai : un compte d'essai est supprimé au bout de 30 jours.</li>
+      }
     </ul>
     <p class="note">
       Le détail, et ce qui est transmis à d'autres services, est dans les
@@ -57,8 +66,10 @@
     <p class="note">
       @if (account.is_owner) {
         Votre accès reste ouvert : à la prochaine connexion, vous retrouverez un compte vide.
+      } @else if (account.is_trial) {
+        Votre recherche d'essai, si elle est utilisée, ne vous est pas rendue.
       } @else {
-        Si vous êtes toujours invité, une nouvelle connexion ouvrira un compte vide.
+        Si votre accès est toujours ouvert, une nouvelle connexion ouvrira un compte vide.
       }
     </p>
 

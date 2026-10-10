@@ -206,9 +206,9 @@ test('le suivi montre le bilan des recherches et le détail de leurs pages', asy
   await expect(health.locator('.figures > div').first()).toContainText('0 sur 2');
   await expect(health.locator('.figures > .bad')).toHaveCount(0);
 
-  // Le mot de passe ne connaît que le propriétaire : aucun invité, mais sa ligne dit où il en est
+  // Le mot de passe ne connaît que le propriétaire : aucun utilisateur, mais sa ligne dit où il en est
   const journeys = page.locator('app-journeys-card');
-  await expect(journeys.locator('h2')).toContainText('0 invité');
+  await expect(journeys.locator('h2')).toContainText('0 utilisateur');
   await expect(journeys.locator('tbody tr')).toContainText(['Propriétaire']);
   // Sa fiche raconte le parcours qui précède : des recherches, des candidatures, une offre supprimée
   await journeys.getByRole('button', { name: 'Propriétaire' }).click();
@@ -290,6 +290,34 @@ test('la déconnexion ferme la session', async () => {
   await page.goto('/offres');
   await expect(page).toHaveURL(/\/connexion$/);
   expect((await page.request.get('/api/jobs')).status()).toBe(401);
+});
+
+test("un visiteur essaie sans compte : une seule recherche, puis l'essai est épuisé", async () => {
+  // Les deux textes qu'il accepte en essayant sont à portée de clic
+  await expect(page.locator('.terms').getByRole('link', { name: "conditions d'utilisation" })).toBeVisible();
+  await page.getByRole('button', { name: 'Essayer sans compte' }).click();
+
+  // Un compte vide, pas celui du propriétaire : ni CV ni poste, donc rien à lancer
+  await expect(page.locator('.quota')).toContainText('Essai · 1 recherche');
+  await expect(page.getByRole('link', { name: 'Suivi', exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Compléter mon profil' }).click();
+  await page.locator('input[type=file]').setInputFiles(CV_PATH);
+  await page.getByRole('button', { name: 'Enregistrer ce CV' }).click();
+  await expect(page.getByText('CV enregistré.')).toBeVisible();
+  await page.getByLabel('Métier et spécialités').fill(QUERY);
+  await page.getByRole('button', { name: 'Ajouter ce poste' }).click();
+
+  await page.getByRole('button', { name: 'Lancer une recherche' }).click();
+  await expect(page.locator('app-run-panel').getByRole('status')).toHaveText('Recherche terminée', { timeout: 30_000 });
+  await expect(page.locator('.quota')).toContainText('Essai · 0 recherche');
+  await expect(page.locator('.launch small')).toContainText("Nombre d'essais épuisé");
+  await expect(page.getByRole('button', { name: 'Lancer une recherche' })).toBeDisabled();
+
+  // La page Compte dit ce qu'est cet essai, et le quitter ramène à la connexion
+  await page.getByRole('link', { name: 'Mon compte' }).click();
+  await expect(page.getByRole('heading', { name: "Compte d'essai" })).toBeVisible();
+  await page.getByRole('button', { name: "Quitter l'essai" }).last().click();
+  await expect(page).toHaveURL(/\/connexion$/);
 });
 
 test("la politique de contenu n'a rien refusé pendant le parcours", () => {

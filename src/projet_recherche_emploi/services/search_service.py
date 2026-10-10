@@ -10,6 +10,7 @@ from projet_recherche_emploi.config import (
     DEFAULT_USER_ID,
     LOCAL_TIMEZONE,
     MAX_SEARCHES_PER_DAY,
+    MAX_TRIAL_SEARCHES,
     OFFER_PAGE_KIND,
     WEEKS_SHOWN,
 )
@@ -22,7 +23,14 @@ from projet_recherche_emploi.data.repositories.job_repository import JobReposito
 from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
 from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
 from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
-from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
+from projet_recherche_emploi.data.repositories.user_repository import UserRepository
+from projet_recherche_emploi.errors import (
+    BudgetReachedError,
+    ConflictError,
+    InvalidInputError,
+    NotFoundError,
+    QuotaExceededError,
+)
 from projet_recherche_emploi.schemas import (
     DELETE_REASON_NOT_GIVEN,
     DELETE_REASONS,
@@ -88,6 +96,10 @@ RUN_COUNTS = {
 
 class SearchGraph(Protocol):
     def stream(self, state: dict, *, stream_mode: list[str]) -> Iterator[tuple[str, dict]]: ...
+
+
+# Début du décompte des recherches d'un compte d'essai : toutes comptent, quel que soit leur jour
+ALWAYS = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 def start_of_local_day() -> datetime:
@@ -374,8 +386,11 @@ class SearchService:
         database: Database,
         get_graph: Callable[[], SearchGraph],
         on_closed: Callable[[int, str, str | None], None] | None = None,
+        budget_reached: Callable[[], bool] | None = None,
     ):
         self.database = database
+        # Dit si le budget du jour de l'instance est atteint : seul le propriétaire cherche encore
+        self._budget_reached = budget_reached or (lambda: False)
         # Appelé à la fin de chaque lancement avec l'utilisateur, l'état et le type de l'erreur : pour les alertes
         self._on_closed = on_closed
         # Le graph n'est construit qu'à la première recherche
@@ -390,13 +405,26 @@ class SearchService:
             return user_id in self._running
 
     def remaining_searches(self, user_id: int) -> int | None:
-        """Renvoie le nombre de recherches encore permises aujourd'hui, ou None si l'utilisateur n'est pas limité."""
-        # Le propriétaire paie les clés API : le quota ne protège que des recherches des invités
+        """Renvoie le nombre de recherches encore permises, ou None si l'utilisateur n'est pas limité.
+
+        Aujourd'hui pour un utilisateur, en tout pour un compte d'essai.
+        """
+        with self.database.session() as session:
+            quota = self._quota(session, user_id)
+            if quota is None:
+                return None
+            since, limit = quota
+            used = SearchRunRepository(session, user_id).count_runs_since(since)
+        return max(0, limit - used)
+
+    def _quota(self, session, user_id: int) -> tuple[datetime, int] | None:
+        """Renvoie depuis quand compter les recherches de l'utilisateur et combien lui sont permises."""
+        # Le propriétaire paie les clés API : le quota ne protège que des recherches des autres
         if user_id == DEFAULT_USER_ID:
             return None
-        with self.database.session() as session:
-            used = SearchRunRepository(session, user_id).count_runs_since(start_of_local_day())
-        return max(0, MAX_SEARCHES_PER_DAY - used)
+        if UserRepository(session).is_trial(user_id):
+            return ALWAYS, MAX_TRIAL_SEARCHES
+        return start_of_local_day(), MAX_SEARCHES_PER_DAY
 
     def can_search(self, user_id: int) -> bool:
         """Dit si l'utilisateur a ce qu'il faut pour lancer une recherche : un CV et au moins un poste recherché."""
@@ -408,10 +436,15 @@ class SearchService:
     def stream_search(self, user_id: int) -> Iterator[SearchProgress | SearchSummary]:
         """Lance la recherche de l'utilisateur et renvoie son déroulement : l'avancement, puis le bilan.
 
-        Le refus (rien à chercher, recherche déjà en cours, quota atteint) est levé ici, avant le premier élément.
+        Le refus (rien à chercher, budget du jour atteint, recherche déjà en cours, quota atteint) est levé ici,
+        avant le premier élément.
         """
         if not self.can_search(user_id):
             raise InvalidInputError("Il faut un CV et au moins une recherche enregistrée pour lancer une recherche.")
+        # Avant le quota : une recherche refusée faute de budget ne doit pas en consommer. Jamais le propriétaire,
+        # qui paie et doit pouvoir chercher quoi qu'aient dépensé les autres
+        if user_id != DEFAULT_USER_ID and self._budget_reached():
+            raise BudgetReachedError("Le budget du jour de l'application est atteint : revenez demain.")
 
         # Une seule recherche à la fois par utilisateur : la seconde paierait les mêmes pages, et compterait au quota
         with self._running_lock:
@@ -421,10 +454,15 @@ class SearchService:
 
         try:
             # Le lancement est compté avant la recherche : même en échec, elle a pu consommer des crédits
-            limit = None if user_id == DEFAULT_USER_ID else MAX_SEARCHES_PER_DAY
             with self.database.session() as session:
-                run_id = SearchRunRepository(session, user_id).record_run(start_of_local_day(), limit)
+                since, limit = self._quota(session, user_id) or (None, None)
+                is_trial = limit is not None and since == ALWAYS
+                run_id = SearchRunRepository(session, user_id).record_run(since, limit)
             if run_id is None:
+                if is_trial:
+                    raise QuotaExceededError(
+                        "Nombre d'essais épuisé : connectez-vous avec un compte pour continuer à chercher."
+                    )
                 raise QuotaExceededError("Quota de recherches atteint pour aujourd'hui.")
         except BaseException:
             self._release(user_id)

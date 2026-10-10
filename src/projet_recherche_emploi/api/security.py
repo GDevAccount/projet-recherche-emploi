@@ -73,6 +73,8 @@ class Caller:
     # Nom et photo du profil Google, pour l'affichage seulement
     name: str | None = None
     picture: str | None = None
+    # Compte d'essai, ouvert sans connexion et reconnu par son seul cookie
+    is_trial: bool = False
 
 
 def get_container(request: Request) -> Container:
@@ -122,6 +124,12 @@ def _identify(
     if session is None:
         raise _unauthorized()
     _check_origin(request, container)
+    if session.trial_key is not None:
+        user_id = container.auth.resolve_trial_user_id(session.trial_key)
+        # Supprimé par son utilisateur, ou après TRIAL_ACCOUNT_DAYS
+        if user_id is None:
+            raise _unauthorized()
+        return Caller(user_id, None, is_trial=True)
     if session.email is None:
         return Caller(DEFAULT_USER_ID, None)
     # L'adresse a été vérifiée par Google à l'ouverture de la session ; l'autorisation, elle, est relue ici
@@ -129,6 +137,34 @@ def _identify(
     if user_id is None:
         raise _forbidden()
     return Caller(user_id, session.email, session.name, session.picture)
+
+
+def open_trial(
+    request: Request,
+    container: Annotated[Container, Depends(get_container)],
+    session_token: SessionToken,
+) -> tuple[Caller, str | None]:
+    """Renvoie le compte d'essai du visiteur et, s'il vient d'être ouvert, sa clé à poser dans un cookie.
+
+    Seule ouverture de session sans preuve d'identité : c'est AuthService.start_trial qui la plafonne. Un
+    visiteur qui a déjà son essai le retrouve, sans que son cookie soit prolongé.
+    """
+    _check_origin(request, container)
+    session = container.auth.read_session_token(session_token) if session_token else None
+    if session is not None and session.trial_key is not None:
+        user_id = container.auth.resolve_trial_user_id(session.trial_key)
+        if user_id is not None:
+            return Caller(user_id, None, is_trial=True), None
+    trial_key = container.auth.start_trial(_client_ip(request))
+    user_id = container.auth.resolve_trial_user_id(trial_key)
+    request.state.user_id = user_id
+    return Caller(user_id, None, is_trial=True), trial_key
+
+
+def _client_ip(request: Request) -> str | None:
+    # Fly.io écrit lui-même cet en-tête, que le visiteur ne peut donc pas choisir, contrairement à
+    # X-Forwarded-For. Hors de Fly.io, il n'existe pas : c'est l'adresse de la connexion qui sert
+    return request.headers.get("fly-client-ip") or (request.client.host if request.client else None)
 
 
 def get_current_user_id(caller: Annotated[Caller, Depends(get_current_caller)]) -> int:
@@ -227,3 +263,4 @@ UserId = Annotated[int, Depends(get_current_user_id)]
 AdminId = Annotated[int, Depends(get_admin_id)]
 CurrentCaller = Annotated[Caller, Depends(get_current_caller)]
 CredentialsCaller = Annotated[Caller, Depends(get_caller_from_credentials)]
+TrialOpening = Annotated[tuple[Caller, str | None], Depends(open_trial)]

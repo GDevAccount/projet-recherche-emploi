@@ -123,15 +123,36 @@ class SearchQuery(Base):
 
 
 class User(Base):
-    """Compte d'un invité. La ligne 1, sans adresse, réserve l'identifiant du propriétaire."""
+    """Compte d'un utilisateur. La ligne 1, sans adresse, réserve l'identifiant du propriétaire.
+
+    Un compte a une adresse Google, ou la clé d'un essai sans connexion. Sans l'une ni l'autre, il a été supprimé.
+    """
 
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str | None] = mapped_column(Text, unique=True)
+    # Clé tirée au hasard d'un compte d'essai, portée par son cookie de session : c'est sa seule identité
+    trial_key: Mapped[str | None] = mapped_column(Text, unique=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
     # Dernière requête identifiée, au jour près : sert à supprimer les comptes inactifs
     last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+
+
+class TrialStart(Base):
+    """Ouverture d'un compte d'essai : ce qui plafonne les essais par jour, pour l'instance et par adresse IP.
+
+    Sans « user_id », exprès : supprimer son compte d'essai ne doit pas rendre un essai. Les lignes sont
+    effacées après TRIAL_START_DAYS.
+    """
+
+    __tablename__ = "trial_starts"
+    __table_args__ = (Index("ix_trial_starts_created_at", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Empreinte de l'adresse IP, calculée avec un secret de l'instance : jamais l'adresse elle-même
+    ip_hash: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime)
 
 
 class CvText(Base):

@@ -7,7 +7,7 @@ import { ParisDatePipe } from '../core/paris-date.pipe';
 import { TrackingService } from '../core/tracking.service';
 
 /**
- * Parcours des invités : combien déposent un CV, lancent une recherche, postulent et reviennent, puis où en
+ * Parcours des utilisateurs : combien déposent un CV, lancent une recherche, postulent et reviennent, puis où en
  * est chaque compte. C'est ce qui dit si l'application sert à d'autres que son propriétaire.
  */
 @Component({
@@ -80,6 +80,9 @@ export class JourneysCardComponent {
   }
 
   protected nameOf(account: AccountJourney): string {
+    if (account.is_trial) {
+      return `Essai nº ${account.user_id}`;
+    }
     return account.email ?? (account.is_owner ? 'Propriétaire' : `Compte nº ${account.user_id}`);
   }
 }

@@ -108,6 +108,9 @@ export class WelcomeTourComponent {
     if (this.index() !== SEARCH_SLIDE || account.remaining_searches === null) {
       return '';
     }
+    if (account.is_trial) {
+      return 'Votre essai comprend une seule recherche.';
+    }
     const count = account.max_searches_per_day;
     return `Vous disposez de ${count} ${count > 1 ? 'recherches' : 'recherche'} par jour.`;
   });

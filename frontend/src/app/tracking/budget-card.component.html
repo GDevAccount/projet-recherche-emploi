@@ -63,15 +63,26 @@
         <dd>{{ budget.days_left | count }}</dd>
       </div>
       <div>
-        <dt>Dont les invités</dt>
+        <dt>Dont les autres comptes</dt>
         <dd>{{ budget.guests_spent_usd | usd }}</dd>
       </div>
+      @if (budget.daily_budget_usd) {
+        <div>
+          <dt>Aujourd'hui</dt>
+          <dd [class.over]="budget.daily_budget_reached">
+            {{ budget.today_spent_usd | usd }} sur {{ budget.daily_budget_usd | usd }}
+          </dd>
+        </div>
+      }
     </dl>
 
     <small class="note">
       Tous comptes réunis, Tavily et OpenAI, pour {{ budget.runs | count }}
       {{ budget.runs > 1 ? 'recherches' : 'recherche' }} ce mois-ci. La projection prolonge le
       rythme des jours écoulés.
+      @if (budget.daily_budget_reached) {
+        Le budget du jour est atteint : jusqu'à demain, vous seul pouvez lancer une recherche.
+      }
       @if (budget.partial) {
         Le tarif d'un modèle manque : seul le moteur de recherche est compté.
       }

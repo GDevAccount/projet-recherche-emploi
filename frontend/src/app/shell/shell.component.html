@@ -18,7 +18,12 @@
 
     <div class="tools">
       @if (account(); as account) {
-        @if (account.remaining_searches !== null) {
+        @if (account.is_trial) {
+          <span class="quota" title="Recherches restantes de votre essai">
+            Essai · <strong>{{ account.remaining_searches }}</strong>
+            {{ (account.remaining_searches ?? 0) > 1 ? 'recherches' : 'recherche' }}
+          </span>
+        } @else if (account.remaining_searches !== null) {
           <span class="quota" title="Recherches restantes aujourd'hui">
             <strong>{{ account.remaining_searches }}</strong> / {{ account.max_searches_per_day }} recherches
           </span>
@@ -41,7 +46,7 @@
           </svg>
         }
       </button>
-      <button type="button" class="icon logout" aria-label="Se déconnecter" [disabled]="closing()" (click)="logout()">
+      <button type="button" class="icon logout" [attr.aria-label]="account()?.is_trial ? 'Quitter l\'essai' : 'Se déconnecter'" [disabled]="closing()" (click)="logout()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10" />
         </svg>
@@ -91,7 +96,13 @@
             {{ run.busy() ? 'Recherche en cours…' : 'Lancer une recherche' }}
           </button>
           @if (account.remaining_searches === 0) {
-            <small>Quota atteint pour aujourd'hui.</small>
+            @if (account.is_trial) {
+              <small>
+                Nombre d'essais épuisé. <a [routerLink]="accountPath">Connectez-vous</a> pour continuer à chercher.
+              </small>
+            } @else {
+              <small>Quota atteint pour aujourd'hui.</small>
+            }
           }
         </div>
       } @else if (!onProfile()) {

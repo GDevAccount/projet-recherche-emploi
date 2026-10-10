@@ -96,8 +96,10 @@ def _purge_user(backup: Path, user_id: int) -> None:
             if "user_id" in columns:
                 connection.execute(f'DELETE FROM "{table}" WHERE user_id = ?', (user_id,))
             elif table == "users":
-                # Comme dans la base : la ligne reste, sans adresse
+                # Comme dans la base : la ligne reste, sans adresse ni clé d'essai
                 connection.execute("UPDATE users SET email = NULL WHERE id = ?", (user_id,))
+                if "trial_key" in columns:
+                    connection.execute("UPDATE users SET trial_key = NULL WHERE id = ?", (user_id,))
             elif table in PRE_ACCOUNT_TABLES and user_id == DEFAULT_USER_ID:
                 # Une table d'avant les comptes ne contient que les données du propriétaire
                 connection.execute(f'DELETE FROM "{table}"')

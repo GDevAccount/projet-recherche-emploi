@@ -43,7 +43,8 @@ class Container:
         self._search_engine = search_engine or TavilyJobSearch()
         self._evaluator = evaluator or OpenAIJobEvaluator()
 
-        self.auth = AuthService(settings, self.database)
+        self.usage = UsageService(self.database, settings.monthly_budget_usd, settings.daily_budget_usd)
+        self.auth = AuthService(settings, self.database, budget_reached=self.usage.daily_budget_reached)
         self.jobs = JobService(self.database)
         self.queries = QueryService(self.database)
         self.cv = CvService(self.database, self.cv_ingestion)
@@ -52,9 +53,13 @@ class Container:
             notifier = NtfyNotifier(settings.ntfy_url, settings.ntfy_topic)
         self.alerts = AlertService(notifier)
         # Le service de santé est construit après celui des recherches, dont il dépend : d'où l'appel différé
-        self.search = SearchService(self.database, lambda: self.graph, lambda *run: self.health.search_closed(*run))
+        self.search = SearchService(
+            self.database,
+            lambda: self.graph,
+            lambda *run: self.health.search_closed(*run),
+            self.usage.daily_budget_reached,
+        )
         self.account = AccountService(self.database, self.search)
-        self.usage = UsageService(self.database, settings.monthly_budget_usd)
         self.health = HealthService(self.database, self.search, self.usage, self.alerts)
 
     @cached_property

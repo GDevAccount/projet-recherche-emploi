@@ -34,6 +34,13 @@ export class SessionService {
       .pipe(tap((account) => this._account.set(account)));
   }
 
+  /** Ouvre un compte d'essai, sans preuve d'identité : le cookie posé par l'API est sa seule identité. */
+  openTrial(): Observable<Account> {
+    return this.http
+      .post<Account>(`${environment.apiUrl}/session/trial`, null)
+      .pipe(tap((account) => this._account.set(account)));
+  }
+
   close(): Observable<void> {
     return this.http.delete<void>(`${environment.apiUrl}/session`).pipe(tap(() => this.forget()));
   }

@@ -9,6 +9,7 @@ from projet_recherche_emploi.config import (
     LOCAL_TIMEZONE,
     MODEL_PRICES_USD,
     OFFER_PAGE_KIND,
+    TRIAL_PLAN,
 )
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.models import Correction, Job, PageEvaluation, SearchRun
@@ -110,9 +111,10 @@ class UsageService:
     C'est à l'interface de n'y laisser entrer qu'un administrateur (AuthService.is_admin).
     """
 
-    def __init__(self, database: Database, monthly_budget_usd: float = 0):
+    def __init__(self, database: Database, monthly_budget_usd: float = 0, daily_budget_usd: float = 0):
         self.database = database
         self.monthly_budget_usd = monthly_budget_usd
+        self.daily_budget_usd = daily_budget_usd
 
     def get_overview(self, days: int | None = None, now: datetime | None = None) -> UsageOverview:
         """Renvoie ce que chaque compte a consommé et coûté, le plus coûteux en premier.
@@ -143,6 +145,7 @@ class UsageService:
         daily_average = spent / elapsed_days
         projected = round(daily_average * ((end - start) / timedelta(days=1)), COST_DECIMALS)
         budget = self.monthly_budget_usd
+        today_spent = self.get_daily_spend(now)
         return BudgetOverview(
             month_start=start.astimezone(UTC),
             budget_usd=budget,
@@ -158,7 +161,34 @@ class UsageService:
             projected_rate=round(projected / budget, 4) if budget else None,
             over_budget=bool(budget) and spent > budget,
             projected_over_budget=bool(budget) and projected > budget,
+            daily_budget_usd=self.daily_budget_usd,
+            today_spent_usd=today_spent,
+            daily_budget_reached=bool(self.daily_budget_usd) and today_spent >= self.daily_budget_usd,
         )
+
+    def get_daily_spend(self, now: datetime | None = None) -> float:
+        """Renvoie la dépense du jour en cours, à l'heure de Paris, tous comptes réunis.
+
+        Comme pour le mois, un modèle sans tarif ne laisse que le coût du moteur de recherche : un plancher.
+        Une recherche en cours n'y est pas encore, ni celles d'un compte supprimé dans la journée, dont il ne
+        reste que des totaux par mois.
+        """
+        local = (now or datetime.now(UTC)).astimezone(ZoneInfo(LOCAL_TIMEZONE))
+        start = local.replace(hour=0, minute=0, second=0, microsecond=0)
+        with self.database.session() as session:
+            rows = UsageRepository(session).summarize_runs(start.astimezone(UTC))
+        accounts = [
+            _describe_account(user_id, None, DEFAULT_PLAN, deleted=False, rows=rows)
+            for user_id, rows in _by_user(rows).items()
+        ]
+        cost = sum_costs(account.cost_usd for account in accounts)
+        if cost is None:
+            cost = sum(account.search_cost_usd for account in accounts)
+        return round(cost, COST_DECIMALS)
+
+    def daily_budget_reached(self, now: datetime | None = None) -> bool:
+        """Dit si le budget du jour est atteint : plus de recherche avant demain, sauf pour le propriétaire."""
+        return bool(self.daily_budget_usd) and self.get_daily_spend(now) >= self.daily_budget_usd
 
     def get_journeys(self, now: datetime | None = None) -> JourneyOverview:
         """Renvoie où en est chaque compte, et combien d'invités ont franchi chaque étape du parcours.
@@ -171,12 +201,16 @@ class UsageService:
             accounts = self._describe_accounts(session, now)
         accounts.sort(key=lambda account: (account.last_seen_at or account.created_at, account.user_id), reverse=True)
 
-        guests = [account for account in accounts if not account.is_owner]
-        steps = []
-        for label, has_reached in JOURNEY_STEPS.items():
-            count = sum(has_reached(account) for account in guests)
-            steps.append(JourneyStep(label=label, count=count, rate=round(count / len(guests), 4) if guests else None))
-        return JourneyOverview(guests=len(guests), steps=steps, accounts=accounts)
+        # Un essai n'engage à rien : compté avec eux, il ferait croire que les utilisateurs abandonnent
+        guests = [account for account in accounts if not account.is_owner and not account.is_trial]
+        trials = [account for account in accounts if account.is_trial]
+        return JourneyOverview(
+            guests=len(guests),
+            steps=_count_steps(guests),
+            trials=len(trials),
+            trial_steps=_count_steps(trials),
+            accounts=accounts,
+        )
 
     def get_journey(self, user_id: int, now: datetime | None = None) -> AccountDetail:
         """Renvoie la fiche d'un compte : sa chronologie, et les raisons qui écartent ses pages.
@@ -257,14 +291,15 @@ class UsageService:
 
         accounts = []
         for user in UserRepository(session).list_users():
-            # Une ligne sans adresse est un compte supprimé, sauf celle du propriétaire
-            if user.email is None and user.id != DEFAULT_USER_ID:
+            # Une ligne sans adresse ni clé d'essai est un compte supprimé, sauf celle du propriétaire
+            if user.email is None and user.trial_key is None and user.id != DEFAULT_USER_ID:
                 continue
             counted = jobs.get(user.id)
             account = AccountJourney(
                 user_id=user.id,
                 email=user.email,
                 is_owner=user.id == DEFAULT_USER_ID,
+                is_trial=user.trial_key is not None,
                 created_at=user.created_at,
                 last_seen_at=user.last_seen_at,
                 has_cv=user.id in with_cv,
@@ -301,10 +336,18 @@ class UsageService:
         with self.database.session() as session:
             rows = UsageRepository(session).summarize_runs(since)
             archived_rows = UsageRepository(session).summarize_archived(archived_since)
-            emails = {user.id: user.email for user in UserRepository(session).list_users()}
+            users = UserRepository(session).list_users()
+            emails = {user.id: user.email for user in users}
+            trial_ids = {user.id for user in users if user.trial_key is not None}
 
         accounts = [
-            _describe_account(user_id, emails.get(user_id), DEFAULT_PLAN, deleted=False, rows=rows)
+            _describe_account(
+                user_id,
+                emails.get(user_id),
+                TRIAL_PLAN if user_id in trial_ids else DEFAULT_PLAN,
+                deleted=False,
+                rows=rows,
+            )
             for user_id, rows in _by_user(rows).items()
         ]
         accounts += [
@@ -327,6 +370,14 @@ class UsageService:
             cost_usd=sum_costs(account.cost_usd for account in accounts),
             guests_cost_usd=sum_costs(account.cost_usd for account in guests),
         )
+
+
+def _count_steps(accounts: list[AccountJourney]) -> list[JourneyStep]:
+    steps = []
+    for label, has_reached in JOURNEY_STEPS.items():
+        count = sum(has_reached(account) for account in accounts)
+        steps.append(JourneyStep(label=label, count=count, rate=round(count / len(accounts), 4) if accounts else None))
+    return steps
 
 
 def _by_user(rows: list) -> dict[int, list]:

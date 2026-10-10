@@ -381,6 +381,9 @@ def test_budget_sends_an_alert_when_exceeded_or_about_to_be(alerting, notifier, 
             projected_rate=3,
             over_budget=False,
             projected_over_budget=True,
+            daily_budget_usd=0,
+            today_spent_usd=0,
+            daily_budget_reached=False,
         )
 
     # En tout début de mois, la projection repose sur trop peu de jours pour prévenir
@@ -1071,10 +1074,12 @@ def test_guest_accounts_left_unused_too_long_are_deleted(container, valid_pdf):
     with container.database.session() as session:
         users = UserRepository(session)
         ids = {email: users.get_or_create_user_id(email) for email in last_seen}
+        # La création vient de dater l'activité, à l'heure réelle : c'est elle qu'il faut dépasser pour la récrire
+        later = datetime.now(UTC) + timedelta(days=1)
         for email, seen in last_seen.items():
-            assert users.record_activity(ids[email], seen, now + timedelta(days=1))
+            assert users.record_activity(ids[email], seen, later)
         # Le propriétaire aussi est resté longtemps sans venir : il n'est jamais concerné
-        users.record_activity(DEFAULT_USER_ID, now - 3 * limit, now + timedelta(days=1))
+        users.record_activity(DEFAULT_USER_ID, now - 3 * limit, later)
         # Carol a déjà supprimé son compte : sa ligne, sans adresse, n'est pas un compte à supprimer
         users.forget_user(ids["carol@exemple.fr"])
     alice, bob = ids["alice@exemple.fr"], ids["bob@exemple.fr"]

@@ -21,6 +21,7 @@ from projet_recherche_emploi.config import configure_logging
 from projet_recherche_emploi.container import Container, get_container
 from projet_recherche_emploi.errors import (
     AppError,
+    BudgetReachedError,
     ConfigurationError,
     ConflictError,
     InvalidInputError,
@@ -36,6 +37,7 @@ STATUS_CODES = {
     NotFoundError: status.HTTP_404_NOT_FOUND,
     ConflictError: status.HTTP_409_CONFLICT,
     QuotaExceededError: status.HTTP_429_TOO_MANY_REQUESTS,
+    BudgetReachedError: status.HTTP_429_TOO_MANY_REQUESTS,
     ConfigurationError: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 

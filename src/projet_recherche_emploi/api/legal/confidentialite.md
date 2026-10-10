@@ -9,7 +9,8 @@ L'application est un projet personnel, exploité par un particulier. Pour toute 
 ## Données enregistrées
 
 - **Votre adresse e-mail Google**, pour vous reconnaître d'une connexion à l'autre. Votre nom et votre photo de profil, transmis par Google à la connexion, ne sont pas enregistrés sur le serveur : ils sont gardés dans le cookie de votre session, pour afficher votre vignette. La photo elle-même est chargée depuis les serveurs de Google.
-- **Le texte de votre CV, dont vos coordonnées sont retirées** : adresse e-mail, téléphone, liens, adresse postale, date de naissance et, quand il est connu, votre nom. Ce retrait est automatique : il reconnaît ces informations à leur forme, sans garantie d'en trouver toutes les mentions. Le fichier PDF que vous déposez n'est pas conservé : il est lu une fois, pour en tirer ce texte.
+- **Pour un essai sans compte, aucune adresse e-mail** : l'essai n'est reconnu que par le cookie de votre navigateur. À son ouverture, l'application garde une empreinte de votre adresse IP, calculée de façon à ne pas pouvoir retrouver l'adresse, pour limiter le nombre d'essais ouverts par jour depuis une même connexion. Cette empreinte n'est pas rattachée à votre essai, et elle est effacée au bout de {trial_start_hours} heures.
+- **Le texte de votre CV, dont vos coordonnées sont retirées** : adresse e-mail, téléphone, liens, adresse postale, date de naissance et, quand il est connu, votre nom. Pour un essai sans compte, votre nom n'est pas connu de l'application : il n'est donc pas retiré. Ce retrait est automatique : il reconnaît ces informations à leur forme, sans garantie d'en trouver toutes les mentions. Le fichier PDF que vous déposez n'est pas conservé : il est lu une fois, pour en tirer ce texte.
 - **Vos recherches** : les phrases de recherche, les types de contrat et les lieux que vous enregistrez.
 - **Les offres trouvées pour vous** : titre, lien, extrait, type de contrat et lieu lus sur l'annonce, raison pour laquelle l'offre a été retenue, et le suivi que vous en faites : annonce ouverte depuis l'application, candidature envoyée, entretien obtenu, refus de l'employeur, avec la date de chaque étape, et offre supprimée.
 - **Les pages écartées** : titre, lien, type de contrat et lieu lus sur la page, raison du rejet et critères en défaut, pour ne pas les évaluer une seconde fois.
@@ -26,7 +27,7 @@ L'application n'utilise aucun outil de mesure d'audience ni de publicité. Elle 
 
 Uniquement à faire fonctionner le service : vous connecter, chercher des offres, les comparer à votre CV et vous présenter le résultat. Elles ne sont ni vendues, ni utilisées à des fins publicitaires, ni visibles par les autres utilisateurs.
 
-Ce traitement repose sur l'exécution du service que vous demandez en vous connectant (article 6.1.b du RGPD) : sans ces données, l'application ne peut ni chercher ni trier d'offres pour vous.
+Ce traitement repose sur l'exécution du service que vous demandez en vous connectant ou en ouvrant un essai (article 6.1.b du RGPD) : sans ces données, l'application ne peut ni chercher ni trier d'offres pour vous. L'empreinte de l'adresse IP d'un essai repose, elle, sur l'intérêt légitime de l'exploitant (article 6.1.f) : empêcher qu'un service dont il paie chaque recherche soit utilisé sans limite.
 
 ## À qui elles sont transmises
 
@@ -41,7 +42,7 @@ Ces quatre sociétés sont établies aux États-Unis. Les données hébergées p
 
 ## Durée de conservation
 
-Vos données sont conservées tant que vous utilisez l'application. Un compte resté {inactive_months} mois sans utilisation est supprimé automatiquement, avec tout ce qu'il contient : adresse e-mail, CV, recherches, offres, pages écartées, bilans des recherches, journal des pages évaluées, appels au moteur de recherche, erreurs rencontrées et corrections du tri. Vous n'en êtes pas prévenu, l'application n'envoyant aucun e-mail.
+Vos données sont conservées tant que vous utilisez l'application. Un compte resté {inactive_months} mois sans utilisation est supprimé automatiquement, avec tout ce qu'il contient : adresse e-mail, CV, recherches, offres, pages écartées, bilans des recherches, journal des pages évaluées, appels au moteur de recherche, erreurs rencontrées et corrections du tri. Vous n'en êtes pas prévenu, l'application n'envoyant aucun e-mail. Un essai sans compte est supprimé de la même façon {trial_days} jours après son ouverture, que vous vous en serviez ou non : passé ce délai, son cookie a expiré et plus personne ne peut y revenir.
 
 À la suppression d'un compte, par vous ou automatiquement, une seule chose est conservée : le total, par mois, de ce que ses recherches ont consommé (nombre de recherches, de pages lues et volume de texte échangé avec OpenAI et Tavily). Ces totaux ne portent ni adresse e-mail, ni contenu, ni date précise : ils ne permettent pas de vous identifier, et servent uniquement à connaître le coût du service dans la durée.
 
@@ -54,6 +55,8 @@ Avant certaines mises à jour de l'application, une copie de sauvegarde de la ba
 Conformément au règlement général sur la protection des données (RGPD), vous pouvez demander l'accès à vos données, leur rectification ou leur suppression, en recevoir une copie dans un format courant (portabilité), et demander la limitation de leur traitement ou vous y opposer, en écrivant à l'adresse indiquée plus haut. Une réponse vous est donnée dans un délai d'un mois. La suppression porte sur l'ensemble de votre compte : adresse e-mail, CV, recherches, offres, pages écartées, bilans des recherches, journal des pages évaluées, appels au moteur de recherche, erreurs rencontrées et corrections du tri.
 
 Vous pouvez supprimer votre compte vous-même, depuis la page « Compte » de l'application : votre adresse e-mail, votre CV, vos recherches, vos offres, les pages écartées, les bilans de vos recherches, le journal des pages évaluées, les appels au moteur de recherche, les erreurs rencontrées et vos corrections du tri sont alors effacés immédiatement, sans retour possible. Vous pouvez aussi remplacer votre CV et supprimer vos recherches sans supprimer votre compte. Vous pouvez aussi retirer l'accès de l'application à votre compte Google depuis les paramètres de sécurité de ce compte.
+
+Un essai sans compte ne porte ni nom ni adresse : l'exploitant ne peut pas retrouver le vôtre à partir d'une demande écrite (article 11 du RGPD). Vous exercez vos droits vous-même, depuis le navigateur qui a ouvert l'essai : la page « Compte » en efface tout, immédiatement.
 
 Si vous estimez que vos droits ne sont pas respectés, vous pouvez adresser une réclamation à la CNIL (www.cnil.fr).
 

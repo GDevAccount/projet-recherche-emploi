@@ -34,6 +34,8 @@ def main() -> None:
             app_password=PASSWORD,
             auth_cookie_secret="secret-des-tests-de-bout-en-bout",
             google_client_id="",
+            # Le parcours se termine par un essai sans compte
+            max_trials_per_day=5,
         )
         container = build_container(settings, FakeSearchEngine(), FakeEvaluator())
         uvicorn.run(create_app(container, docs=False), host="127.0.0.1", port=int(sys.argv[1]))

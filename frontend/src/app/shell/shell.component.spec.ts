@@ -11,7 +11,7 @@ import { ShellComponent } from './shell.component';
 
 const GUEST: Account = {
   user_id: 2,
-  is_owner: false, is_admin: false,
+  is_owner: false, is_trial: false, is_admin: false,
   email: null,
   name: null,
   picture: null,
@@ -70,7 +70,7 @@ describe('ShellComponent', () => {
   });
 
   it('should not show a quota to the owner, who has none', async () => {
-    await openSession({ ...GUEST, user_id: 1, is_owner: true, is_admin: true, remaining_searches: null });
+    await openSession({ ...GUEST, user_id: 1, is_owner: true, is_trial: false, is_admin: true, remaining_searches: null });
 
     expect(element().querySelector('.quota')).toBeNull();
   });

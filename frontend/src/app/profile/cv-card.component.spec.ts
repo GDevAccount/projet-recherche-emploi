@@ -85,7 +85,7 @@ describe('CvCardComponent', () => {
     // Un premier CV peut rendre la recherche possible : c'est l'API qui le dit
     http.expectOne('/api/me').flush({
       user_id: 2,
-      is_owner: false, is_admin: false,
+      is_owner: false, is_trial: false, is_admin: false,
       email: null,
       name: null,
       picture: null,
