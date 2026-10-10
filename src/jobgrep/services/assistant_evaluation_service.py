@@ -12,8 +12,8 @@ from datetime import UTC, datetime
 
 from langgraph.graph.state import CompiledStateGraph
 
-from jobgrep.assistant.evaluation import describe_results, evaluate_case, load_cases, summarize
-from jobgrep.assistant.ports import AnswerJudge
+from jobgrep.assistant.evaluation import CaseAccounts, describe_results, evaluate_case, load_cases, summarize
+from jobgrep.assistant.ports import AccountReader, AnswerJudge
 from jobgrep.assistant.prompts import prompt_version
 from jobgrep.config import EVALUATION_CONCURRENCY
 from jobgrep.data.database import Database
@@ -56,6 +56,7 @@ def _read(row: AssistantEvaluation) -> dict:
         "correct_rate": _rate(row.correct, row.answer_cases),
         "faithful_rate": _rate(row.faithful, row.judged),
         "refusal_rate": _rate(row.off_topic_refused, row.off_topic_cases),
+        "consult_rate": _rate(row.consult_hits, row.consult_cases),
         "duration_ms": row.duration_ms,
         "cost_usd": sum_costs(costs),
     }
@@ -67,15 +68,15 @@ class AssistantEvaluationService:
     def __init__(
         self,
         database: Database,
-        get_graph: Callable[[], CompiledStateGraph],
+        graph_for: Callable[[AccountReader], CompiledStateGraph],
         judge: AnswerJudge,
         answer_model_name: str,
         embedding_model_name: str,
         contact_email: str = "",
     ):
         self.database = database
-        # Le graph de l'assistant lui-même : c'est lui qui est mesuré, pas une copie
-        self._get_graph = get_graph
+        # Construit le graph de l'assistant, le même que celui qui sert les utilisateurs, sur des comptes fictifs
+        self._graph_for = graph_for
         self.judge = judge
         self.answer_model_name = answer_model_name
         self.embedding_model_name = embedding_model_name
@@ -89,14 +90,16 @@ class AssistantEvaluationService:
         """
         now = (now or datetime.now(UTC)).replace(microsecond=0)
         cases = load_cases(lambda text: fill_fields(text, self.contact_email))
-        graph = self._get_graph()
+        graph = self._graph_for(CaseAccounts(cases))
 
+        numbered_cases = list(enumerate(cases))[1:]
         started = time.perf_counter()
         # Les passages sont situés par la première question : les autres attendent qu'elle ait fini
-        first = evaluate_case(graph, self.judge, cases[0])
+        # Chaque question est posée au nom de son propre compte fictif : son rang dans le jeu
+        first = evaluate_case(graph, self.judge, cases[0], 0)
         with ThreadPoolExecutor(max_workers=EVALUATION_CONCURRENCY) as pool:
-            others = list(pool.map(lambda case: evaluate_case(graph, self.judge, case), cases[1:]))
-        results = [first, *others]
+            others = pool.map(lambda case: evaluate_case(graph, self.judge, case[1], case[0]), numbered_cases)
+            results = [first, *others]
         duration_ms = round((time.perf_counter() - started) * 1000)
 
         with self.database.session() as session:

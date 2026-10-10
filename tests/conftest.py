@@ -4,9 +4,10 @@ import zlib
 from pathlib import Path
 
 import pytest
+from langchain_core.messages import AIMessage, ToolMessage
 
 from jobgrep.agent.ports import EvaluationUsage, JobEvaluation
-from jobgrep.assistant.ports import DraftAnswer, ModelUsage, Verdict
+from jobgrep.assistant.ports import DraftAnswer, ModelTurn, ModelUsage, Verdict
 from jobgrep.config import MODEL_PRICES_USD, ModelPrice, Settings
 from jobgrep.container import build_container
 from jobgrep.data.database import Database
@@ -120,17 +121,31 @@ class FakeAnswerModel:
         # Texte de sa réponse ; None : une phrase qui nomme le premier passage reçu
         self.text = None
         self.usage = ModelUsage(input_tokens=2000, output_tokens=100, duration_ms=300)
+        # Vrai : il consulte le compte avant de répondre, avec ces paramètres, et répète ce que l'outil rend
+        self.consults = False
+        self.tool_args = {}
+        # Outils qui lui ont été proposés à chaque appel
+        self.offered = []
 
-    def answer(self, question, passages, history, on_answer=None):
+    def answer(self, question, passages, history, transcript=(), tools=(), on_answer=None):
         self.asked.append((question, list(passages), list(history)))
+        self.offered.append([tool.name for tool in tools])
+        results = [message.content for message in transcript if isinstance(message, ToolMessage)]
+        # Comme le vrai modèle : il demande d'abord l'outil, puis répond avec ce que l'outil a rendu
+        if self.consults and tools and not results:
+            call = {"name": tools[0].name, "args": dict(self.tool_args), "id": "appel-1", "type": "tool_call"}
+            return ModelTurn(AIMessage("", tool_calls=[call]), None), self.usage
         answer = f"Voir « {passages[0].heading} »." if self.outcome == "answered" else ""
+        if results and self.outcome == "answered":
+            answer = results[-1]
         if self.text is not None:
             answer = self.text
-        # Comme le vrai modèle : la réponse s'écrit peu à peu, et seulement quand il répond
+        # La réponse s'écrit peu à peu, et seulement quand il répond
         if on_answer and self.outcome == "answered" and answer:
             on_answer(answer[: len(answer) // 2])
             on_answer(answer)
-        return DraftAnswer(outcome=self.outcome, answer=answer, passages=self.cited), self.usage
+        draft = DraftAnswer(outcome=self.outcome, answer=answer, passages=self.cited)
+        return ModelTurn(AIMessage(draft.model_dump_json()), draft), self.usage
 
 
 class FakeJudge:
@@ -140,13 +155,16 @@ class FakeJudge:
 
     def __init__(self):
         self.judged = []
+        # Situation du compte que l'assistant avait lue, pour chaque réponse notée
+        self.accounts = []
         # Ce qu'il dit de chaque réponse
         self.faithful = True
         self.correct = True
         self.usage = ModelUsage(input_tokens=1500, output_tokens=40)
 
-    def judge(self, question, passages, answer, reference):
+    def judge(self, question, passages, answer, reference, account=""):
         self.judged.append((question, answer, reference))
+        self.accounts.append(account)
         return Verdict(reason="Conforme.", faithful=self.faithful, correct=self.correct), self.usage
 
 

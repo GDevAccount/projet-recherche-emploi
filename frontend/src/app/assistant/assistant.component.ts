@@ -31,6 +31,7 @@ const SUGGESTIONS = [
 const STEP_LABELS: Record<AssistantStep, string> = {
   retrieve: 'Je cherche dans les textes du site…',
   generate: 'Je rédige la réponse…',
+  consult: 'Je consulte votre compte…',
 };
 
 /**

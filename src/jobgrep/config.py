@@ -137,6 +137,11 @@ ASSISTANT_RETRIES = 1
 JUDGE_TIMEOUT_SECONDS = 90
 # Questions par jour pour chaque compte, essais compris (le propriétaire n'est pas limité)
 MAX_ASSISTANT_QUESTIONS_PER_DAY = 20
+# Parmi elles, celles qui consultent le compte de l'utilisateur : elles coûtent un appel de plus au modèle.
+# Ce nombre atteint, l'utilisateur a épuisé ses questions du jour
+MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY = 10
+# Fois où le modèle peut consulter le compte pour une même question : au-delà, il répond avec ce qu'il a
+ASSISTANT_TOOL_ROUNDS = 2
 # Et par minute : personne ne lit une réponse en moins de temps, un script qui les enchaîne si
 MAX_ASSISTANT_QUESTIONS_PER_MINUTE = 5
 # Passages du site donnés au modèle pour répondre à une question

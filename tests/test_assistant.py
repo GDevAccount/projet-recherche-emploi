@@ -4,19 +4,25 @@ from pathlib import Path
 
 import pytest
 from conftest import FakeAnswerModel, FakeEmbedder, FakeEvaluator, FakeSearchEngine
+from langchain_core.messages import AIMessage
 from sqlalchemy import func, select
 
 from jobgrep.assistant.graph import build_graph
 from jobgrep.assistant.nodes import OFF_TOPIC_ANSWER, AssistantNodes
 from jobgrep.assistant.passages import Passage, rank_passages, similarity, split_text
+from jobgrep.assistant.ports import ModelTurn
 from jobgrep.assistant.prompts import ANSWER_PROMPT, describe_passages, prompt_version
+from jobgrep.assistant.tools import build_account_tools
 from jobgrep.config import (
     ASSISTANT_HISTORY_MINUTES,
     ASSISTANT_MESSAGE_DAYS,
     ASSISTANT_PASSAGES,
+    ASSISTANT_TOOL_ROUNDS,
     DEFAULT_USER_ID,
+    MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY,
     MAX_ASSISTANT_QUESTIONS_PER_DAY,
     MAX_ASSISTANT_QUESTIONS_PER_MINUTE,
+    MAX_SEARCHES_PER_DAY,
     MODEL_PRICES_USD,
     ModelPrice,
     Settings,
@@ -26,6 +32,7 @@ from jobgrep.data.models import AssistantMessage, AssistantPassage
 from jobgrep.data.repositories.assistant_message_repository import AssistantMessageRepository
 from jobgrep.data.repositories.user_repository import UserRepository
 from jobgrep.errors import (
+    AssistantAccountLimitError,
     AssistantUnavailableError,
     BudgetReachedError,
     InvalidInputError,
@@ -540,3 +547,113 @@ def test_sections_of_the_guide_lead_to_screens_that_exist():
 
     assert set(GUIDE_SCREENS) <= sections
     assert set(GUIDE_SCREENS.values()) <= screens
+
+
+def ready_account(container, user_id, valid_pdf):
+    """Donne à ce compte un CV, un poste recherché et une recherche terminée."""
+    container.cv.save_cv(user_id, valid_pdf)
+    container.queries.add_query(user_id, "CDI", "dresseur de licornes")
+    container.search.run_search(user_id)
+
+
+def test_account_status_says_where_the_account_stands_and_nothing_of_its_content(container, valid_pdf):
+    reader = container.assistant.account
+
+    empty = reader.describe(CAROL)
+    assert "CV : aucun CV déposé." in empty and "il manque le CV et un poste recherché" in empty
+    assert f"Recherches restantes aujourd'hui : {MAX_SEARCHES_PER_DAY} sur {MAX_SEARCHES_PER_DAY}." in empty
+    assert "Dernière recherche : aucune." in empty and "Offres retenues : 0." in empty
+
+    ready_account(container, BOB, valid_pdf)
+    status = reader.describe(BOB)
+    assert "CV : déposé le " in status and "Postes recherchés enregistrés : 1." in status
+    assert "Profil complet : une recherche peut être lancée." in status
+    assert f"Recherches restantes aujourd'hui : {MAX_SEARCHES_PER_DAY - 1} sur {MAX_SEARCHES_PER_DAY}." in status
+    assert "terminée : 2 pages trouvées, 2 nouvelles lues, 1 offres retenues" in status
+    assert "Offres retenues : 1.\n- à traiter : 1" in status
+    assert "Pages écartées : 1.\n- Compétences insuffisantes : 1" in status
+    # Des nombres et des dates : ni le poste recherché, ni l'intitulé ou le lien d'une offre
+    assert "licornes" not in status and "http" not in status
+    # Le propriétaire n'a pas de quota
+    assert "Recherches restantes : sans limite." in reader.describe(DEFAULT_USER_ID)
+
+
+def test_the_assistant_consults_the_account_when_the_question_needs_it(container, answer_model, valid_pdf):
+    ready_account(container, BOB, valid_pdf)
+    answer_model.consults = True
+
+    *progress, reply = container.assistant.stream_answer(BOB, "Combien de recherches me reste-t-il ?", NOON)
+
+    # Le modèle demande l'outil, le graph le lui exécute, puis il répond avec ce que l'outil a rendu
+    assert [event.step for event in progress][:4] == ["retrieve", "generate", "consult", "generate"]
+    assert answer_model.offered == [["etat_du_compte"], ["etat_du_compte"]]
+    assert f"Recherches restantes aujourd'hui : {MAX_SEARCHES_PER_DAY - 1}" in reply.message.answer
+    assert reply.message.consulted == ["État de votre compte"]
+    assert container.assistant.get_conversation(BOB, NOON).messages[0].consulted == ["État de votre compte"]
+    # Les deux appels au modèle sont comptés
+    with container.database.session() as session:
+        stored = session.scalars(select(AssistantMessage)).one()
+        assert (stored.input_tokens, stored.output_tokens, stored.consulted) == (4000, 200, '["etat_du_compte"]')
+
+    # Une question générale ne consulte rien, et le dit
+    answer_model.consults = False
+    general = container.assistant.ask(BOB, QUESTION, NOON + timedelta(minutes=5))
+    assert general.message.consulted == []
+    overview = container.assistant.get_overview(now=NOON + timedelta(minutes=6))
+    assert (overview.questions, overview.consulting) == (2, 1)
+    assert [entry.consulted for entry in overview.entries] == [[], ["État de votre compte"]]
+
+
+def test_the_model_cannot_read_another_account(container, answer_model, valid_pdf):
+    ready_account(container, BOB, valid_pdf)
+    answer_model.consults = True
+    # Le modèle tente de désigner lui-même un compte : celui de Carol, qui n'a rien
+    answer_model.tool_args = {"user_id": CAROL}
+
+    as_bob = container.assistant.ask(BOB, "Où en est mon compte ?", NOON).message.answer
+    as_carol = container.assistant.ask(CAROL, "Où en est mon compte ?", NOON).message.answer
+
+    # Chacun reçoit son propre compte, celui que le serveur a mis dans l'état, quoi que le modèle demande
+    assert "CV : déposé le " in as_bob and "Offres retenues : 1." in as_bob
+    assert "CV : aucun CV déposé." in as_carol and "Offres retenues : 0." in as_carol
+    # Et la description de l'outil ne lui propose pas ce paramètre
+    [tool] = build_account_tools(container.assistant.account)
+    assert tool.tool_call_schema.model_json_schema()["properties"] == {}
+
+
+def test_the_account_is_consulted_a_limited_number_of_times_for_one_question(container, answer_model):
+    class Insatiable(type(answer_model)):
+        def answer(self, question, passages, history, transcript=(), tools=(), on_answer=None):
+            if not tools:
+                return type(answer_model).answer(self, question, passages, history)
+            self.offered.append([tool.name for tool in tools])
+            call = {"name": tools[0].name, "args": {}, "id": f"appel-{len(self.offered)}", "type": "tool_call"}
+            return ModelTurn(AIMessage("", tool_calls=[call]), None), self.usage
+
+    container.assistant.answer_model = Insatiable()
+
+    reply = container.assistant.ask(BOB, "Où en est mon compte ?", NOON)
+
+    # Au-delà, l'outil n'est plus proposé : le modèle doit répondre avec ce qu'il a
+    offered = container.assistant.answer_model.offered
+    assert offered == [["etat_du_compte"]] * ASSISTANT_TOOL_ROUNDS + [[]]
+    assert reply.message.outcome == "answered" and reply.message.consulted == ["État de votre compte"]
+
+
+def test_questions_that_consult_the_account_close_the_day_sooner(container, answer_model):
+    answer_model.consults = True
+    for minutes_ago in range(MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY, 0, -1):
+        container.assistant.ask(BOB, "Où en est mon compte ?", NOON - timedelta(minutes=minutes_ago))
+
+    # Dix questions sur vingt, mais toutes ont consulté le compte : la journée est finie, pour toute question
+    answer_model.consults = False
+    with pytest.raises(AssistantAccountLimitError, match="limite de questions pour aujourd'hui"):
+        container.assistant.ask(BOB, QUESTION, NOON)
+    assert len(answer_model.asked) == 2 * MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY
+
+    # Un autre compte n'est pas concerné, ni le propriétaire, ni le lendemain
+    container.assistant.ask(CAROL, QUESTION, NOON)
+    container.assistant.ask(BOB, QUESTION, NOON + timedelta(days=1))
+    answer_model.consults = True
+    for _ in range(MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY + 1):
+        container.assistant.ask(DEFAULT_USER_ID, "Où en est mon compte ?", NOON)

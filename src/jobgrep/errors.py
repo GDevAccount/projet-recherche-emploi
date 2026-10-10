@@ -34,3 +34,15 @@ class ConfigurationError(AppError):
 
 class AssistantUnavailableError(AppError):
     """L'assistant n'a pas pu répondre : le modèle est en panne, trop lent, ou a rendu une réponse illisible."""
+
+
+class AssistantDailyLimitError(QuotaExceededError):
+    """L'utilisateur a posé toutes ses questions du jour à l'assistant."""
+
+
+class AssistantAccountLimitError(QuotaExceededError):
+    """L'utilisateur a posé toutes les questions du jour qui pouvaient consulter son compte."""
+
+
+class AssistantRateLimitError(QuotaExceededError):
+    """L'utilisateur pose ses questions à l'assistant plus vite qu'il ne peut lire les réponses."""

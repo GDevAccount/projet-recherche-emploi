@@ -27,6 +27,7 @@ const ANSWER: AssistantMessage = {
       screen: null,
     },
   ],
+  consulted: [],
   feedback: null,
 };
 
@@ -35,6 +36,7 @@ function conversation(changes: Partial<AssistantConversation> = {}): AssistantCo
     messages: [],
     remaining_questions: 20,
     max_questions_per_day: 20,
+    max_account_questions_per_day: 10,
     max_question_chars: 500,
     retention_days: 90,
     ...changes,
@@ -191,6 +193,33 @@ describe('AssistantComponent', () => {
     ]);
     expect(text()).toContain('19 questions restantes');
     expect(element().querySelector('textarea')!.value).toBe('');
+  });
+
+  it('should say that it consults the account, and that it did', async () => {
+    const stream = controlledStream();
+    fetchMock.mockResolvedValue(stream.response);
+    await openWith(conversation());
+    await type('Combien de recherches me reste-t-il ?');
+
+    button('Envoyer la question').click();
+    await settle();
+    stream.push(progress({ step: 'consult' }));
+    await settle();
+    expect(text()).toContain('Je consulte votre compte…');
+
+    const answered = {
+      ...ANSWER,
+      answer: 'Il vous reste 1 recherche.',
+      consulted: ['État de votre compte'],
+    };
+    stream.push(event('result', { message: answered, remaining_questions: 19 }));
+    stream.end();
+    await settle();
+    expect(text()).toContain('Consulté : État de votre compte');
+    // L'avertissement dit ce que l'assistant peut voir, et ce qu'il ne voit jamais
+    expect(text()).toContain(
+      "Il peut consulter l'état de votre compte, jamais votre CV ni vos offres",
+    );
   });
 
   it('should show the earlier conversation again', async () => {

@@ -46,6 +46,11 @@ const MEASURES: { key: keyof AssistantEvaluation; label: string; hint: string }[
     label: 'Hors-sujet refusé',
     hint: 'Les questions hors sujet sont refusées',
   },
+  {
+    key: 'consult_rate',
+    label: 'Compte consulté à propos',
+    hint: 'Le compte est consulté quand la question le demande, et seulement alors',
+  },
 ];
 
 const OUTCOME_LABELS: Record<AssistantOutcome, string> = {
@@ -118,6 +123,11 @@ export class EvaluationCardComponent {
   protected reproach(result: AssistantEvaluationCase): string {
     if (result.rank === null && result.cited !== null) {
       return "La section attendue n'est pas parmi les passages retrouvés.";
+    }
+    if (result.consult_expected !== null && result.consulted !== result.consult_expected) {
+      return result.consult_expected
+        ? "Le compte devait être consulté, et ne l'a pas été."
+        : 'Le compte a été consulté sans raison.';
     }
     if (result.outcome !== result.expected_outcome) {
       return `Attendu : ${OUTCOME_LABELS[result.expected_outcome]}. Obtenu : ${OUTCOME_LABELS[result.outcome]}.`;

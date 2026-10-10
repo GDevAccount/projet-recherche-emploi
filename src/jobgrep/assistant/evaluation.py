@@ -10,11 +10,18 @@ from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from langchain_core.messages import ToolMessage
 from langgraph.graph.state import CompiledStateGraph
 
 from jobgrep.assistant.ports import AnswerJudge, Exchange, ModelUsage, Outcome
 
 CASES_FILE = Path(__file__).parent / "evaluation_cases.json"
+# Situation rendue à une question qui n'en décrit aucune, si le modèle consulte quand même le compte
+DEFAULT_ACCOUNT = (
+    "Type de compte : compte connecté.\nCV : déposé le 01/10/2026 à 09:00.\nPostes recherchés enregistrés : 1.\n"
+    "Profil complet : une recherche peut être lancée.\nRecherches restantes aujourd'hui : 2 sur 2.\n"
+    "Recherche en cours : non.\nDernière recherche : aucune.\nOffres retenues : 0.\nPages écartées : 0."
+)
 
 
 @dataclass(frozen=True)
@@ -30,6 +37,10 @@ class EvalCase:
     sections: tuple[tuple[str, str], ...] = ()
     # Réponse attendue, à laquelle le juge compare celle de l'assistant ; vide s'il n'y a rien à comparer
     reference: str = ""
+    # Situation du compte que l'outil rend pour cette question ; vide : un compte quelconque
+    account: str = ""
+    # Le modèle doit-il consulter le compte pour répondre ; None quand les deux se défendent
+    consults: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -46,6 +57,9 @@ class CaseResult:
     rank: int | None
     # La réponse cite-t-elle une section attendue ; None si la question n'en attend pas
     cited: bool | None
+    # Le modèle a-t-il consulté le compte, et le devait-il ; None si la question ne le dit pas
+    consulted: bool
+    consult_expected: bool | None
     # Avis du juge ; None quand il n'a pas été consulté
     faithful: bool | None
     correct: bool | None
@@ -61,7 +75,8 @@ class CaseResult:
         """Vrai si rien n'est à reprocher : la bonne issue, la bonne section retrouvée, une réponse juste et fidèle."""
         found = self.rank is not None or self.cited is None
         judged_well = self.correct is not False and self.faithful is not False
-        return self.outcome == self.expected_outcome and found and judged_well
+        consulted_well = self.consult_expected is None or self.consulted == self.consult_expected
+        return self.outcome == self.expected_outcome and found and judged_well and consulted_well
 
 
 def load_cases(fill: Callable[[str], str] = lambda text: text) -> list[EvalCase]:
@@ -71,15 +86,38 @@ def load_cases(fill: Callable[[str], str] = lambda text: text) -> list[EvalCase]
         history = tuple(Exchange(turn["question"], fill(turn["answer"])) for turn in row.get("history", []))
         sections = tuple((source, section) for source, section in row.get("sections", []))
         cases.append(
-            EvalCase(row["id"], row["question"], row["outcome"], history, sections, fill(row.get("reference", "")))
+            EvalCase(
+                row["id"],
+                row["question"],
+                row["outcome"],
+                history,
+                sections,
+                fill(row.get("reference", "")),
+                fill(row.get("account", "")),
+                row.get("consults"),
+            )
         )
     return cases
 
 
-def evaluate_case(graph: CompiledStateGraph, judge: AnswerJudge, case: EvalCase) -> CaseResult:
-    """Pose une question de référence au graph de l'assistant, et note ce qu'il rend."""
-    state = graph.invoke({"question": case.question, "history": list(case.history)})
+class CaseAccounts:
+    """Comptes fictifs d'une évaluation : le compte numéro n est celui de la question numéro n.
+
+    Branché à la place du vrai lecteur de comptes, il rend au modèle la situation que la question décrit.
+    """
+
+    def __init__(self, cases: Sequence[EvalCase]):
+        self._accounts = [case.account or DEFAULT_ACCOUNT for case in cases]
+
+    def describe(self, user_id: int) -> str:
+        return self._accounts[user_id]
+
+
+def evaluate_case(graph: CompiledStateGraph, judge: AnswerJudge, case: EvalCase, user_id: int = 0) -> CaseResult:
+    """Pose une question de référence au graph de l'assistant, au nom de ce compte, et note ce qu'il rend."""
+    state = graph.invoke({"user_id": user_id, "question": case.question, "history": list(case.history)})
     passages, usage = state["passages"], state["usage"]
+    consulted = any(isinstance(message, ToolMessage) for message in state.get("transcript", []))
 
     def expected_among(candidates: Sequence) -> list[int]:
         return [
@@ -92,7 +130,9 @@ def evaluate_case(graph: CompiledStateGraph, judge: AnswerJudge, case: EvalCase)
     faithful, correct, reason, judge_usage = None, None, "", ModelUsage()
     if case.outcome == "answered" and case.reference:
         if state["outcome"] == "answered":
-            verdict, judge_usage = judge.judge(case.question, passages, state["answer"], case.reference)
+            # Le juge lit ce que le modèle a lu : la situation du compte, s'il l'a consultée
+            account = (case.account or DEFAULT_ACCOUNT) if consulted else ""
+            verdict, judge_usage = judge.judge(case.question, passages, state["answer"], case.reference, account)
             faithful, correct, reason = verdict.faithful, verdict.correct, verdict.reason
         else:
             # Un refus ou un renvoi vers l'exploitant ne dit pas ce que la référence attendait
@@ -107,6 +147,8 @@ def evaluate_case(graph: CompiledStateGraph, judge: AnswerJudge, case: EvalCase)
         retrieved=[passage.heading for passage in passages],
         rank=(ranks[0] if ranks else None) if case.sections else None,
         cited=bool(expected_among(state["cited"])) if case.sections else None,
+        consulted=consulted,
+        consult_expected=case.consults,
         faithful=faithful,
         correct=correct,
         judge_reason=reason,
@@ -124,6 +166,7 @@ def summarize(cases: Sequence[EvalCase], results: Sequence[CaseResult]) -> dict[
     off_topic = [result for result in results if result.expected_outcome == "off_topic"]
     compared = [result for result in results if result.correct is not None]
     judged = [result for result in results if result.faithful is not None]
+    told = [result for result in results if result.consult_expected is not None]
     return {
         "cases": len(results),
         "passed": sum(result.passed for result in results),
@@ -138,6 +181,8 @@ def summarize(cases: Sequence[EvalCase], results: Sequence[CaseResult]) -> dict[
         "correct": sum(bool(result.correct) for result in compared),
         "judged": len(judged),
         "faithful": sum(bool(result.faithful) for result in judged),
+        "consult_cases": len(told),
+        "consult_hits": sum(result.consulted == result.consult_expected for result in told),
         "off_topic_cases": len(off_topic),
         "off_topic_refused": sum(result.outcome == "off_topic" for result in off_topic),
         "input_tokens": sum(result.input_tokens for result in results),
@@ -151,6 +196,7 @@ def summarize(cases: Sequence[EvalCase], results: Sequence[CaseResult]) -> dict[
 def describe_results(results: Sequence[CaseResult]) -> list[dict]:
     """Renvoie le détail de chaque question, tel qu'il est enregistré avec l'évaluation."""
     kept = ("id", "question", "expected_outcome", "outcome", "answer", "retrieved", "rank", "cited")
+    kept += ("consulted", "consult_expected")
     return [
         {field: asdict(result)[field] for field in (*kept, "faithful", "correct", "judge_reason")}
         | {"passed": result.passed}

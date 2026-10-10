@@ -92,7 +92,9 @@ def create_app(
 
     @app.exception_handler(AppError)
     def handle_app_error(request: Request, error: AppError) -> JSONResponse:
-        status_code = STATUS_CODES.get(type(error), status.HTTP_400_BAD_REQUEST)
+        # Par famille : une erreur plus précise qu'une de ces classes garde le code de celle-ci
+        codes = (code for kind, code in STATUS_CODES.items() if isinstance(error, kind))
+        status_code = next(codes, status.HTTP_400_BAD_REQUEST)
         record_error(request, error, status_code)
         return JSONResponse({"detail": str(error)}, status_code=status_code)
 

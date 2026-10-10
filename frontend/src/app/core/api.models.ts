@@ -545,8 +545,8 @@ export interface AssistantSource {
 /** Note donnée par l'utilisateur à une réponse : utile, ou non. */
 export type AssistantFeedback = 'up' | 'down';
 
-/** Où en est l'assistant : il cherche les passages, puis il écrit sa réponse. */
-export type AssistantStep = 'retrieve' | 'generate';
+/** Où en est l'assistant : il cherche les passages, il écrit sa réponse, ou il consulte le compte. */
+export type AssistantStep = 'retrieve' | 'generate' | 'consult';
 
 /** Avancement d'une réponse en cours. */
 export interface AssistantProgress {
@@ -562,6 +562,8 @@ export interface AssistantMessage {
   answer: string;
   outcome: AssistantOutcome;
   sources: AssistantSource[];
+  /** Ce que l'assistant a consulté du compte pour répondre ; vide s'il n'a rien consulté */
+  consulted: string[];
   /** null si l'utilisateur n'a pas noté la réponse */
   feedback: AssistantFeedback | null;
 }
@@ -572,6 +574,8 @@ export interface AssistantConversation {
   /** null pour le propriétaire, qui n'a pas de quota */
   remaining_questions: number | null;
   max_questions_per_day: number;
+  /** Parmi elles, celles qui peuvent consulter le compte : ce nombre atteint, plus de question avant demain */
+  max_account_questions_per_day: number;
   max_question_chars: number;
   /** Nombre de jours pendant lesquels le texte d'une question est gardé */
   retention_days: number;
@@ -596,6 +600,10 @@ export interface AssistantOverview {
   /** Questions sur l'application restées sans réponse : ce qui manque aux textes du site */
   unknown: number;
   off_topic: number;
+  /** Questions pour lesquelles l'assistant a consulté le compte de leur auteur */
+  consulting: number;
+  /** Questions refusées parce qu'une limite était atteinte, la plus fréquente en premier */
+  limits: { label: string; count: number; accounts: number }[];
   /** Réponses notées utiles, et pas utiles, par ceux qui les ont reçues */
   helpful: number;
   unhelpful: number;
@@ -623,6 +631,8 @@ export interface AssistantEvaluation {
   correct_rate: number | null;
   faithful_rate: number | null;
   refusal_rate: number | null;
+  /** Le compte est consulté quand la question le demande, et seulement alors */
+  consult_rate: number | null;
   duration_ms: number;
   cost_usd: number | null;
 }
@@ -641,6 +651,9 @@ export interface AssistantEvaluationCase {
   rank: number | null;
   /** null si la question n'attend aucune section */
   cited: boolean | null;
+  /** Le modèle a-t-il consulté le compte, et le devait-il ; null si la question ne le dit pas */
+  consulted: boolean;
+  consult_expected: boolean | null;
   faithful: boolean | null;
   correct: boolean | null;
   judge_reason: string;
