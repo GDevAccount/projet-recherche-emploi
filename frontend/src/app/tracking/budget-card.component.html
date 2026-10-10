@@ -78,8 +78,8 @@
 
     <small class="note">
       Tous comptes réunis, Tavily et OpenAI, pour {{ budget.runs | count }}
-      {{ budget.runs > 1 ? 'recherches' : 'recherche' }} ce mois-ci. La projection prolonge le
-      rythme des jours écoulés.
+      {{ budget.runs > 1 ? 'recherches' : 'recherche' }} ce mois-ci et les questions posées à
+      l'assistant. La projection prolonge le rythme des jours écoulés.
       @if (budget.daily_budget_reached) {
         Le budget du jour est atteint : jusqu'à demain, vous seul pouvez lancer une recherche.
       }

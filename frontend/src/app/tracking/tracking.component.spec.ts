@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import {
   AccountUsage,
+  AssistantOverview,
   BudgetOverview,
   EvaluationGroup,
   HealthOverview,
@@ -71,7 +72,17 @@ function stats(values: Partial<SearchStats> = {}): SearchStats {
     by_text: [group('Page entière', { evaluated: 30 }), group('Extrait seul', { evaluated: 7 })],
     weeks: [],
     outcomes: outcome('Toutes les offres'),
-    outcomes_by_query: [outcome('ingénieur IA'), outcome('AI engineer', { kept: 10, applied: 0, interviews: 0, pending: 6, deleted: 4, applied_rate: 0 })],
+    outcomes_by_query: [
+      outcome('ingénieur IA'),
+      outcome('AI engineer', {
+        kept: 10,
+        applied: 0,
+        interviews: 0,
+        pending: 6,
+        deleted: 4,
+        applied_rate: 0,
+      }),
+    ],
     outcomes_by_site: [outcome('indeed.com')],
     outcomes_by_prompt: [outcome('a1b2c3d4e5f6')],
     cost_per_application_usd: 0.015,
@@ -252,6 +263,20 @@ function week(start: string, values: Partial<WeekStats> = {}): WeekStats {
   };
 }
 
+function assistant(values: Partial<AssistantOverview> = {}): AssistantOverview {
+  return {
+    since: null,
+    questions: 0,
+    answered: 0,
+    unknown: 0,
+    off_topic: 0,
+    accounts: 0,
+    cost_usd: 0,
+    entries: [],
+    ...values,
+  };
+}
+
 describe('TrackingComponent', () => {
   let fixture: ComponentFixture<TrackingComponent>;
   let http: HttpTestingController;
@@ -275,6 +300,10 @@ describe('TrackingComponent', () => {
   /** Ce que l'API répond pour le parcours des utilisateurs : un test le change avant d'appeler serve. */
   let guests = journeys();
   beforeEach(() => (guests = journeys()));
+
+  /** Ce que l'API répond pour l'assistant : un test le change avant d'appeler serve. */
+  let asked = assistant();
+  beforeEach(() => (asked = assistant()));
 
   function element(): HTMLElement {
     return fixture.nativeElement as HTMLElement;
@@ -309,6 +338,7 @@ describe('TrackingComponent', () => {
     http.expectOne({ method: 'GET', url: '/api/admin/health?days=7' }).flush(state);
     http.expectOne({ method: 'GET', url: '/api/admin/budget' }).flush(spending);
     http.expectOne({ method: 'GET', url: '/api/admin/journeys' }).flush(guests);
+    http.expectOne({ method: 'GET', url: '/api/admin/assistant?days=30' }).flush(asked);
     await fixture.whenStable();
     if (served.runs) {
       http.expectOne({ method: 'GET', url: '/api/admin/usage?days=30' }).flush(overview);
@@ -317,9 +347,9 @@ describe('TrackingComponent', () => {
   }
 
   async function click(label: string, scope = 'button'): Promise<void> {
-    [...element().querySelectorAll(scope)].find((button) => text(button).startsWith(label))!.dispatchEvent(
-      new Event('click'),
-    );
+    [...element().querySelectorAll(scope)]
+      .find((button) => text(button).startsWith(label))!
+      .dispatchEvent(new Event('click'));
     await fixture.whenStable();
   }
 
@@ -341,9 +371,13 @@ describe('TrackingComponent', () => {
       '47 s durée moyenne',
     ]);
     // La barre partage le coût entre la recherche web et le modèle
-    expect(element().querySelector('.split')!.getAttribute('aria-label')).toBe('Tavily 80 %, OpenAI 20 %');
+    expect(element().querySelector('.split')!.getAttribute('aria-label')).toBe(
+      'Tavily 80 %, OpenAI 20 %',
+    );
     expect(text(element().querySelector('.spend dl'))).toContain('0,096 $ 6 appels');
-    expect(text(element().querySelector('.spend dl'))).toMatch(/164.786 jetons lus, dont 38.262 en cache/);
+    expect(text(element().querySelector('.spend dl'))).toMatch(
+      /164.786 jetons lus, dont 38.262 en cache/,
+    );
   });
 
   it('should not draw a share when the total cost is unknown', async () => {
@@ -357,7 +391,10 @@ describe('TrackingComponent', () => {
     await serve(stats());
 
     expect(text(element().querySelector('.pages h2'))).toBe('37 pages évaluées');
-    expect(texts('.groups li')).toEqual(['ingénieur IA 8 sur 20 0,0061 $', 'AI engineer 4 sur 10 0,0061 $']);
+    expect(texts('.groups li')).toEqual([
+      'ingénieur IA 8 sur 20 0,0061 $',
+      'AI engineer 4 sur 10 0,0061 $',
+    ]);
 
     await click('Par site');
 
@@ -383,8 +420,18 @@ describe('TrackingComponent', () => {
   });
 
   it('should list the searches and open one on its measures and its pages', async () => {
-    const failed = run(27, { status: 'failed', error: 'RateLimitError', new_count: null, kept_count: null });
-    const untracked = run(26, { status: null, found_count: null, duration_ms: null, cost_usd: null });
+    const failed = run(27, {
+      status: 'failed',
+      error: 'RateLimitError',
+      new_count: null,
+      kept_count: null,
+    });
+    const untracked = run(26, {
+      status: null,
+      found_count: null,
+      duration_ms: null,
+      cost_usd: null,
+    });
     await serve(stats(), [run(28), failed, untracked]);
 
     expect(texts('.runs .status')).toEqual(['Terminée', 'Échouée', 'Non suivie']);
@@ -401,8 +448,18 @@ describe('TrackingComponent', () => {
     expect(text(element().querySelector('.detail'))).toContain('Chargement des pages évaluées');
     http.expectOne({ method: 'GET', url: '/api/searches/28/evaluations' }).flush([
       evaluation(1, { kept: true }),
-      evaluation(2, { matches_search: false, matches_location: false, truncated: true, page_chars: 11800 }),
-      evaluation(3, { page_kind: 'article', matches_search: false, matches_skills: false, full_page: false }),
+      evaluation(2, {
+        matches_search: false,
+        matches_location: false,
+        truncated: true,
+        page_chars: 11800,
+      }),
+      evaluation(3, {
+        page_kind: 'article',
+        matches_search: false,
+        matches_skills: false,
+        full_page: false,
+      }),
     ]);
     await fixture.whenStable();
 
@@ -465,7 +522,9 @@ describe('TrackingComponent', () => {
       failure_rate: 0.3333,
       interrupted_accounts: 1,
       last_interrupted_at: '2026-10-07T08:30:00Z',
-      run_failures: [{ error_type: 'RateLimitError', count: 3, accounts: 2, last_at: '2026-10-08T10:00:00Z' }],
+      run_failures: [
+        { error_type: 'RateLimitError', count: 3, accounts: 2, last_at: '2026-10-08T10:00:00Z' },
+      ],
       failures: 2,
       refusals: 5,
       server_errors: [
@@ -575,7 +634,12 @@ describe('TrackingComponent', () => {
   });
 
   it('should say that the budget is exceeded', async () => {
-    spending = budget({ spent_usd: 12, spent_rate: 1.2, over_budget: true, projected_over_budget: true });
+    spending = budget({
+      spent_usd: 12,
+      spent_rate: 1.2,
+      over_budget: true,
+      projected_over_budget: true,
+    });
     await serve(stats({ runs: 0 }), []);
 
     expect(text(element().querySelector('app-budget-card .verdict.over'))).toBe('Budget dépassé');
@@ -653,7 +717,9 @@ describe('TrackingComponent', () => {
       'Recherche lancée 2 50 %',
       'Candidature envoyée 1 25 %',
     ]);
-    const widths = [...card.querySelectorAll('.steps .track span')].map((bar) => (bar as HTMLElement).style.width);
+    const widths = [...card.querySelectorAll('.steps .track span')].map(
+      (bar) => (bar as HTMLElement).style.width,
+    );
     expect(widths).toEqual(['100%', '50%', '25%']);
     expect([...card.querySelectorAll('tbody tr')].map((row) => text(row))).toEqual([
       'alice@exemple.fr revenu Candidature envoyée Déposé 2 5 9 6 3 1 4 8 oct.',
@@ -676,7 +742,12 @@ describe('TrackingComponent', () => {
       ],
       events: [
         { at: '2026-10-08T09:30:00Z', kind: 'applied', label: 'Candidature envoyée', detail: null },
-        { at: '2026-10-07T16:00:00Z', kind: 'error', label: 'Demande refusée', detail: 'PUT /api/cv · InvalidInputError' },
+        {
+          at: '2026-10-07T16:00:00Z',
+          kind: 'error',
+          label: 'Demande refusée',
+          detail: 'PUT /api/cv · InvalidInputError',
+        },
         { at: '2026-10-01T08:00:00Z', kind: 'account', label: 'Compte créé', detail: null },
       ],
     });
@@ -687,7 +758,9 @@ describe('TrackingComponent', () => {
     expect(text(detail.querySelector('header p'))).toBe(
       'Arrêté à Candidature envoyée · dernière visite il y a 1 jour · venu 3 jours',
     );
-    expect(text(detail.querySelector('h4'))).toBe('Pourquoi ses pages sont écartées 31 écartées sur 40 évaluées');
+    expect(text(detail.querySelector('h4'))).toBe(
+      'Pourquoi ses pages sont écartées 31 écartées sur 40 évaluées',
+    );
     expect([...detail.querySelectorAll('.rejections li')].map((reason) => text(reason))).toEqual([
       'Métier 20 64,5 %',
       'Pas une offre 11 35,5 %',
@@ -739,7 +812,9 @@ describe('TrackingComponent', () => {
     expect(heights(cost)).toEqual(['25%', '100%', '0%']);
     expect(heights(known)).toEqual(['25%', '60%', '0%']);
     expect(cost.querySelectorAll('i.unknown').length).toBe(1);
-    expect(cost.querySelector('.slot')!.getAttribute('title')).toBe('Semaine du 21 sept. : 0,050 $');
+    expect(cost.querySelector('.slot')!.getAttribute('title')).toBe(
+      'Semaine du 21 sept. : 0,050 $',
+    );
   });
 
   it('should tell what each account costs, and reload it for another period', async () => {
@@ -752,15 +827,15 @@ describe('TrackingComponent', () => {
       'compte2@exemple.fr',
       'Compte supprimé nº 4',
     ]);
-    expect([...card.querySelectorAll('tbody tr')].map((row) => text(row.lastElementChild))).toEqual([
-      '0,335 $',
-      '0,107 $',
-      '0,074 $',
-    ]);
+    expect([...card.querySelectorAll('tbody tr')].map((row) => text(row.lastElementChild))).toEqual(
+      ['0,335 $', '0,107 $', '0,074 $'],
+    );
     expect(text(card.querySelector('tbody tr.deleted'))).toContain('Gratuit 3 7 —');
 
     await click('Depuis le début');
-    http.expectOne({ method: 'GET', url: '/api/admin/usage' }).flush(usage({ accounts: [], cost_usd: 0 }));
+    http
+      .expectOne({ method: 'GET', url: '/api/admin/usage' })
+      .flush(usage({ accounts: [], cost_usd: 0 }));
     await fixture.whenStable();
 
     expect(text(card)).toContain('Aucune recherche sur cette période');
@@ -769,7 +844,10 @@ describe('TrackingComponent', () => {
   it('should show the error of the API instead of the screen', async () => {
     http
       .expectOne({ method: 'GET', url: '/api/searches/stats' })
-      .flush({ detail: "Réservé aux administrateurs de l'instance." }, { status: 403, statusText: 'Forbidden' });
+      .flush(
+        { detail: "Réservé aux administrateurs de l'instance." },
+        { status: 403, statusText: 'Forbidden' },
+      );
     http.expectOne({ method: 'GET', url: '/api/searches' });
     await fixture.whenStable();
 
@@ -791,9 +869,9 @@ describe('TrackingComponent', () => {
     const parts = [...card.querySelectorAll<HTMLElement>('.outcomes li:first-child .stack span')];
     expect(parts.map((part) => part.style.width)).toEqual(['10%', '30%', '45%', '15%']);
 
-    [...card.querySelectorAll('.tabs button')].find((button) => text(button) === 'Par site')!.dispatchEvent(
-      new Event('click'),
-    );
+    [...card.querySelectorAll('.tabs button')]
+      .find((button) => text(button) === 'Par site')!
+      .dispatchEvent(new Event('click'));
     await fixture.whenStable();
     expect(rows()).toEqual(['indeed.com 8 sur 20 40 %']);
   });
@@ -829,14 +907,20 @@ describe('TrackingComponent', () => {
     ]);
     // La barre du texte le moins fourni est à la mesure du plus fourni, et ses parts à la mesure de ses pages
     const width = (selector: string) => rows[0].querySelector<HTMLElement>(selector)!.style.width;
-    expect([width('.stack'), width('.stack .known'), width('.stack .repeated')]).toEqual(['50%', '50%', '20%']);
+    expect([width('.stack'), width('.stack .known'), width('.stack .repeated')]).toEqual([
+      '50%',
+      '50%',
+      '20%',
+    ]);
   });
 
   it('should say when no search has been measured yet', async () => {
     await serve(stats());
 
     expect(element().querySelector('app-yield-card .searches')).toBeNull();
-    expect(text(element().querySelector('app-yield-card'))).toContain('après votre prochaine recherche');
+    expect(text(element().querySelector('app-yield-card'))).toContain(
+      'après votre prochaine recherche',
+    );
   });
 
   it('should show what the user corrected, by prompt version', async () => {
@@ -863,7 +947,9 @@ describe('TrackingComponent', () => {
     );
 
     const card = element().querySelector('app-corrections-card')!;
-    expect(text(card.querySelector('tbody tr'))).toBe('a1b2c3d4e5f6 37 7,7 % 2 sur 26 9,1 % 1 sur 11 3');
+    expect(text(card.querySelector('tbody tr'))).toBe(
+      'a1b2c3d4e5f6 37 7,7 % 2 sur 26 9,1 % 1 sur 11 3',
+    );
     expect([...card.querySelectorAll('.reasons li')].map((reason) => text(reason))).toEqual([
       "3 Elle ne m'intéresse pas",
       "1 Ce n'est pas mon métier",
@@ -875,7 +961,63 @@ describe('TrackingComponent', () => {
 
     const card = element().querySelector('app-corrections-card')!;
     expect(card.querySelector('table')).toBeNull();
-    expect(text(card)).toContain('Aucune correction pour l\'instant');
+    expect(text(card)).toContain("Aucune correction pour l'instant");
+  });
+
+  it('should show what is asked to the assistant, and what it could not answer', async () => {
+    const guide = {
+      title: "Guide d'utilisation",
+      section: 'Déposer ou remplacer son CV',
+      url: null,
+    };
+    const terms = { title: "Conditions d'utilisation", section: 'Accès', url: '/conditions' };
+    const entry = {
+      created_at: '2026-10-10T08:00:00Z',
+      answer: 'Réponse.',
+      sources: [],
+      retrieved: [terms],
+    };
+    asked = assistant({
+      questions: 3,
+      answered: 1,
+      unknown: 1,
+      off_topic: 1,
+      accounts: 2,
+      cost_usd: 0.0012,
+      entries: [
+        { ...entry, question: 'Une application mobile ?', outcome: 'unknown' },
+        { ...entry, question: 'Écris ma lettre', outcome: 'off_topic' },
+        {
+          ...entry,
+          question: 'Comment déposer mon CV ?',
+          outcome: 'answered',
+          sources: [guide],
+          retrieved: [terms, guide],
+        },
+      ],
+    });
+    await serve(stats({ runs: 0 }), []);
+    const card = element().querySelector('app-assistant-card')!;
+
+    expect(text(card)).toContain('3 questions posées');
+    expect(texts('app-assistant-card .question')).toEqual([
+      'Une application mobile ?',
+      'Écris ma lettre',
+      'Comment déposer mon CV ?',
+    ]);
+    // Les textes où la recherche est allée, dans l'ordre, et celui que la réponse cite
+    expect(texts('app-assistant-card li:last-child ol li')).toEqual([
+      "Conditions d'utilisation · Accès",
+      "Guide d'utilisation · Déposer ou remplacer son CV cité",
+    ]);
+
+    await click('Sans réponse', 'app-assistant-card button');
+    expect(texts('app-assistant-card .question')).toEqual(['Une application mobile ?']);
+
+    await click('7 jours', 'app-assistant-card button');
+    http.expectOne({ method: 'GET', url: '/api/admin/assistant?days=7' }).flush(assistant());
+    await fixture.whenStable();
+    expect(text(card)).toContain("Aucune question n'a été posée");
   });
 });
 

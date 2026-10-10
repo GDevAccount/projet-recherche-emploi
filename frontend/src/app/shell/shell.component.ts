@@ -5,6 +5,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs';
 
 import { AvatarComponent } from '../account/avatar.component';
+import { AssistantComponent } from '../assistant/assistant.component';
 import { ACCOUNT_PATH, LOGIN_PATH, PROFILE_PATH, SECTIONS } from '../core/paths';
 import { SearchRunService } from '../core/search-run.service';
 import { SessionService } from '../core/session.service';
@@ -15,7 +16,15 @@ import { WelcomeTourComponent, tourWasSeen } from './welcome-tour.component';
 /** Cadre de l'application une fois connecté : en-tête, navigation, bandeau d'état. Les écrans s'y affichent. */
 @Component({
   selector: 'app-shell',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, AvatarComponent, RunPanelComponent, WelcomeTourComponent],
+  imports: [
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
+    AssistantComponent,
+    AvatarComponent,
+    RunPanelComponent,
+    WelcomeTourComponent,
+  ],
   templateUrl: './shell.component.html',
   styleUrl: './shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

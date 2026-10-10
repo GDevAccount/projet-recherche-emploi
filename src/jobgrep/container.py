@@ -13,6 +13,8 @@ from jobgrep.agent.adapters import OpenAIJobEvaluator, TavilyJobSearch
 from jobgrep.agent.graph import build_graph
 from jobgrep.agent.nodes import SearchNodes
 from jobgrep.agent.ports import JobEvaluator, JobSearchEngine
+from jobgrep.assistant.adapters import OpenAIAnswerModel, OpenAIEmbedder
+from jobgrep.assistant.ports import AnswerModel, Embedder
 from jobgrep.config import Settings
 from jobgrep.data.cv_ingestion.anonymizer import CvAnonymizer
 from jobgrep.data.cv_ingestion.ingestion import CvIngestion
@@ -20,6 +22,7 @@ from jobgrep.data.cv_ingestion.pdf_reader import CvPdfReader
 from jobgrep.data.database import Database
 from jobgrep.services.account_service import AccountService
 from jobgrep.services.alert_service import AlertService, Notifier, NtfyNotifier
+from jobgrep.services.assistant_service import AssistantService
 from jobgrep.services.auth_service import AuthService
 from jobgrep.services.cv_service import CvService
 from jobgrep.services.health_service import HealthService
@@ -36,6 +39,8 @@ class Container:
         search_engine: JobSearchEngine | None = None,
         evaluator: JobEvaluator | None = None,
         notifier: Notifier | None = None,
+        embedder: Embedder | None = None,
+        answer_model: AnswerModel | None = None,
     ):
         self.settings = settings
         self.database = Database(settings.db_path)
@@ -60,6 +65,13 @@ class Container:
             self.usage.daily_budget_reached,
         )
         self.account = AccountService(self.database, self.search)
+        self.assistant = AssistantService(
+            self.database,
+            embedder or OpenAIEmbedder(),
+            answer_model or OpenAIAnswerModel(),
+            settings.contact_email,
+            self.usage.daily_budget_reached,
+        )
         self.health = HealthService(self.database, self.search, self.usage, self.alerts)
 
     @cached_property
@@ -74,9 +86,11 @@ def build_container(
     search_engine: JobSearchEngine | None = None,
     evaluator: JobEvaluator | None = None,
     notifier: Notifier | None = None,
+    embedder: Embedder | None = None,
+    answer_model: AnswerModel | None = None,
 ) -> Container:
     """Construit l'application et met sa base à jour."""
-    container = Container(settings or Settings(), search_engine, evaluator, notifier)
+    container = Container(settings or Settings(), search_engine, evaluator, notifier, embedder, answer_model)
     container.database.migrate()
     return container
 

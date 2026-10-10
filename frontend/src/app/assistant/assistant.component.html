@@ -1,0 +1,150 @@
+@if (open()) {
+  <section class="panel" role="dialog" aria-labelledby="assistant-title">
+    <header>
+      <div>
+        <span class="app-eyebrow">Assistant</span>
+        <h2 id="assistant-title">Une question sur JobGrep ?</h2>
+      </div>
+      <button type="button" class="close" aria-label="Fermer l'assistant" (click)="close()">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+        >
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+    </header>
+
+    <div #thread class="thread" aria-live="polite">
+      @if (conversation(); as conversation) {
+        @if (!messages().length && !pending()) {
+          <div class="welcome">
+            <p>
+              Je réponds aux questions sur le fonctionnement de JobGrep, vos données et vos droits,
+              à partir des textes du site.
+            </p>
+            <ul>
+              @for (suggestion of suggestions; track suggestion) {
+                <li>
+                  <button type="button" [disabled]="exhausted()" (click)="send(suggestion)">
+                    {{ suggestion }}
+                  </button>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+        @for (message of messages(); track message.id) {
+          <p class="question">{{ message.question }}</p>
+          <div class="answer" [class.aside]="message.outcome !== 'answered'">
+            <p>{{ message.answer }}</p>
+            @if (message.sources.length) {
+              <ul class="sources" aria-label="Sources">
+                @for (source of message.sources; track $index) {
+                  <li>
+                    @if (source.url) {
+                      <a [href]="source.url" target="_blank" rel="noopener">{{ source.title }}</a>
+                    } @else {
+                      <span>{{ source.title }}</span>
+                    }
+                    @if (source.section) {
+                      · {{ source.section }}
+                    }
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        }
+        @if (pending()) {
+          <p class="question">{{ pending() }}</p>
+          <p class="answer waiting" role="status" aria-label="L'assistant cherche la réponse">
+            <span></span><span></span><span></span>
+          </p>
+        }
+      } @else if (!error()) {
+        <p class="loading">Chargement…</p>
+      }
+      @if (error()) {
+        <p class="error" role="alert">{{ error() }}</p>
+      }
+    </div>
+
+    <form (submit)="$event.preventDefault(); send()">
+      <div class="entry">
+        <textarea
+          #field
+          rows="2"
+          aria-label="Votre question"
+          placeholder="Votre question sur JobGrep…"
+          [attr.maxlength]="conversation()?.max_question_chars"
+          [disabled]="!conversation() || exhausted()"
+          [value]="draft()"
+          (input)="draft.set(field.value)"
+          (keydown.enter)="onEnter($event)"
+        ></textarea>
+        <button type="submit" class="send" aria-label="Envoyer la question" [disabled]="!canSend()">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 19V5M6 11l6-6 6 6" />
+          </svg>
+        </button>
+      </div>
+      <small>
+        @if (exhausted()) {
+          <strong>Vous avez posé toutes vos questions d'aujourd'hui.</strong>
+        } @else if (remaining() !== null) {
+          <strong>{{ remaining() }}</strong>
+          {{ remaining()! > 1 ? 'questions restantes' : 'question restante' }} aujourd'hui.
+        }
+        Il ne voit ni votre compte ni votre CV, et peut se tromper.
+        @if (conversation(); as conversation) {
+          Vos questions sont gardées {{ conversation.retention_days }} jours : n'y écrivez rien de
+          personnel.
+        }
+      </small>
+    </form>
+  </section>
+}
+
+<button
+  type="button"
+  class="launcher"
+  [class.on]="open()"
+  [attr.aria-label]="open() ? 'Fermer l\'assistant' : 'Ouvrir l\'assistant'"
+  [attr.aria-expanded]="open()"
+  (click)="toggle()"
+>
+  @if (open()) {
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.4"
+      stroke-linecap="round"
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  } @else {
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z" />
+      <path d="M9.6 10a2.4 2.4 0 1 1 3.4 2.2c-.6.3-1 .8-1 1.5M12 16.4v.1" />
+    </svg>
+  }
+</button>

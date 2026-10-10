@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 import uvicorn
-from conftest import FakeEvaluator, FakeSearchEngine
+from conftest import FakeAnswerModel, FakeEmbedder, FakeEvaluator, FakeSearchEngine
 
 from jobgrep.api.main import create_app
 from jobgrep.config import Settings, configure_logging
@@ -37,7 +37,9 @@ def main() -> None:
             # Le parcours se termine par un essai sans compte
             max_trials_per_day=5,
         )
-        container = build_container(settings, FakeSearchEngine(), FakeEvaluator())
+        container = build_container(
+            settings, FakeSearchEngine(), FakeEvaluator(), embedder=FakeEmbedder(), answer_model=FakeAnswerModel()
+        )
         uvicorn.run(create_app(container, docs=False), host="127.0.0.1", port=int(sys.argv[1]))
 
 

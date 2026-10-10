@@ -7,25 +7,14 @@ comme celles du front Angular. Ces pages sont donc des routes à part, ajoutées
 import html
 import re
 from dataclasses import dataclass
-from pathlib import Path
 
 import markdown
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse, Response
 from starlette.routing import Route
 
-from jobgrep.config import (
-    INACTIVE_ACCOUNT_DAYS,
-    JOB_SITES,
-    MAX_SEARCHES_PER_DAY,
-    MAX_TRIAL_SEARCHES,
-    SERVER_ERROR_DAYS,
-    TRIAL_ACCOUNT_DAYS,
-    TRIAL_START_DAYS,
-    Settings,
-)
-
-API_DIR = Path(__file__).parent
+from jobgrep.config import Settings
+from jobgrep.site_texts import read_site_text
 
 
 @dataclass(frozen=True)
@@ -33,26 +22,22 @@ class PublicPage:
     title: str
     # Résumé que les moteurs de recherche affichent sous le titre
     description: str
-    file: Path
 
 
-# Adresse de la page -> page, dans l'ordre des liens du pied de page
+# Adresse de la page -> page, dans l'ordre des liens du pied de page. Le texte de chacune est dans texts/
 PAGES = {
     "fonctionnement": PublicPage(
         "Comment fonctionne JobGrep",
         "JobGrep cherche des offres d'emploi sur les principaux sites, compare chaque annonce à votre CV "
         "et ne garde que celles qui vous correspondent. Son fonctionnement, étape par étape.",
-        API_DIR / "pages" / "fonctionnement.md",
     ),
     "confidentialite": PublicPage(
         "Règles de confidentialité",
         "Les données que JobGrep enregistre, à qui elles sont transmises, combien de temps, et comment les effacer.",
-        API_DIR / "legal" / "confidentialite.md",
     ),
     "conditions": PublicPage(
         "Conditions d'utilisation",
         "Les conditions d'utilisation de JobGrep : accès, limites du service et responsabilités.",
-        API_DIR / "legal" / "conditions.md",
     ),
 }
 # Fichiers que les robots demandent d'eux-mêmes, à la racine du site
@@ -157,14 +142,7 @@ PAGE_STYLE = """
 def render_page(path: str, settings: Settings) -> str:
     """Renvoie la page publique demandée, en HTML complet."""
     page = PAGES[path]
-    contact = settings.contact_email or "adressez-vous à l'exploitant de l'application"
-    text = page.file.read_text(encoding="utf-8")
-    text = text.replace("{contact}", contact).replace("{max_searches}", str(MAX_SEARCHES_PER_DAY))
-    text = text.replace("{job_sites}", ", ".join(JOB_SITES))
-    text = text.replace("{inactive_months}", str(INACTIVE_ACCOUNT_DAYS // 30))
-    text = text.replace("{server_error_days}", str(SERVER_ERROR_DAYS))
-    text = text.replace("{trial_searches}", str(MAX_TRIAL_SEARCHES)).replace("{trial_days}", str(TRIAL_ACCOUNT_DAYS))
-    text = text.replace("{trial_start_hours}", str(TRIAL_START_DAYS * 24))
+    text = read_site_text(path, settings.contact_email)
     links = ['<a href="/">Retour à l\'application</a>']
     links += [f'<a href="/{other}">{html.escape(PAGES[other].title)}</a>' for other in PAGES if other != path]
     # Sans adresse publique réglée, la page ne dit pas où elle se trouve : rien à déclarer aux moteurs

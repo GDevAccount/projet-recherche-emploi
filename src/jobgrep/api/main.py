@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from jobgrep.api.canonical_host import CanonicalHostMiddleware
 from jobgrep.api.frontend import build_frontend_routes
 from jobgrep.api.public_pages import build_routes
-from jobgrep.api.routers import account, admin, cv, jobs, queries, searches
+from jobgrep.api.routers import account, admin, assistant, cv, jobs, queries, searches
 from jobgrep.api.security import GoogleIdentityVerifier, IdentityVerifier
 from jobgrep.api.security_headers import SecurityHeadersMiddleware
 from jobgrep.config import configure_logging
@@ -109,7 +109,8 @@ def create_app(
             return JSONResponse({"status": "ok"})
         return JSONResponse({"status": "error"}, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-    for router in (account.router, jobs.router, queries.router, cv.router, searches.router, admin.router):
+    routers = (account, jobs, queries, cv, searches, assistant, admin)
+    for router in (module.router for module in routers):
         app.include_router(router, prefix=API_PREFIX)
 
     # Pages publiques, fichiers lus par les robots et fichiers du front, servis sans connexion

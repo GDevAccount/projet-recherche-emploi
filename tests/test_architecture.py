@@ -15,11 +15,13 @@ ALLOWED = {
     "config": set(),
     "errors": set(),
     "schemas": set(),
+    "site_texts": {"config"},
     "data": {"config", "errors"},
     "agent": {"data", "config", "errors"},
-    "services": {"data", "schemas", "config", "errors"},
-    "container": {"services", "agent", "data", "config"},
-    "api": {"container", "services", "schemas", "config", "errors"},
+    "assistant": {"config"},
+    "services": {"assistant", "site_texts", "data", "schemas", "config", "errors"},
+    "container": {"services", "agent", "assistant", "data", "config"},
+    "api": {"container", "services", "site_texts", "schemas", "config", "errors"},
     "cli": {"container", "schemas", "config", "errors"},
 }
 # Bibliothèques réservées à une couche : les services ne doivent dépendre d'aucune interface

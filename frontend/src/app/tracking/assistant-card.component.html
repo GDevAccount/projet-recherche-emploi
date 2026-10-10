@@ -1,0 +1,116 @@
+<section class="app-card">
+  <header>
+    <div>
+      <span class="app-eyebrow">Assistant</span>
+      @if (overview(); as overview) {
+        <h2>
+          <strong>{{ overview.questions | count }}</strong>
+          {{ overview.questions > 1 ? 'questions posées' : 'question posée' }}
+        </h2>
+      }
+    </div>
+    <div class="tabs" role="group" aria-label="Période">
+      @for (period of periods; track period.days) {
+        <button
+          type="button"
+          [class.on]="days() === period.days"
+          [attr.aria-pressed]="days() === period.days"
+          (click)="choose(period.days)"
+        >
+          {{ period.label }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="hint">{{ error() }}</p>
+  } @else if (overview(); as overview) {
+    @if (overview.questions) {
+      <dl>
+        <div>
+          <dt>Répondues</dt>
+          <dd>{{ overview.answered | count }}</dd>
+        </div>
+        <div>
+          <dt>Sans réponse</dt>
+          <dd [class.warn]="overview.unknown > 0">{{ overview.unknown | count }}</dd>
+        </div>
+        <div>
+          <dt>Hors sujet</dt>
+          <dd>{{ overview.off_topic | count }}</dd>
+        </div>
+        <div>
+          <dt>Comptes</dt>
+          <dd>{{ overview.accounts | count }}</dd>
+        </div>
+        <div>
+          <dt>Coût</dt>
+          <dd>{{ overview.cost_usd | usd }}</dd>
+        </div>
+      </dl>
+
+      <div class="tabs filters" role="group" aria-label="Questions affichées">
+        @for (option of filters; track option.key) {
+          <button
+            type="button"
+            [class.on]="filter() === option.key"
+            [attr.aria-pressed]="filter() === option.key"
+            (click)="show(option.key)"
+          >
+            {{ option.label }}
+          </button>
+        }
+      </div>
+
+      @if (entries().length) {
+        <ul class="entries">
+          @for (entry of entries(); track $index) {
+            <li>
+              <details>
+                <summary>
+                  <span class="question">{{ entry.question }}</span>
+                  <span class="outcome" [class]="entry.outcome">{{ labels[entry.outcome] }}</span>
+                  <time>{{ entry.created_at | parisDate }}</time>
+                </summary>
+                <p>{{ entry.answer }}</p>
+                @if (entry.retrieved.length) {
+                  <small>Passages donnés au modèle, le plus proche en premier :</small>
+                  <ol>
+                    @for (source of entry.retrieved; track $index) {
+                      <li [class.cited]="isCited(entry, source)">
+                        {{ source.title }}
+                        @if (source.section) {
+                          · {{ source.section }}
+                        }
+                        @if (isCited(entry, source)) {
+                          <em>cité</em>
+                        }
+                      </li>
+                    }
+                  </ol>
+                }
+              </details>
+            </li>
+          }
+        </ul>
+        @if (hidden()) {
+          <button type="button" class="more" (click)="showAll()">
+            Tout afficher <span>{{ hidden() }} de plus</span>
+          </button>
+        }
+      } @else {
+        <p class="hint">Aucune question de ce genre sur la période.</p>
+      }
+      <small class="note">
+        Tous comptes réunis, sans savoir lequel a posé chaque question. Une question sans réponse
+        porte sur l'application, mais les textes du site n'en disent rien : c'est ce qu'il faut leur
+        ajouter.
+      </small>
+    } @else {
+      <p class="hint">Aucune question n'a été posée à l'assistant sur la période.</p>
+    }
+  } @else {
+    <p class="hint">Chargement des questions…</p>
+  }
+</section>

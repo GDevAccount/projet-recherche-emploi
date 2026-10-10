@@ -26,7 +26,9 @@ test.afterAll(async () => {
   await page.close();
 });
 
-test("sans JavaScript, l'accueil décrit l'application et renvoie aux pages légales", async ({ browser }) => {
+test("sans JavaScript, l'accueil décrit l'application et renvoie aux pages légales", async ({
+  browser,
+}) => {
   // Ce que lisent les robots de Google pour valider l'écran de connexion
   const context = await browser.newContext({ javaScriptEnabled: false });
   const plain = await context.newPage();
@@ -36,7 +38,9 @@ test("sans JavaScript, l'accueil décrit l'application et renvoie aux pages lég
   await expect(plain.getByText("JobGrep cherche des offres d'emploi")).toBeVisible();
 
   await plain.getByRole('link', { name: 'Règles de confidentialité' }).click();
-  await expect(plain.getByRole('heading', { level: 1, name: 'Règles de confidentialité' })).toBeVisible();
+  await expect(
+    plain.getByRole('heading', { level: 1, name: 'Règles de confidentialité' }),
+  ).toBeVisible();
   await context.close();
 });
 
@@ -65,14 +69,22 @@ test('un mot de passe faux est refusé, le bon ouvre la session', async () => {
 
 test('un nouvel arrivant reçoit la visite guidée, une seule fois', async () => {
   const tour = page.locator('app-welcome-tour');
-  await expect(tour.getByRole('heading', { name: 'JobGrep lit les annonces à votre place' })).toBeVisible();
+  await expect(
+    tour.getByRole('heading', { name: 'JobGrep lit les annonces à votre place' }),
+  ).toBeVisible();
 
-  for (const title of ['1. Dites-lui qui vous êtes', '2. Lancez une recherche', '3. Suivez vos candidatures']) {
+  for (const title of [
+    '1. Dites-lui qui vous êtes',
+    '2. Lancez une recherche',
+    '3. Suivez vos candidatures',
+  ]) {
     await tour.getByRole('button', { name: 'Écran suivant' }).click();
     await expect(tour.getByRole('heading', { name: title })).toBeVisible();
   }
   await page.keyboard.press('ArrowRight');
-  await expect(tour.getByRole('heading', { name: '4. Corrigez-le quand il se trompe' })).toBeVisible();
+  await expect(
+    tour.getByRole('heading', { name: '4. Corrigez-le quand il se trompe' }),
+  ).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(tour).toHaveCount(0);
 
@@ -116,7 +128,11 @@ test('une recherche se suit en direct et ajoute des offres', async () => {
 });
 
 test('une offre marquée postulée change de colonne et le reste après rechargement', async () => {
-  await page.locator('.column.todo app-job-card').filter({ hasText: QUERY }).getByRole('button', { name: "J'ai postulé" }).click();
+  await page
+    .locator('.column.todo app-job-card')
+    .filter({ hasText: QUERY })
+    .getByRole('button', { name: "J'ai postulé" })
+    .click();
 
   const applied = page.locator('.column.applied app-job-card').filter({ hasText: QUERY });
   await expect(applied).toContainText('Postulé le');
@@ -148,7 +164,9 @@ test('un entretien se met en avant, et un refus se range sans disparaître', asy
   await expect(refused.locator('summary')).toContainText('Candidatures refusées');
   await expect(refused.locator('app-job-card')).toBeHidden();
   await refused.locator('summary').click();
-  await expect(refused.locator('app-job-card').filter({ hasText: QUERY })).toContainText('Refusée le');
+  await expect(refused.locator('app-job-card').filter({ hasText: QUERY })).toContainText(
+    'Refusée le',
+  );
 });
 
 test('une offre supprimée ne revient pas, même après une nouvelle recherche', async () => {
@@ -157,7 +175,10 @@ test('une offre supprimée ne revient pas, même après une nouvelle recherche',
   expect(before).toBeGreaterThan(0);
   const title = (await cards.first().getByRole('heading').innerText()).trim();
 
-  await cards.first().getByRole('button', { name: /^Retirer l'offre/ }).click();
+  await cards
+    .first()
+    .getByRole('button', { name: /^Retirer l'offre/ })
+    .click();
   const dialog = page.getByRole('dialog');
   // Une offre à laquelle on n'a pas postulé ne peut pas avoir été refusée : la fenêtre ne propose que de la supprimer
   await expect(dialog.getByRole('button', { name: /L'employeur a refusé/ })).toHaveCount(0);
@@ -193,7 +214,34 @@ test('les pages écartées sont listées avec leur motif', async () => {
   await rejected.first().getByRole('button', { name: "C'était une bonne offre" }).click();
   await expect(rejected.first().locator('.restored')).toContainText('De retour dans vos offres');
   await rejected.first().locator('.restored').getByRole('link', { name: 'offres' }).click();
-  await expect(page.locator('.column.todo').getByRole('heading', { name: title, exact: true })).toBeVisible();
+  await expect(
+    page.locator('.column.todo').getByRole('heading', { name: title, exact: true }),
+  ).toBeVisible();
+});
+
+test("l'assistant répond à partir des textes du site, et la conversation reste après rechargement", async () => {
+  const assistant = page.locator('app-assistant');
+  await assistant.getByRole('button', { name: "Ouvrir l'assistant" }).click();
+  await expect(
+    assistant.getByRole('heading', { name: 'Une question sur JobGrep ?' }),
+  ).toBeVisible();
+
+  await assistant
+    .getByLabel('Votre question')
+    .fill('Puis-je remplacer mon fichier par un autre PDF scanné ?');
+  await assistant.getByLabel('Votre question').press('Enter');
+
+  // Le faux modèle des tests nomme le passage que la recherche lui a donné en premier
+  await expect(assistant.locator('.answer')).toContainText('Déposer ou remplacer son CV');
+  await expect(assistant.locator('.sources')).toContainText("Guide d'utilisation");
+
+  await page.reload();
+  await page.locator('app-assistant').getByRole('button', { name: "Ouvrir l'assistant" }).click();
+  await expect(assistant.locator('.question')).toHaveText(
+    'Puis-je remplacer mon fichier par un autre PDF scanné ?',
+  );
+  await assistant.getByRole('button', { name: "Fermer l'assistant" }).first().click();
+  await expect(assistant.getByRole('dialog')).toHaveCount(0);
 });
 
 test('le suivi montre le bilan des recherches et le détail de leurs pages', async () => {
@@ -213,7 +261,9 @@ test('le suivi montre le bilan des recherches et le détail de leurs pages', asy
   // Sa fiche raconte le parcours qui précède : des recherches, des candidatures, une offre supprimée
   await journeys.getByRole('button', { name: 'Propriétaire' }).click();
   const events = journeys.locator('.detail .events li');
-  await expect(events.filter({ hasText: 'Recherche lancée' }).first()).toContainText('pages évaluées');
+  await expect(events.filter({ hasText: 'Recherche lancée' }).first()).toContainText(
+    'pages évaluées',
+  );
   await expect(events.filter({ hasText: 'Candidature envoyée' }).first()).toBeVisible();
   await expect(events.filter({ hasText: 'Offre supprimée' }).first()).toBeVisible();
   await expect(journeys.locator('.detail .rejections li').first()).toContainText('Compétences');
@@ -232,7 +282,9 @@ test('le suivi montre le bilan des recherches et le détail de leurs pages', asy
   await runs.last().click();
   const pages = page.locator('app-run-list ol.pages > li');
   await expect(pages.filter({ hasText: 'Retenue' }).first()).toBeVisible();
-  await expect(pages.filter({ hasText: 'Écartée' }).first()).toContainText('en défaut : compétences');
+  await expect(pages.filter({ hasText: 'Écartée' }).first()).toContainText(
+    'en défaut : compétences',
+  );
 
   // Les candidatures déclarées plus haut se retrouvent dans le devenir des offres retenues
   const outcomes = page.locator('app-outcomes-card');
@@ -270,7 +322,9 @@ test('les pages légales prennent le thème choisi dans le site, pas celui du sy
   // Le site est en thème clair, le système annoncé sombre : seul le choix fait dans le site explique le fond clair
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.getByRole('link', { name: 'Règles de confidentialité' }).last().click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Règles de confidentialité' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Règles de confidentialité' }),
+  ).toBeVisible();
   await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(245, 244, 239)');
 
   // Retour au thème sombre, sous un système clair
@@ -294,7 +348,9 @@ test('la déconnexion ferme la session', async () => {
 
 test("un visiteur essaie sans compte : une seule recherche, puis l'essai est épuisé", async () => {
   // Les deux textes qu'il accepte en essayant sont à portée de clic
-  await expect(page.locator('.terms').getByRole('link', { name: "conditions d'utilisation" })).toBeVisible();
+  await expect(
+    page.locator('.terms').getByRole('link', { name: "conditions d'utilisation" }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Essayer sans compte' }).click();
 
   // Un compte vide, pas celui du propriétaire : ni CV ni poste, donc rien à lancer
@@ -308,7 +364,9 @@ test("un visiteur essaie sans compte : une seule recherche, puis l'essai est ép
   await page.getByRole('button', { name: 'Ajouter ce poste' }).click();
 
   await page.getByRole('button', { name: 'Lancer une recherche' }).click();
-  await expect(page.locator('app-run-panel').getByRole('status')).toHaveText('Recherche terminée', { timeout: 30_000 });
+  await expect(page.locator('app-run-panel').getByRole('status')).toHaveText('Recherche terminée', {
+    timeout: 30_000,
+  });
   await expect(page.locator('.quota')).toContainText('Essai · 0 recherche');
   await expect(page.locator('.launch small')).toContainText("Nombre d'essais épuisé");
   await expect(page.getByRole('button', { name: 'Lancer une recherche' })).toBeDisabled();

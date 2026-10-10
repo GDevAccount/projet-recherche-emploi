@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from jobgrep.data.models import (
     ActivityDay,
     ArchivedUsage,
+    AssistantMessage,
     Correction,
     CvText,
     Job,
@@ -24,6 +25,8 @@ SUMMED_COLUMNS = (
     "cache_read_tokens",
     "cache_write_tokens",
 )
+# Jetons d'une question posée à l'assistant, parmi les compteurs ci-dessus
+ASSISTANT_TOKEN_COLUMNS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
 # Format du mois d'une ligne archivée : il se compare comme du texte
 MONTH_FORMAT = "%Y-%m"
 
@@ -76,6 +79,70 @@ class UsageRepository:
         )
         columns = ["account_id", "plan", "month", "model", "runs", *SUMMED_COLUMNS, "deleted_at"]
         return self.session.execute(insert(ArchivedUsage).from_select(columns, totals)).rowcount
+
+    def summarize_assistant(self, since: datetime | None = None) -> list[Row]:
+        """Renvoie, par compte et par modèle, ce qu'ont consommé les questions posées à l'assistant.
+
+        Les lignes ont la forme de celles de summarize_runs, sans lancement : celles du modèle qui répond,
+        puis celles du modèle qui situe la question, chacun ayant son tarif.
+        """
+        answers = self._assistant_totals(
+            AssistantMessage.model,
+            {column: func.sum(getattr(AssistantMessage, column)) for column in ASSISTANT_TOKEN_COLUMNS},
+            since,
+        )
+        embeddings = self._assistant_totals(
+            AssistantMessage.embedding_model, {"input_tokens": func.sum(AssistantMessage.embedding_tokens)}, since
+        )
+        return answers + embeddings
+
+    def _assistant_totals(self, model, token_sums: dict, since: datetime | None) -> list[Row]:
+        counters = [token_sums.get(column, literal(0)).label(column) for column in SUMMED_COLUMNS]
+        statement = (
+            select(
+                AssistantMessage.user_id,
+                model.label("model"),
+                literal(0).label("runs"),
+                null().label("last_search_at"),
+                *counters,
+            )
+            .where(model.is_not(None))
+            .group_by(AssistantMessage.user_id, model)
+            .order_by(AssistantMessage.user_id)
+        )
+        if since is not None:
+            statement = statement.where(AssistantMessage.created_at >= since)
+        return list(self.session.execute(statement))
+
+    def archive_assistant(self, user_id: int, plan: str, deleted_at: datetime) -> int:
+        """Additionne par mois ce qu'ont consommé les questions d'un compte à l'assistant, avant leur effacement.
+
+        Renvoie le nombre de lignes écrites : des jetons par modèle, sans lancement, ni texte, ni date de question.
+        """
+        totals: dict[tuple[str, str], dict[str, int]] = {}
+
+        def add(month: str, model: str | None, tokens: dict[str, int | None]) -> None:
+            if model is None or tokens["input_tokens"] is None:
+                return
+            total = totals.setdefault((month, model), dict.fromkeys(ASSISTANT_TOKEN_COLUMNS, 0))
+            for column, value in tokens.items():
+                total[column] += value or 0
+
+        for message in self.session.scalars(select(AssistantMessage).where(AssistantMessage.user_id == user_id)):
+            month = message.created_at.strftime(MONTH_FORMAT)
+            add(month, message.model, {column: getattr(message, column) for column in ASSISTANT_TOKEN_COLUMNS})
+            add(month, message.embedding_model, {"input_tokens": message.embedding_tokens})
+
+        counters = dict.fromkeys(("runs", "found_count", "kept_count", "search_calls"), 0)
+        rows = [
+            {"account_id": user_id, "plan": plan, "month": month, "model": model, "deleted_at": deleted_at}
+            | counters
+            | tokens
+            for (month, model), tokens in totals.items()
+        ]
+        if rows:
+            self.session.execute(insert(ArchivedUsage), rows)
+        return len(rows)
 
     def summarize_archived(self, since: datetime | None = None) -> list[Row]:
         """Renvoie, par compte supprimé et par modèle, ce qui a été gardé de sa consommation.
