@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
+from jobgrep.api.canonical_host import CanonicalHostMiddleware
 from jobgrep.api.frontend import build_frontend_routes
 from jobgrep.api.public_pages import build_routes
 from jobgrep.api.routers import account, admin, cv, jobs, queries, searches
@@ -66,6 +67,8 @@ def create_app(
     # Le front pèse plusieurs centaines de ko non compressé. Le flux d'une recherche (text/event-stream)
     # n'est pas concerné : le compresser le retiendrait, et son suivi n'arriverait plus en direct
     app.add_middleware(GZipMiddleware, minimum_size=1024)
+    if settings.site_url:
+        app.add_middleware(CanonicalHostMiddleware, site_url=settings.site_url)
     documentation_paths = frozenset(path for path in (app.docs_url, app.redoc_url) if path)
     app.add_middleware(SecurityHeadersMiddleware, unrestricted_paths=documentation_paths)
 
@@ -109,7 +112,7 @@ def create_app(
     for router in (account.router, jobs.router, queries.router, cv.router, searches.router, admin.router):
         app.include_router(router, prefix=API_PREFIX)
 
-    # Pages légales, fichier de validation Google et fichiers du front, servis sans connexion
+    # Pages publiques, fichiers lus par les robots et fichiers du front, servis sans connexion
     app.router.routes.extend(build_routes(settings))
     # En dernier : le front reçoit toute adresse que l'API et les pages publiques n'ont pas prise
     app.router.routes.extend(build_frontend_routes(settings))

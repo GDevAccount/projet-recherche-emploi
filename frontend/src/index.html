@@ -6,6 +6,21 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="JobGrep cherche des offres d'emploi sur le web et ne garde que celles qui correspondent à votre CV.">
+  <!-- L'adresse publique du site, en dur : cette page est servie telle quelle, sans passer par le serveur Python.
+       Toutes les adresses du front rendent cette page : pour un moteur de recherche, elles valent l'accueil. -->
+  <link rel="canonical" href="https://jobgrep.fr/">
+  <!-- Aperçu affiché quand un lien vers le site est partagé -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="JobGrep">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:url" content="https://jobgrep.fr/">
+  <meta property="og:title" content="JobGrep · Recherche d'emploi">
+  <meta property="og:description" content="JobGrep cherche des offres d'emploi sur le web et ne garde que celles qui correspondent à votre CV.">
+  <meta property="og:image" content="https://jobgrep.fr/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="JobGrep : les offres qui vous ressemblent, rien d'autre.">
+  <meta name="twitter:card" content="summary_large_image">
   <!-- Couleur du thème sombre, celui de départ : theme-init.js puis ThemeService la changent avec le thème -->
   <meta name="theme-color" content="#0a0b0d">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -26,6 +41,7 @@
       </p>
       <p>La connexion se fait avec votre compte Google, qui ne transmet que votre adresse e-mail et votre profil de base.</p>
       <nav>
+        <a href="/fonctionnement">Comment fonctionne JobGrep</a>
         <a href="/confidentialite">Règles de confidentialité</a>
         <a href="/conditions">Conditions d'utilisation</a>
       </nav>

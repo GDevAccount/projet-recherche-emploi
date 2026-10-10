@@ -1,4 +1,4 @@
-"""Pages servies sans connexion, en HTML simple : textes légaux et preuve de propriété du site.
+"""Pages servies sans connexion, en HTML simple : présentation, textes légaux, et ce que lisent les robots.
 
 Les robots de Google ne lisent pas une page qui n'a de contenu qu'une fois son JavaScript exécuté,
 comme celles du front Angular. Ces pages sont donc des routes à part, ajoutées au serveur par api/main.py.
@@ -6,15 +6,17 @@ comme celles du front Angular. Ces pages sont donc des routes à part, ajoutées
 
 import html
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import markdown
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, PlainTextResponse
+from starlette.responses import HTMLResponse, PlainTextResponse, Response
 from starlette.routing import Route
 
 from jobgrep.config import (
     INACTIVE_ACCOUNT_DAYS,
+    JOB_SITES,
     MAX_SEARCHES_PER_DAY,
     MAX_TRIAL_SEARCHES,
     SERVER_ERROR_DAYS,
@@ -23,9 +25,39 @@ from jobgrep.config import (
     Settings,
 )
 
-LEGAL_DIR = Path(__file__).parent / "legal"
-# Adresse de la page -> titre
-LEGAL_PAGES = {"confidentialite": "Règles de confidentialité", "conditions": "Conditions d'utilisation"}
+API_DIR = Path(__file__).parent
+
+
+@dataclass(frozen=True)
+class PublicPage:
+    title: str
+    # Résumé que les moteurs de recherche affichent sous le titre
+    description: str
+    file: Path
+
+
+# Adresse de la page -> page, dans l'ordre des liens du pied de page
+PAGES = {
+    "fonctionnement": PublicPage(
+        "Comment fonctionne JobGrep",
+        "JobGrep cherche des offres d'emploi sur les principaux sites, compare chaque annonce à votre CV "
+        "et ne garde que celles qui vous correspondent. Son fonctionnement, étape par étape.",
+        API_DIR / "pages" / "fonctionnement.md",
+    ),
+    "confidentialite": PublicPage(
+        "Règles de confidentialité",
+        "Les données que JobGrep enregistre, à qui elles sont transmises, combien de temps, et comment les effacer.",
+        API_DIR / "legal" / "confidentialite.md",
+    ),
+    "conditions": PublicPage(
+        "Conditions d'utilisation",
+        "Les conditions d'utilisation de JobGrep : accès, limites du service et responsabilités.",
+        API_DIR / "legal" / "conditions.md",
+    ),
+}
+# Fichiers que les robots demandent d'eux-mêmes, à la racine du site
+ROBOTS_PATH = "/robots.txt"
+SITEMAP_PATH = "/sitemap.xml"
 # Nom du fichier que Search Console demande de publier à la racine du site
 VERIFICATION_FILE_PATTERN = re.compile(r"google[0-9a-f]+\.html")
 
@@ -35,6 +67,8 @@ PAGE_TEMPLATE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} · JobGrep</title>
+<meta name="description" content="{description}">
+{canonical}
 <meta name="theme-color" content="#0a0b0d">
 <link rel="icon" href="/favicon.ico">
 <style>{style}</style>
@@ -120,25 +154,55 @@ PAGE_STYLE = """
 """
 
 
-def render_legal_page(page: str, contact_email: str = "") -> str:
-    """Renvoie la page légale demandée, en HTML complet."""
-    contact = contact_email.strip() or "adressez-vous à l'exploitant de l'application"
-    text = (LEGAL_DIR / f"{page}.md").read_text(encoding="utf-8")
+def render_page(path: str, settings: Settings) -> str:
+    """Renvoie la page publique demandée, en HTML complet."""
+    page = PAGES[path]
+    contact = settings.contact_email or "adressez-vous à l'exploitant de l'application"
+    text = page.file.read_text(encoding="utf-8")
     text = text.replace("{contact}", contact).replace("{max_searches}", str(MAX_SEARCHES_PER_DAY))
+    text = text.replace("{job_sites}", ", ".join(JOB_SITES))
     text = text.replace("{inactive_months}", str(INACTIVE_ACCOUNT_DAYS // 30))
     text = text.replace("{server_error_days}", str(SERVER_ERROR_DAYS))
     text = text.replace("{trial_searches}", str(MAX_TRIAL_SEARCHES)).replace("{trial_days}", str(TRIAL_ACCOUNT_DAYS))
     text = text.replace("{trial_start_hours}", str(TRIAL_START_DAYS * 24))
     links = ['<a href="/">Retour à l\'application</a>']
-    links += [f'<a href="/{other}">{title}</a>' for other, title in LEGAL_PAGES.items() if other != page]
+    links += [f'<a href="/{other}">{html.escape(PAGES[other].title)}</a>' for other in PAGES if other != path]
+    # Sans adresse publique réglée, la page ne dit pas où elle se trouve : rien à déclarer aux moteurs
+    canonical = f'<link rel="canonical" href="{html.escape(settings.site_url)}/{path}">' if settings.site_url else ""
     return PAGE_TEMPLATE.format(
-        title=html.escape(LEGAL_PAGES[page]), style=PAGE_STYLE, body=markdown.markdown(text), links="".join(links)
+        title=html.escape(page.title),
+        description=html.escape(page.description),
+        canonical=canonical,
+        style=PAGE_STYLE,
+        body=markdown.markdown(text),
+        links="".join(links),
+    )
+
+
+def render_robots(site_url: str) -> str:
+    """Renvoie robots.txt : tout le site est ouvert aux robots, sauf l'API, qui ne sert que des données."""
+    lines = ["User-agent: *", "Allow: /", "Disallow: /api/"]
+    if site_url:
+        lines += ["", f"Sitemap: {site_url}{SITEMAP_PATH}"]
+    return "\n".join(lines) + "\n"
+
+
+def render_sitemap(site_url: str) -> str:
+    """Renvoie le plan du site : l'accueil et les pages publiques, seules adresses lisibles sans connexion."""
+    urls = "".join(f"<url><loc>{html.escape(f'{site_url}/{path}')}</loc></url>" for path in ("", *PAGES))
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
     )
 
 
 def build_routes(settings: Settings) -> list[Route]:
     """Renvoie les routes publiques à ajouter au serveur web."""
-    routes = [_legal_route(page, settings.contact_email) for page in LEGAL_PAGES]
+    routes = [_page_route(path, settings) for path in PAGES]
+    routes.append(_text_route(ROBOTS_PATH, render_robots(settings.site_url), "text/plain"))
+    # Un plan du site ne porte que des adresses complètes : sans adresse publique, il n'y en a pas
+    if settings.site_url:
+        routes.append(_text_route(SITEMAP_PATH, render_sitemap(settings.site_url), "application/xml"))
 
     verification_file = settings.google_site_verification_file
     # Le nom est contrôlé : il devient une adresse du site
@@ -147,11 +211,18 @@ def build_routes(settings: Settings) -> list[Route]:
     return routes
 
 
-def _legal_route(page: str, contact_email: str) -> Route:
-    async def legal_page(request: Request) -> HTMLResponse:
-        return HTMLResponse(render_legal_page(page, contact_email))
+def _page_route(path: str, settings: Settings) -> Route:
+    async def public_page(request: Request) -> HTMLResponse:
+        return HTMLResponse(render_page(path, settings))
 
-    return Route(f"/{page}", legal_page)
+    return Route(f"/{path}", public_page)
+
+
+def _text_route(path: str, content: str, media_type: str) -> Route:
+    async def text_file(request: Request) -> Response:
+        return Response(content, media_type=media_type)
+
+    return Route(path, text_file)
 
 
 def _verification_route(verification_file: str) -> Route:
