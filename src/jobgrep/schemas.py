@@ -767,3 +767,61 @@ class AssistantOverview(BaseModel):
     cost_usd: float | None
     # Dernières questions encore lisibles, la plus récente en premier
     entries: list[AssistantJournalEntry]
+
+
+class AssistantEvaluationRead(BaseModel):
+    """Passage du banc d'évaluation de l'assistant. Les parts vont de 0 à 1 ; None quand rien n'était à mesurer."""
+
+    id: int
+    created_at: datetime
+    # Ce qui a été mesuré, et le modèle qui a noté les réponses
+    model: str
+    embedding_model: str
+    judge_model: str
+    prompt_version: str
+    cases: int
+    # Questions auxquelles rien n'est à reprocher
+    passed: int
+    pass_rate: float | None
+    # L'issue (réponse, renvoi vers l'exploitant, refus) est celle attendue
+    outcome_rate: float | None
+    # La section attendue est parmi les passages retrouvés ; et son rang moyen, 1 quand elle arrive toujours en tête
+    retrieval_rate: float | None
+    mean_reciprocal_rank: float | None
+    # La réponse cite la section attendue
+    citation_rate: float | None
+    # La réponse dit ce que dit la réponse de référence
+    correct_rate: float | None
+    # La réponse ne dit que ce que disent les passages
+    faithful_rate: float | None
+    # Les questions hors sujet sont refusées
+    refusal_rate: float | None
+    duration_ms: int
+    # Coût en dollars ; None si le tarif d'un modèle manque
+    cost_usd: float | None
+
+
+class AssistantEvaluationCase(BaseModel):
+    """Ce qu'une question de référence a donné pendant une évaluation."""
+
+    id: str
+    question: str
+    expected_outcome: AssistantOutcome
+    outcome: AssistantOutcome
+    passed: bool
+    answer: str
+    # Titres des passages donnés au modèle, le plus proche en premier
+    retrieved: list[str]
+    # Rang de la section attendue parmi eux ; None si elle n'y est pas, ou si la question n'en attend pas
+    rank: int | None
+    # La réponse cite-t-elle la section attendue ; None si la question n'en attend pas
+    cited: bool | None
+    # Avis du juge, et sa raison ; None quand il n'a pas été consulté
+    faithful: bool | None
+    correct: bool | None
+    judge_reason: str
+
+
+class AssistantEvaluationDetail(AssistantEvaluationRead):
+    # Les questions qui échouent en premier
+    results: list[AssistantEvaluationCase]

@@ -121,6 +121,10 @@ MAX_PAGE_CHARS = 8000
 
 # Assistant : il répond aux questions sur l'application à partir des textes du site (texts/)
 ASSISTANT_MODEL = "gpt-6-luna"
+# Modèle qui note les réponses de l'assistant pendant une évaluation (commande « jobgrep evaluate »)
+JUDGE_MODEL = "gpt-6-luna"
+# Questions de référence posées en même temps pendant une évaluation
+EVALUATION_CONCURRENCY = 4
 # Modèle qui situe les passages et les questions les uns par rapport aux autres. En changer fait recalculer
 # les passages à la première question
 EMBEDDING_MODEL = "text-embedding-3-small"

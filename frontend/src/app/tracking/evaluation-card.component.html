@@ -1,0 +1,105 @@
+<section class="app-card">
+  <header>
+    <span class="app-eyebrow">Évaluation de l'assistant</span>
+    <p>
+      Ses questions de référence, rejouées à la demande : à comparer d'une version des consignes à
+      l'autre.
+    </p>
+  </header>
+
+  @if (error()) {
+    <p class="hint">{{ error() }}</p>
+  } @else if (evaluations(); as evaluations) {
+    @if (evaluations.length) {
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Évaluation</th>
+              <th scope="col">Sans reproche</th>
+              @for (measure of measures; track measure.key) {
+                <th scope="col" [title]="measure.hint">{{ measure.label }}</th>
+              }
+              <th scope="col">Coût</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (evaluation of evaluations; track evaluation.id) {
+              <tr [class.on]="opened() === evaluation.id">
+                <th scope="row">
+                  <button
+                    type="button"
+                    [attr.aria-expanded]="opened() === evaluation.id"
+                    (click)="toggle(evaluation)"
+                  >
+                    {{ evaluation.created_at | parisDate }}
+                    <small>
+                      consignes <code>{{ evaluation.prompt_version }}</code> ·
+                      {{ evaluation.model }} ·
+                      {{ evaluation.duration_ms | duration }}
+                    </small>
+                  </button>
+                </th>
+                <td>
+                  <strong>{{ evaluation.passed }}</strong> / {{ evaluation.cases }}
+                </td>
+                @for (measure of measures; track measure.key) {
+                  <td>{{ rate(evaluation, measure.key) | share }}</td>
+                }
+                <td>{{ evaluation.cost_usd | usd }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (opened() !== null) {
+        @if (detail(); as detail) {
+          @if (failures().length) {
+            <h3>
+              {{ failures().length }}
+              {{ failures().length > 1 ? 'questions à revoir' : 'question à revoir' }}
+            </h3>
+            <ul class="failures">
+              @for (result of failures(); track result.id) {
+                <li>
+                  <details>
+                    <summary>
+                      <span class="question">{{ result.question }}</span>
+                      <span class="reproach">{{ reproach(result) }}</span>
+                    </summary>
+                    <p>{{ result.answer }}</p>
+                    <small>Passages donnés au modèle, le plus proche en premier :</small>
+                    <ol>
+                      @for (heading of result.retrieved; track $index) {
+                        <li [class.expected]="result.rank === $index + 1">{{ heading }}</li>
+                      }
+                    </ol>
+                  </details>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="hint">Rien à revoir : les {{ detail.cases }} questions passent.</p>
+          }
+        } @else {
+          <p class="hint">Chargement des questions…</p>
+        }
+      }
+
+      <small class="note">
+        Les réponses sont notées par le modèle <code>{{ evaluations[0].judge_model }}</code
+        >. « Section retrouvée » mesure la recherche des passages, les autres colonnes ce que le
+        modèle en fait. Le coût d'une évaluation n'entre pas dans le budget.
+      </small>
+    } @else {
+      <p class="hint">
+        Aucune évaluation pour l'instant. La commande <code>jobgrep evaluate</code> pose à
+        l'assistant ses questions de référence et note ses réponses ; elle appelle les modèles, donc
+        elle coûte quelques centimes.
+      </p>
+    }
+  } @else {
+    <p class="hint">Chargement des évaluations…</p>
+  }
+</section>

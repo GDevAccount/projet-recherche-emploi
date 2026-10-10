@@ -45,8 +45,8 @@ SITE_TEXTS = {
 }
 
 
-def read_site_text(name: str, contact_email: str = "") -> str:
-    """Renvoie le texte demandé, en Markdown, ses champs remplacés par les valeurs en vigueur."""
+def fill_fields(text: str, contact_email: str = "") -> str:
+    """Remplace les champs entre accolades d'un texte par les valeurs en vigueur."""
     values = {
         "contact": contact_email or "adressez-vous à l'exploitant de l'application",
         "max_searches": MAX_SEARCHES_PER_DAY,
@@ -59,7 +59,12 @@ def read_site_text(name: str, contact_email: str = "") -> str:
         "max_questions": MAX_ASSISTANT_QUESTIONS_PER_DAY,
         "assistant_days": ASSISTANT_MESSAGE_DAYS,
     }
-    text = (TEXTS_DIR / f"{SITE_TEXTS[name].name}.md").read_text(encoding="utf-8")
     for field, value in values.items():
         text = text.replace(f"{{{field}}}", str(value))
     return text
+
+
+def read_site_text(name: str, contact_email: str = "") -> str:
+    """Renvoie le texte demandé, en Markdown, ses champs remplacés par les valeurs en vigueur."""
+    text = (TEXTS_DIR / f"{SITE_TEXTS[name].name}.md").read_text(encoding="utf-8")
+    return fill_fields(text, contact_email)

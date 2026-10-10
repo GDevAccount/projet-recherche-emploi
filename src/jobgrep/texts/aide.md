@@ -24,6 +24,18 @@ Une recherche prend environ une minute, et vous voyez chaque annonce passer, ret
 
 Le nombre de recherches qu'il vous reste aujourd'hui est affiché en haut de l'écran. Chaque compte dispose de {max_searches} recherches par jour, et un essai sans compte de {trial_searches} en tout. Si le bouton est grisé avec la mention « Quota atteint pour aujourd'hui », revenez le lendemain. Si l'application répond que le budget du jour est atteint, plus personne ne peut chercher avant le lendemain.
 
+## Une recherche semble bloquée, ou échoue
+
+Une recherche prend environ une minute, parfois plus quand beaucoup d'annonces sont à lire. Si elle paraît bloquée, voici quoi faire selon ce que l'écran affiche.
+
+Si le message « Connexion interrompue » apparaît, seul le suivi à l'écran s'est arrêté : la recherche va au bout sur le serveur, et vos offres se mettront à jour dès qu'elle sera terminée. Il n'y a rien à relancer.
+
+Si rien ne bouge depuis plusieurs minutes, rechargez la page. Si la recherche tourne encore, un bandeau « Une recherche est en cours sur le serveur » l'indique, et le bouton « Lancer une recherche » reste indisponible jusqu'à sa fin. S'il n'y a pas de bandeau, la recherche s'est arrêtée : vous pouvez la relancer.
+
+Si l'écran affiche « La recherche a échoué » ou « Le serveur ne répond pas », relancez-la un peu plus tard. Une recherche qui échoue compte quand même dans votre quota du jour. Une mise à jour de l'application peut aussi interrompre une recherche en cours : il suffit alors de la relancer.
+
+Les recherches qui échouent sont enregistrées, et l'exploitant les voit. Si le problème se répète, signalez-le-lui : {contact}.
+
 ## Suivre ses candidatures
 
 Les annonces retenues sont dans la rubrique Offres, chacune avec la raison pour laquelle elle vous correspond. « Voir l'annonce » ouvre la page d'origine. Quand vous avez postulé, cliquez sur « J'ai postulé », puis sur « Entretien obtenu » le moment venu. Si l'employeur refuse, indiquez-le : l'offre est rangée dans vos candidatures refusées.
@@ -56,6 +68,12 @@ Cliquez sur votre vignette, en haut à droite, pour ouvrir la page Compte. Elle 
 
 Le bouton en forme de porte, en haut à droite, ferme votre session. Pour un essai sans compte, il s'appelle « Quitter l'essai ».
 
+## Combien de temps le CV est conservé
+
+Le texte de votre CV est conservé tant que votre compte existe. Il est effacé dans trois cas. Quand vous supprimez votre compte, depuis la page Compte : il est effacé immédiatement, sans retour possible. Quand votre compte reste {inactive_months} mois sans utilisation : il est supprimé automatiquement, avec le CV et tout ce qu'il contient. Pour un essai sans compte : au bout de {trial_days} jours.
+
+Déposer un nouveau CV remplace l'ancien, qui n'est pas gardé. Le fichier PDF lui-même n'est jamais conservé : il est lu une fois, au dépôt, pour en tirer le texte.
+
 ## L'essai sans compte
 
 Quand il est proposé sur l'écran de connexion, l'essai permet de déposer un CV et de lancer {trial_searches} recherche sans se connecter. Il n'est reconnu que par le navigateur qui l'a ouvert, et il est supprimé au bout de {trial_days} jours. Ce qu'il contient n'est pas repris si vous vous connectez ensuite avec un compte Google.
@@ -63,6 +81,10 @@ Quand il est proposé sur l'écran de connexion, l'essai permet de déposer un C
 ## L'assistant
 
 L'assistant répond aux questions sur JobGrep : son fonctionnement, vos données et vos droits. Il ne connaît que les textes du site : il ne voit ni votre CV, ni vos offres, ni votre compte, et ne donne pas de conseils de carrière. Chaque compte peut lui poser {max_questions} questions par jour. Vos questions et ses réponses sont enregistrées pendant {assistant_days} jours, pour améliorer l'aide : n'y écrivez rien de personnel.
+
+## Qui a créé JobGrep
+
+JobGrep a été créé par Guillaume Legall, développeur full-stack senior spécialisé en intelligence artificielle. C'est un projet personnel : il le développe et l'exploite seul, à titre non professionnel, et le met à disposition gratuitement.
 
 ## Contacter l'exploitant
 

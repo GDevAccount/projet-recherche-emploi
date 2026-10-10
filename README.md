@@ -83,6 +83,7 @@ La même commande a d'autres usages :
 | `uv run jobgrep graph` | Génère le schéma du graph dans `graph.png` |
 | `uv run jobgrep migrate` | Crée la base ou l'amène à la dernière version du schéma |
 | `uv run jobgrep purge` | Supprime les comptes d'invités inactifs depuis trop longtemps. Le serveur le fait aussi, une fois par jour |
+| `uv run jobgrep evaluate` | Pose à l'assistant ses questions de référence, fait noter ses réponses par un modèle, et enregistre les mesures (voir [Évaluer l'assistant](#évaluer-lassistant)). Appelle OpenAI : quelques centimes par passage |
 | `uv run jobgrep api` | Sert l'application en développement sur `http://127.0.0.1:8000`, avec la documentation de l'[API](#api) |
 | `uv run jobgrep serve` | Sert l'application en ligne, sur le port 8000 de toutes les interfaces, sans la documentation de l'API |
 
@@ -122,6 +123,8 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/assistant` | Derniers échanges de l'appelant avec l'assistant (`messages` : question, réponse, issue, textes du site cités), ce qu'il peut encore demander aujourd'hui (`remaining_questions`, `null` pour le propriétaire), la longueur d'une question et la durée de conservation |
 | `POST /api/assistant/questions` | Pose une question sur l'application (`{"question": "…"}`, 500 caractères au plus). La réponse ne vient que des textes du site, qu'elle cite (`sources`). `outcome` vaut `answered`, `unknown` (les textes n'en disent rien) ou `off_topic` (la question ne porte pas sur l'application : refus). 429 une fois le quota ou le budget du jour atteint |
 | `GET /api/admin/assistant` | Usage de l'assistant sur tous les comptes, réservé aux administrateurs : nombre de questions par issue, comptes qui en ont posé, coût, et les dernières questions avec leur réponse, les textes cités (`sources`) et ceux où la recherche est allée (`retrieved`), sans le compte qui les a posées (`entries`). `days` limite la période |
+| `GET /api/admin/assistant/evaluations` | Dernières évaluations de l'assistant, la plus récente en premier, réservées aux administrateurs : modèles et version des consignes mesurés, nombre de questions sans reproche, et la part de celles où la section attendue est retrouvée (`retrieval_rate`, et son rang moyen `mean_reciprocal_rank`), où l'issue est la bonne (`outcome_rate`), où la réponse est juste (`correct_rate`) et fidèle aux passages (`faithful_rate`), où le hors-sujet est refusé (`refusal_rate`), avec le coût |
+| `GET /api/admin/assistant/evaluations/{id}` | Une évaluation avec ce que chaque question de référence a donné (`results`, celles qui échouent en premier) : réponse, passages retrouvés, rang de la section attendue, avis du juge et sa raison. 404 si elle n'existe pas |
 
 L'appelant prouve son identité par un en-tête `Authorization: Bearer <jeton>`. La règle :
 
@@ -384,6 +387,24 @@ L'assistant ne reçoit rien d'un compte : ni CV, ni recherche, ni offre. Chaque 
 
 Pour que l'assistant sache répondre à une nouvelle question, compléter `aide.md` ou l'un des autres textes : le passage est indexé au redémarrage suivant, à la première question.
 
+### Évaluer l'assistant
+
+`uv run jobgrep evaluate` rejoue une cinquantaine de questions de référence (`src/jobgrep/assistant/evaluation_cases.json`) sur le graph de l'assistant, tel qu'il sert les utilisateurs. Chaque question dit l'issue attendue, les sections des textes du site qui portent la réponse, et une réponse de référence. Le jeu contient des questions simples, des rebonds, des questions sur l'application auxquelles les textes ne répondent pas, des questions hors sujet et des tentatives de détournement.
+
+| Mesure | Ce qu'elle dit |
+|---|---|
+| Section retrouvée | La section attendue est parmi les passages donnés au modèle : c'est la recherche qui est mesurée. Le rang moyen dit si elle arrive en tête. |
+| Bonne issue | Le graph a répondu, renvoyé vers l'exploitant ou refusé, comme attendu. |
+| Réponse juste | La réponse dit ce que dit la réponse de référence, selon un modèle qui la note (`JUDGE_MODEL`). |
+| Fidèle | La réponse ne dit que ce que disent les passages reçus, selon le même juge. |
+| Hors-sujet refusé | Les questions hors sujet et les détournements reçoivent un refus. |
+
+Les mesures sont enregistrées (`assistant_evaluations`) avec la version des consignes, et la rubrique Suivi les met côte à côte : on change `ANSWER_PROMPT`, un modèle ou un texte, on relance, on compare. Une évaluation ne passe par aucun compte : elle n'écrit rien dans le journal des questions, ne compte dans aucun quota, et son coût n'entre pas dans le budget de l'instance.
+
+Elle s'écrit dans la base de la machine où elle tourne. Pour la voir dans la rubrique Suivi en ligne, la lancer sur l'instance : `fly ssh console -C "/app/.venv/bin/jobgrep evaluate"`.
+
+Une question s'ajoute dans `evaluation_cases.json` ; les tests vérifient que les sections qu'elle vise existent dans les textes.
+
 ## Base de données
 
 La base est un fichier SQLite, ce qui limite l'application à une seule machine. Le passage à PostgreSQL est prévu avant l'ouverture des paiements : [docs/migration-postgresql.md](docs/migration-postgresql.md) liste ce qui lie le code à SQLite ou à un processus unique, et ce que la bascule coûtera.
@@ -593,6 +614,20 @@ Table `assistant_messages`, les questions posées à l'assistant. Elles servent 
 | `embedding_model`, `embedding_tokens` | Modèle qui a situé la question, et jetons lus |
 | `duration_ms` | Durée de la réponse du modèle |
 
+Table `assistant_evaluations`, une ligne par passage du banc d'évaluation de l'assistant. Elle ne porte aucun compte :
+
+| Colonne | Contenu |
+|---|---|
+| `id`, `created_at` | Identifiant et date (UTC) |
+| `model`, `embedding_model`, `prompt_version` | Ce qui a été mesuré : modèle qui répond, modèle d'embedding, empreinte des consignes |
+| `judge_model` | Modèle qui a noté les réponses |
+| `cases`, `passed`, `outcome_hits` | Questions posées, celles sans reproche, celles dont l'issue est la bonne |
+| `retrieval_cases`, `retrieval_hits`, `reciprocal_rank_sum`, `cited_hits` | Questions qui attendent une section, celles où elle est retrouvée, somme des inverses de son rang, celles où la réponse la cite |
+| `answer_cases`, `correct`, `judged`, `faithful` | Questions qui ont une réponse de référence et celles où la réponse est juste ; réponses notées et celles qui sont fidèles aux passages |
+| `off_topic_cases`, `off_topic_refused` | Questions hors sujet, et celles qui sont refusées |
+| `input_tokens`, `output_tokens`, `embedding_tokens`, `judge_input_tokens`, `judge_output_tokens`, `duration_ms` | Ce que l'évaluation a consommé, et sa durée |
+| `details` | Ce que chaque question a donné, en JSON |
+
 Table `archived_usage`, la consommation des comptes supprimés. Les questions posées à l'assistant y entrent aussi, en lignes sans lancement. Elle est écrite à la suppression d'un compte, juste avant l'effacement de ses lancements, et n'est jamais vidée :
 
 | Colonne | Contenu |
@@ -642,6 +677,7 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 | Modèle OpenAI du filtre (`FILTER_MODEL`) | `src/jobgrep/config.py` | `gpt-5-mini` |
 | Taille maximale de page envoyée au modèle (`MAX_PAGE_CHARS`) | `src/jobgrep/config.py` | `8000` |
 | Modèle OpenAI de l'assistant (`ASSISTANT_MODEL`), et modèle d'embedding (`EMBEDDING_MODEL`) | `src/jobgrep/config.py` | `gpt-6-luna`, `text-embedding-3-small` |
+| Modèle qui note les réponses pendant une évaluation (`JUDGE_MODEL`), et questions posées en même temps (`EVALUATION_CONCURRENCY`) | `src/jobgrep/config.py` | `gpt-6-luna`, `4` |
 | Questions à l'assistant par jour et par compte (`MAX_ASSISTANT_QUESTIONS_PER_DAY`) | `src/jobgrep/config.py` | `20` |
 | Passages donnés au modèle pour une question (`ASSISTANT_PASSAGES`) | `src/jobgrep/config.py` | `5` |
 | Jours de conservation du texte des questions (`ASSISTANT_MESSAGE_DAYS`) | `src/jobgrep/config.py` | `90` |
@@ -717,6 +753,7 @@ src/jobgrep/
 │   ├── cv_service.py      # enregistrement du CV et de son texte sans coordonnées, oubli des rejets de l'ancien
 │   ├── job_service.py     # offres retenues et pages rejetées
 │   ├── query_service.py   # postes recherchés
+│   ├── assistant_evaluation_service.py # évaluations de l'assistant : lancement, mesures, lecture
 │   └── assistant_service.py # questions à l'assistant : quota, passages gardés en base, lancement du graph, journal
 ├── assistant/           # RAG sur les textes du site
 │   ├── graph.py         # construction du graph
@@ -725,7 +762,9 @@ src/jobgrep/
 │   ├── passages.py      # découpage des textes en passages, et recherche des plus proches d'une question
 │   ├── ports.py         # ce que l'assistant attend de l'extérieur : un modèle d'embedding, un modèle qui répond
 │   ├── adapters.py      # leurs branchements réels : OpenAI
-│   └── prompts.py       # consignes de l'assistant
+│   ├── prompts.py       # consignes de l'assistant, et du juge qui note ses réponses
+│   ├── evaluation.py    # banc d'évaluation : pose une question de référence au graph et note ce qu'il rend
+│   └── evaluation_cases.json # questions de référence
 ├── agent/               # recherche LangGraph
 │   ├── graph.py         # construction du graph
 │   ├── nodes.py         # les quatre étapes : search_jobs, filter_duplicates, filter_jobs, insert_jobs
@@ -746,6 +785,7 @@ src/jobgrep/
     │   ├── usage_repository.py         # consommation additionnée par compte, pour les administrateurs
     │   ├── user_repository.py          # comptes
     │   ├── assistant_passage_repository.py  # passages des textes du site et leurs vecteurs
+    │   ├── assistant_evaluation_repository.py  # évaluations de l'assistant
     │   ├── assistant_message_repository.py  # questions posées à l'assistant, par compte et pour les administrateurs
     │   └── cv_text_repository.py       # texte des CV, coordonnées retirées, et date du dépôt
     └── cv_ingestion/    # du PDF déposé au texte enregistré : le PDF n'est pas conservé

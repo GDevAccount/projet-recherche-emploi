@@ -63,3 +63,24 @@ class AnswerModel(Protocol):
     ) -> tuple[DraftAnswer, ModelUsage]:
         """Répond à la question à partir de ces seuls passages, numérotés à partir de 1."""
         ...
+
+
+class Verdict(BaseModel):
+    """Ce que le juge dit d'une réponse de l'assistant. La raison vient d'abord : il réfléchit avant de trancher."""
+
+    reason: str
+    # Tout ce que la réponse affirme est-il appuyé par les passages donnés au modèle
+    faithful: bool
+    # La réponse dit-elle l'essentiel de la réponse de référence, sans la contredire
+    correct: bool
+
+
+class AnswerJudge(Protocol):
+    # Nom du modèle interrogé, enregistré avec chaque évaluation
+    model_name: str
+
+    def judge(
+        self, question: str, passages: Sequence[Passage], answer: str, reference: str
+    ) -> tuple[Verdict, ModelUsage]:
+        """Note une réponse de l'assistant au regard des passages qu'il a reçus et de la réponse attendue."""
+        ...

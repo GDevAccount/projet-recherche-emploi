@@ -4,7 +4,7 @@ import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from conftest import FakeAnswerModel, FakeEmbedder, FakeEvaluator, FakeNotifier, FakeSearchEngine
+from conftest import FakeAnswerModel, FakeEmbedder, FakeEvaluator, FakeJudge, FakeNotifier, FakeSearchEngine
 from fastapi.testclient import TestClient
 from helpers import blank_pdf, job
 from sqlalchemy import select
@@ -64,6 +64,7 @@ def make_client(tmp_path, evaluator=None, base_url="http://localhost", **setting
         evaluator or FakeEvaluator(),
         embedder=FakeEmbedder(),
         answer_model=FakeAnswerModel(),
+        judge=FakeJudge(),
     )
     # Adresse locale : le cookie de session n'y est pas réservé à HTTPS, donc le client de test le renvoie
     return TestClient(create_app(container, FakeIdentityVerifier()), base_url=base_url)
@@ -171,6 +172,8 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/assistant"),
         ("POST", "/api/assistant/questions"),
         ("GET", "/api/admin/assistant"),
+        ("GET", "/api/admin/assistant/evaluations"),
+        ("GET", "/api/admin/assistant/evaluations/1"),
     ],
 )
 def test_every_data_route_requires_an_identity(client, method, path):
@@ -1223,3 +1226,18 @@ def test_only_administrators_read_what_is_asked_and_never_by_whom(client):
     # Les questions partent avec le compte
     assert client.delete("/api/me", headers=ALICE).status_code == 204
     assert client.get("/api/admin/assistant", headers=OWNER).json()["questions"] == 0
+
+
+def test_only_administrators_read_the_evaluations_of_the_assistant(client):
+    assert client.get("/api/admin/assistant/evaluations", headers=ALICE).status_code == 403
+    assert client.get("/api/admin/assistant/evaluations/1", headers=ALICE).status_code == 403
+    assert client.get("/api/admin/assistant/evaluations", headers=OWNER).json() == []
+    assert client.get("/api/admin/assistant/evaluations/1", headers=OWNER).status_code == 404
+
+    # Une évaluation ne se lance pas par l'API : elle coûte, et dure trop pour une requête
+    evaluation = client.app.state.container.evaluation.run()
+
+    [listed] = client.get("/api/admin/assistant/evaluations", headers=OWNER).json()
+    assert (listed["id"], listed["cases"], "results" in listed) == (evaluation.id, evaluation.cases, False)
+    detail = client.get(f"/api/admin/assistant/evaluations/{evaluation.id}", headers=OWNER).json()
+    assert len(detail["results"]) == evaluation.cases and detail["results"][0]["passed"] is False

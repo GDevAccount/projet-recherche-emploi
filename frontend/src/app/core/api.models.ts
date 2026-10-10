@@ -583,3 +583,50 @@ export interface AssistantOverview {
   cost_usd: number | null;
   entries: AssistantJournalEntry[];
 }
+
+/** Passage du banc d'évaluation de l'assistant. Les parts vont de 0 à 1 ; null quand rien n'était à mesurer. */
+export interface AssistantEvaluation {
+  id: number;
+  created_at: string;
+  model: string;
+  embedding_model: string;
+  judge_model: string;
+  prompt_version: string;
+  cases: number;
+  /** Questions auxquelles rien n'est à reprocher */
+  passed: number;
+  pass_rate: number | null;
+  outcome_rate: number | null;
+  retrieval_rate: number | null;
+  mean_reciprocal_rank: number | null;
+  citation_rate: number | null;
+  correct_rate: number | null;
+  faithful_rate: number | null;
+  refusal_rate: number | null;
+  duration_ms: number;
+  cost_usd: number | null;
+}
+
+/** Ce qu'une question de référence a donné pendant une évaluation. */
+export interface AssistantEvaluationCase {
+  id: string;
+  question: string;
+  expected_outcome: AssistantOutcome;
+  outcome: AssistantOutcome;
+  passed: boolean;
+  answer: string;
+  /** Titres des passages donnés au modèle, le plus proche en premier */
+  retrieved: string[];
+  /** Rang de la section attendue parmi eux ; null si elle n'y est pas, ou si la question n'en attend pas */
+  rank: number | null;
+  /** null si la question n'attend aucune section */
+  cited: boolean | null;
+  faithful: boolean | null;
+  correct: boolean | null;
+  judge_reason: string;
+}
+
+export interface AssistantEvaluationDetail extends AssistantEvaluation {
+  /** Les questions qui échouent en premier */
+  results: AssistantEvaluationCase[];
+}
