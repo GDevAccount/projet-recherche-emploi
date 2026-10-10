@@ -16,6 +16,7 @@ from jobgrep.errors import NotFoundError
 from jobgrep.site_texts import SITE_TEXTS, fill_fields, read_site_text
 
 NOW = datetime(2026, 10, 10, 10, tzinfo=UTC)
+TOOLS = {"etat_du_compte", "mes_offres", "mes_pages_ecartees", "mes_postes_recherches", "mon_cv"}
 THEME = Passage("aide", "Guide", "Changer de thème", "Un bouton change de thème.")
 ACCOUNT = Passage("aide", "Guide", "Supprimer son compte", "Un bouton supprime le compte.")
 
@@ -44,9 +45,11 @@ def test_reference_questions_point_to_sections_that_exist():
         if case.account or case.tools:
             assert case.consults is True, case.id
         # Un outil attendu existe, et le compte fictif a de quoi lui répondre
-        assert set(case.tools) <= {"etat_du_compte", "mes_offres", "mes_pages_ecartees"}, case.id
+        assert set(case.tools) <= TOOLS, case.id
         assert "mes_offres" not in case.tools or case.offers, case.id
         assert "mes_pages_ecartees" not in case.tools or case.rejections, case.id
+        assert "mes_postes_recherches" not in case.tools or case.queries, case.id
+        assert "mon_cv" not in case.tools or case.cv, case.id
     assert {case.outcome for case in cases} == {"answered", "unknown", "off_topic"}
     assert any(case.history for case in cases)
 

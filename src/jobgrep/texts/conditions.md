@@ -24,7 +24,7 @@ Chaque recherche a un coût, pris en charge par l'exploitant de l'application. L
 
 Les offres proviennent de sites tiers et sont triées automatiquement. L'application peut écarter une offre qui vous aurait convenu, ou en retenir une qui ne vous convient pas, qui a expiré ou dont le contenu est inexact. Vérifiez toujours une offre sur le site d'origine avant de postuler.
 
-L'assistant répond à partir des textes de ce site, à l'aide d'un modèle d'intelligence artificielle : il peut se tromper. En cas de doute, ce sont ces conditions et les règles de confidentialité qui font foi.
+L'assistant répond à partir des textes de ce site, à l'aide d'un modèle d'intelligence artificielle : il peut se tromper. En cas de doute, ce sont ces conditions et les règles de confidentialité qui font foi. Ses conseils portent sur les réglages de l'application ; ils ne remplacent pas un accompagnement dans votre recherche d'emploi.
 
 Le service est fourni en l'état, sans garantie de disponibilité ni de conservation des données. Il peut être interrompu, modifié ou arrêté à tout moment. L'exploitant ne peut être tenu responsable des conséquences de son utilisation, notamment d'une candidature manquée ou d'une perte de données.
 

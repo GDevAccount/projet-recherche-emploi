@@ -216,10 +216,8 @@ describe('AssistantComponent', () => {
     stream.end();
     await settle();
     expect(text()).toContain('Consulté : État de votre compte');
-    // L'avertissement dit ce que l'assistant peut voir, et ce qu'il ne voit jamais
-    expect(text()).toContain(
-      "Il peut consulter l'état de votre compte, vos offres et vos pages écartées, jamais votre CV",
-    );
+    // L'avertissement dit ce que l'assistant peut consulter
+    expect(text()).toContain('vos pages écartées, vos postes recherchés et votre CV');
   });
 
   it('should show the earlier conversation again', async () => {
