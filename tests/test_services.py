@@ -11,8 +11,8 @@ from conftest import FakeEvaluator, FakeNotifier, FakeSearchEngine
 from helpers import blank_pdf, job, rejected_job
 from sqlalchemy import update
 
-from projet_recherche_emploi.agent.prompts import prompt_version
-from projet_recherche_emploi.config import (
+from jobgrep.agent.prompts import prompt_version
+from jobgrep.config import (
     DEFAULT_QUERIES,
     DEFAULT_USER_ID,
     INACTIVE_ACCOUNT_DAYS,
@@ -21,22 +21,22 @@ from projet_recherche_emploi.config import (
     WEEKS_SHOWN,
     Settings,
 )
-from projet_recherche_emploi.container import build_container
-from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
-from projet_recherche_emploi.data.models import EngineCall, SearchRun, ServerError
-from projet_recherche_emploi.data.repositories.activity_repository import ActivityRepository
-from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
-from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
-from projet_recherche_emploi.data.repositories.engine_call_repository import EngineCallRepository
-from projet_recherche_emploi.data.repositories.job_repository import JobRepository
-from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
-from projet_recherche_emploi.data.repositories.search_run_repository import SearchRunRepository
-from projet_recherche_emploi.data.repositories.user_repository import UserRepository
-from projet_recherche_emploi.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
-from projet_recherche_emploi.schemas import BudgetOverview, ClientErrorReport, SearchProgress, SearchSummary
-from projet_recherche_emploi.services import cv_service, health_service
-from projet_recherche_emploi.services.alert_service import AlertService, NtfyNotifier
-from projet_recherche_emploi.services.search_service import (
+from jobgrep.container import build_container
+from jobgrep.data.cv_ingestion.pdf_reader import CvPdfReader
+from jobgrep.data.models import EngineCall, SearchRun, ServerError
+from jobgrep.data.repositories.activity_repository import ActivityRepository
+from jobgrep.data.repositories.correction_repository import CorrectionRepository
+from jobgrep.data.repositories.cv_text_repository import CvTextRepository
+from jobgrep.data.repositories.engine_call_repository import EngineCallRepository
+from jobgrep.data.repositories.job_repository import JobRepository
+from jobgrep.data.repositories.rejected_job_repository import RejectedJobRepository
+from jobgrep.data.repositories.search_run_repository import SearchRunRepository
+from jobgrep.data.repositories.user_repository import UserRepository
+from jobgrep.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
+from jobgrep.schemas import BudgetOverview, ClientErrorReport, SearchProgress, SearchSummary
+from jobgrep.services import cv_service, health_service
+from jobgrep.services.alert_service import AlertService, NtfyNotifier
+from jobgrep.services.search_service import (
     SearchService,
     describe_engine_calls,
     start_of_local_week,

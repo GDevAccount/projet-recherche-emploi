@@ -1,6 +1,6 @@
-# Tamis
+# JobGrep
 
-Tamis est un agent qui cherche des offres d'emploi sur le web, ne garde que celles qui correspondent à votre CV, et les enregistre dans une base SQLite. Une application web permet de déposer son CV, de choisir les postes recherchés, de lancer la recherche en la suivant en direct, et de suivre ses candidatures.
+JobGrep est un agent qui cherche des offres d'emploi sur le web, ne garde que celles qui correspondent à votre CV, et les enregistre dans une base SQLite. Une application web permet de déposer son CV, de choisir les postes recherchés, de lancer la recherche en la suivant en direct, et de suivre ses candidatures.
 
 À chaque recherche, seules les nouvelles pages sont évaluées : une offre déjà en base (même URL) n'est pas réinsérée, et une page déjà rejetée n'est pas soumise à nouveau au modèle.
 
@@ -42,7 +42,7 @@ L'application tient en deux parties, servies par un seul processus et à une seu
 Depuis la racine du projet :
 
 ```bash
-uv run projet-recherche-emploi api
+uv run jobgrep api
 ```
 
 L'application s'ouvre à l'adresse `http://127.0.0.1:8000`, et la documentation de l'API à `http://127.0.0.1:8000/docs`.
@@ -65,26 +65,26 @@ L'application a trois rubriques, **Offres**, **Rejets** et **Profil**, un thème
 
 Chaque recherche consomme des crédits Tavily (une recherche avancée par poste recherché) et OpenAI (un appel par résultat qui n'a pas déjà été évalué, jusqu'à 20 par poste recherché).
 
-Un schéma du graph peut être généré dans `graph.png` avec `uv run projet-recherche-emploi graph`. Il est produit par le service en ligne mermaid.ink, donc une connexion internet est nécessaire.
+Un schéma du graph peut être généré dans `graph.png` avec `uv run jobgrep graph`. Il est produit par le service en ligne mermaid.ink, donc une connexion internet est nécessaire.
 
 ### En ligne de commande
 
 La recherche seule peut aussi être lancée en ligne de commande, avec le CV et les recherches déjà enregistrés :
 
 ```bash
-uv run projet-recherche-emploi
+uv run jobgrep
 ```
 
 La même commande a d'autres usages :
 
 | Commande | Effet |
 |---|---|
-| `uv run projet-recherche-emploi` (ou `search`) | Lance une recherche pour le propriétaire |
-| `uv run projet-recherche-emploi graph` | Génère le schéma du graph dans `graph.png` |
-| `uv run projet-recherche-emploi migrate` | Crée la base ou l'amène à la dernière version du schéma |
-| `uv run projet-recherche-emploi purge` | Supprime les comptes d'invités inactifs depuis trop longtemps. Le serveur le fait aussi, une fois par jour |
-| `uv run projet-recherche-emploi api` | Sert l'application en développement sur `http://127.0.0.1:8000`, avec la documentation de l'[API](#api) |
-| `uv run projet-recherche-emploi serve` | Sert l'application en ligne, sur le port 8000 de toutes les interfaces, sans la documentation de l'API |
+| `uv run jobgrep` (ou `search`) | Lance une recherche pour le propriétaire |
+| `uv run jobgrep graph` | Génère le schéma du graph dans `graph.png` |
+| `uv run jobgrep migrate` | Crée la base ou l'amène à la dernière version du schéma |
+| `uv run jobgrep purge` | Supprime les comptes d'invités inactifs depuis trop longtemps. Le serveur le fait aussi, une fois par jour |
+| `uv run jobgrep api` | Sert l'application en développement sur `http://127.0.0.1:8000`, avec la documentation de l'[API](#api) |
+| `uv run jobgrep serve` | Sert l'application en ligne, sur le port 8000 de toutes les interfaces, sans la documentation de l'API |
 
 ## API
 
@@ -151,7 +151,7 @@ npm run build          # build de production, dans frontend/dist/
 npm run e2e            # tests de bout en bout (Playwright), après un build
 ```
 
-`npm start` recharge la page à chaque modification, et relaie les appels à `/api` vers `http://127.0.0.1:8000` (`proxy.conf.json`) : lancer le serveur à côté avec `uv run projet-recherche-emploi api`. Le navigateur ne voit ainsi qu'une seule adresse, comme en ligne, et `CORS_ORIGINS` reste inutile.
+`npm start` recharge la page à chaque modification, et relaie les appels à `/api` vers `http://127.0.0.1:8000` (`proxy.conf.json`) : lancer le serveur à côté avec `uv run jobgrep api`. Le navigateur ne voit ainsi qu'une seule adresse, comme en ligne, et `CORS_ORIGINS` reste inutile.
 
 Une fois le front construit par `npm run build`, le serveur Python le sert lui-même à la racine du site. L'image Docker fait ce build dans une première étape : elle ne contient ni Node ni `node_modules`.
 
@@ -187,13 +187,13 @@ Avec un mot de passe ou la connexion Google mais sans `AUTH_COOKIE_SECRET`, l'ap
 Pour essayer l'image en local :
 
 ```bash
-docker build -t recherche-emploi .
-docker run -p 8000:8000 -v recherche-emploi-data:/data --env-file .env recherche-emploi
+docker build -t jobgrep .
+docker run -p 8000:8000 -v jobgrep-data:/data --env-file .env jobgrep
 ```
 
 ### Instance déployée sur Fly.io
 
-Le projet est déployé sur [Fly.io](https://fly.io/), à l'adresse <https://projet-recherche-emploi.fly.dev/>. La configuration est dans `fly.toml`.
+Le projet est déployé sur [Fly.io](https://fly.io/), à l'adresse <https://jobgrep.fr/>. La configuration est dans `fly.toml`.
 
 Cette instance demande une connexion Google, réservée aux adresses invitées : pour la tester, le demander à l'auteur.
 
@@ -242,7 +242,7 @@ Sans réglage, un incident ne se voit que dans la rubrique Suivi. Avec un sujet 
 
 Une même alerte ne part pas deux fois dans l'heure (`ALERT_QUIET_MINUTES`). Un message ne porte que le type de l'incident et des nombres : jamais une adresse, un titre, un lien ni le message d'une erreur.
 
-1. Choisir un nom de sujet long et aléatoire : sans compte ntfy, quiconque le connaît peut lire le sujet. Par exemple `python -c "import secrets; print('tamis-' + secrets.token_urlsafe(24))"`.
+1. Choisir un nom de sujet long et aléatoire : sans compte ntfy, quiconque le connaît peut lire le sujet. Par exemple `python -c "import secrets; print('jobgrep-' + secrets.token_urlsafe(24))"`.
 2. Installer l'application ntfy sur le téléphone (Android, iOS) et s'abonner à ce sujet.
 3. Le donner à l'instance, ce qui la redémarre : `fly secrets set NTFY_TOPIC=...` (ou `NTFY_TOPIC=...` dans `.env` en local).
 4. Dans la rubrique Suivi, la carte « Santé de l'instance » indique « Alertes actives » : le bouton « Envoyer une alerte d'essai » vérifie qu'elles arrivent.
@@ -278,17 +278,17 @@ Quand la connexion Google est active, `APP_PASSWORD` n'est plus demandé.
 
 Dans la [console Google Cloud](https://console.cloud.google.com/apis/credentials), créer un « ID client OAuth » de type « Application Web », avec comme « origines JavaScript autorisées », sans barre oblique finale :
 
-- `https://projet-recherche-emploi.fly.dev` pour l'instance en ligne ;
+- `https://jobgrep.fr` pour l'instance en ligne ;
 - `http://localhost:4200` et `http://localhost:8000` pour un essai en local, avec `npm start` ou avec le serveur seul.
 
 Google fournit alors un identifiant client. Le front s'en sert pour afficher le bouton « Se connecter avec Google », et le serveur pour vérifier le jeton que ce bouton renvoie : aucun code secret ni URI de redirection n'est nécessaire. Tant que l'écran de consentement est en mode « Test », seules les adresses ajoutées comme utilisateurs de test peuvent se connecter.
 
 Pour passer en mode « En production », Google demande deux liens, que l'application sert sans connexion :
 
-- règles de confidentialité : `https://projet-recherche-emploi.fly.dev/confidentialite`
-- conditions d'utilisation : `https://projet-recherche-emploi.fly.dev/conditions`
+- règles de confidentialité : `https://jobgrep.fr/confidentialite`
+- conditions d'utilisation : `https://jobgrep.fr/conditions`
 
-Ce sont des pages HTML simples, lisibles par les robots de Google, qui ne voient pas le contenu d'une page construite en JavaScript. Leurs textes sont dans `src/projet_recherche_emploi/api/legal/`. Ils décrivent ce que fait l'application telle qu'elle est : les relire, et les tenir à jour si elle change. Même en production, seules les adresses de `OWNER_EMAIL` et `ALLOWED_EMAILS` accèdent à l'application, sauf si `ALLOWED_EMAILS` vaut `*`.
+Ce sont des pages HTML simples, lisibles par les robots de Google, qui ne voient pas le contenu d'une page construite en JavaScript. Leurs textes sont dans `src/jobgrep/api/legal/`. Ils décrivent ce que fait l'application telle qu'elle est : les relire, et les tenir à jour si elle change. Même en production, seules les adresses de `OWNER_EMAIL` et `ALLOWED_EMAILS` accèdent à l'application, sauf si `ALLOWED_EMAILS` vaut `*`.
 
 Google peut aussi demander la preuve que le site vous appartient. Dans [Search Console](https://search.google.com/search-console), ajouter une propriété de type « Préfixe de l'URL » avec l'adresse de l'instance, choisir la méthode « Fichier HTML », et mettre le nom du fichier proposé dans `GOOGLE_SITE_VERIFICATION_FILE` : l'application le sert alors à la racine du site, sans qu'il faille le déposer.
 
@@ -540,15 +540,15 @@ Le coût n'est pas enregistré : l'API le calcule à chaque lecture, en dollars,
 
 ### Faire évoluer le schéma
 
-Les tables sont décrites dans `src/projet_recherche_emploi/data/models.py`. Modifier ce fichier ne change aucune base existante : il faut une migration, que l'application appliquera à son prochain démarrage, en local comme en ligne (l'image Docker l'applique avant de servir, et refuse de démarrer si elle échoue).
+Les tables sont décrites dans `src/jobgrep/data/models.py`. Modifier ce fichier ne change aucune base existante : il faut une migration, que l'application appliquera à son prochain démarrage, en local comme en ligne (l'image Docker l'applique avant de servir, et refuse de démarrer si elle échoue).
 
 ```bash
-uv run projet-recherche-emploi migrate                    # la base locale doit d'abord être à jour
+uv run jobgrep migrate                    # la base locale doit d'abord être à jour
 uv run alembic revision --autogenerate -m "ajout de la colonne note" --rev-id 0004
 uv run pytest                                             # vérifie que modèles et migrations décrivent le même schéma
 ```
 
-La deuxième commande compare les modèles à la base locale et écrit la migration dans `src/projet_recherche_emploi/data/migrations/versions/`. La relire avant de la committer : Alembic ne devine pas tout (un renommage de colonne, par exemple, est vu comme une suppression suivie d'un ajout).
+La deuxième commande compare les modèles à la base locale et écrit la migration dans `src/jobgrep/data/migrations/versions/`. La relire avant de la committer : Alembic ne devine pas tout (un renommage de colonne, par exemple, est vu comme une suppression suivie d'un ajout).
 
 Avant d'appliquer une migration à une base existante, l'application en fait une copie dans le même dossier, nommée `jobs.avant-migration-<version>.db`. Pour revenir en arrière, arrêter l'application et remettre cette copie à la place de `jobs.db`. Ces copies contiennent les données de tous les utilisateurs : les supprimer une fois la migration vérifiée. La suppression d'un compte retire ses données de chacune, sans les effacer.
 
@@ -559,31 +559,31 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 | Réglage | Fichier | Valeur par défaut |
 |---|---|---|
 | Dossier de la base et du CV (`DATA_DIR`) | variable d'environnement | dossier courant |
-| Nom de la base (`DB_FILE_NAME`) | `src/projet_recherche_emploi/config.py` | `jobs.db` |
+| Nom de la base (`DB_FILE_NAME`) | `src/jobgrep/config.py` | `jobs.db` |
 | Dossier du front Angular construit (`FRONTEND_DIR`) | variable d'environnement | `frontend/dist/frontend/browser` |
 | Mot de passe de l'application (`APP_PASSWORD`) | variable d'environnement | aucun |
 | Connexion Google (`GOOGLE_CLIENT_ID`, `OWNER_EMAIL`, `ALLOWED_EMAILS`…) | variables d'environnement | désactivée |
-| Recherches par jour pour un invité (`MAX_SEARCHES_PER_DAY`) | `src/projet_recherche_emploi/config.py` | `2` |
-| Jours sans activité avant la suppression d'un compte d'invité (`INACTIVE_ACCOUNT_DAYS`) | `src/projet_recherche_emploi/config.py` | `365` |
+| Recherches par jour pour un invité (`MAX_SEARCHES_PER_DAY`) | `src/jobgrep/config.py` | `2` |
+| Jours sans activité avant la suppression d'un compte d'invité (`INACTIVE_ACCOUNT_DAYS`) | `src/jobgrep/config.py` | `365` |
 | Essais sans compte ouverts par jour (`MAX_TRIALS_PER_DAY`) | variable d'environnement | `0` : aucun essai |
-| Recherches d'un compte d'essai, en tout (`MAX_TRIAL_SEARCHES`) | `src/projet_recherche_emploi/config.py` | `1` |
-| Essais par adresse IP et par jour (`MAX_TRIALS_PER_IP_PER_DAY`) | `src/projet_recherche_emploi/config.py` | `3` |
-| Jours avant la suppression d'un compte d'essai (`TRIAL_ACCOUNT_DAYS`) | `src/projet_recherche_emploi/config.py` | `30` |
-| Modèle OpenAI du filtre (`FILTER_MODEL`) | `src/projet_recherche_emploi/config.py` | `gpt-5-mini` |
-| Taille maximale de page envoyée au modèle (`MAX_PAGE_CHARS`) | `src/projet_recherche_emploi/config.py` | `8000` |
-| Recherches créées avec la base (`DEFAULT_QUERIES`) | `src/projet_recherche_emploi/config.py` | 2 recherches CDI, 2 freelance (ingénieur IA) |
-| Types de contrat proposés (`CONTRACT_TYPES`) | `src/projet_recherche_emploi/config.py` | CDI, freelance, CDD, alternance, stage |
+| Recherches d'un compte d'essai, en tout (`MAX_TRIAL_SEARCHES`) | `src/jobgrep/config.py` | `1` |
+| Essais par adresse IP et par jour (`MAX_TRIALS_PER_IP_PER_DAY`) | `src/jobgrep/config.py` | `3` |
+| Jours avant la suppression d'un compte d'essai (`TRIAL_ACCOUNT_DAYS`) | `src/jobgrep/config.py` | `30` |
+| Modèle OpenAI du filtre (`FILTER_MODEL`) | `src/jobgrep/config.py` | `gpt-5-mini` |
+| Taille maximale de page envoyée au modèle (`MAX_PAGE_CHARS`) | `src/jobgrep/config.py` | `8000` |
+| Recherches créées avec la base (`DEFAULT_QUERIES`) | `src/jobgrep/config.py` | 2 recherches CDI, 2 freelance (ingénieur IA) |
+| Types de contrat proposés (`CONTRACT_TYPES`) | `src/jobgrep/config.py` | CDI, freelance, CDD, alternance, stage |
 | Sites autorisés à appeler l'API depuis un navigateur (`CORS_ORIGINS`) | variable d'environnement | aucun |
 | Sujet ntfy des alertes (`NTFY_TOPIC`), et serveur ntfy (`NTFY_URL`) | variables d'environnement | aucune alerte, `https://ntfy.sh` |
 | Budget mensuel de l'instance en dollars, tous comptes réunis (`MONTHLY_BUDGET_USD`) | variable d'environnement | `10`, ou `0` pour ne pas en fixer |
 | Budget d'un jour en dollars, qui refuse les recherches une fois atteint, sauf celles du propriétaire (`DAILY_BUDGET_USD`) | variable d'environnement | `0.5`, ou `0` pour ne pas en fixer |
-| Semaines montrées dans la rubrique Suivi (`WEEKS_SHOWN`) | `src/projet_recherche_emploi/config.py` | `12` |
-| Coût sur 24 heures qui déclenche une alerte (`DAILY_COST_ALERT_USD`) | `src/projet_recherche_emploi/config.py` | `1.0` |
-| Erreurs du navigateur gardées par compte et par jour (`CLIENT_ERRORS_PER_DAY`) | `src/projet_recherche_emploi/config.py` | `50` |
-| Délai avant de renvoyer une même alerte (`ALERT_QUIET_MINUTES`) | `src/projet_recherche_emploi/config.py` | `60` |
-| Sites interrogés (`JOB_SITES`) | `src/projet_recherche_emploi/config.py` | 24 sites d'emploi |
-| Sites ajoutés pour la variante en anglais d'une recherche en télétravail complet (`REMOTE_JOB_SITES`) | `src/projet_recherche_emploi/config.py` | 7 sites d'offres en télétravail |
-| Critères du filtre (`FILTER_PROMPT`) | `src/projet_recherche_emploi/agent/prompts.py` | — |
+| Semaines montrées dans la rubrique Suivi (`WEEKS_SHOWN`) | `src/jobgrep/config.py` | `12` |
+| Coût sur 24 heures qui déclenche une alerte (`DAILY_COST_ALERT_USD`) | `src/jobgrep/config.py` | `1.0` |
+| Erreurs du navigateur gardées par compte et par jour (`CLIENT_ERRORS_PER_DAY`) | `src/jobgrep/config.py` | `50` |
+| Délai avant de renvoyer une même alerte (`ALERT_QUIET_MINUTES`) | `src/jobgrep/config.py` | `60` |
+| Sites interrogés (`JOB_SITES`) | `src/jobgrep/config.py` | 24 sites d'emploi |
+| Sites ajoutés pour la variante en anglais d'une recherche en télétravail complet (`REMOTE_JOB_SITES`) | `src/jobgrep/config.py` | 7 sites d'offres en télétravail |
+| Critères du filtre (`FILTER_PROMPT`) | `src/jobgrep/agent/prompts.py` | — |
 
 Les variables d'environnement sont lues une seule fois, au démarrage, dans la classe `Settings` de `config.py`.
 
@@ -618,12 +618,12 @@ Les tests tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI. I
 Le serveur est rangé en couches. Une interface (l'API, la commande) appelle les services, les services appellent les dépôts, et seuls les dépôts touchent à la base. Aucune couche n'importe celle du dessus, et les services ne connaissent pas FastAPI. Le front est une application à part, qui ne voit le serveur qu'à travers l'API.
 
 ```
-src/projet_recherche_emploi/
+src/jobgrep/
 ├── config.py            # réglages : variables d'environnement (Settings) et constantes
 ├── errors.py            # erreurs destinées à l'utilisateur
 ├── schemas.py           # objets échangés entre services et interfaces (Pydantic)
 ├── container.py         # assemblage : relie réglages, base, graph et services
-├── cli.py               # commande projet-recherche-emploi
+├── cli.py               # commande jobgrep
 ├── api/                 # serveur FastAPI, seule couche qui importe fastapi
 │   ├── main.py          # construction du serveur, traduction des erreurs en codes HTTP
 │   ├── security.py      # identification de l'appelant (jeton Google ou mot de passe), cookie de session

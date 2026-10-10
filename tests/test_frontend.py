@@ -5,8 +5,8 @@ import pytest
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
-from projet_recherche_emploi.api.frontend import HASHED_FILE_PATTERN, build_frontend_routes
-from projet_recherche_emploi.config import Settings
+from jobgrep.api.frontend import HASHED_FILE_PATTERN, build_frontend_routes
+from jobgrep.config import Settings
 
 FRONTEND = Path(__file__).parent.parent / "frontend"
 
@@ -27,7 +27,7 @@ def test_home_page_describes_the_application_without_javascript():
     # Lu par les robots de Google pour valider l'écran de connexion : ils n'exécutent pas le JavaScript
     page = (FRONTEND / "src" / "index.html").read_text(encoding="utf-8")
 
-    assert "<h1>Tamis</h1>" in page
+    assert "<h1>JobGrep</h1>" in page
     assert '<meta name="description"' in page
     assert "offres d'emploi" in page
     assert 'href="/confidentialite"' in page
@@ -46,7 +46,7 @@ def test_manifest_names_the_application_and_icons_that_exist():
     public = FRONTEND / "public"
     manifest = json.loads((public / "manifest.webmanifest").read_text(encoding="utf-8"))
 
-    assert manifest["short_name"] == "Tamis"
+    assert manifest["short_name"] == "JobGrep"
     assert manifest["start_url"] == "/"
     assert manifest["icons"]
     for icon in manifest["icons"]:

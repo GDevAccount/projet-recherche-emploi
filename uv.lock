@@ -940,6 +940,63 @@ wheels = [
 ]
 
 [[package]]
+name = "jobgrep"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "alembic" },
+    { name = "fastapi" },
+    { name = "google-auth" },
+    { name = "langchain" },
+    { name = "langchain-openai" },
+    { name = "langchain-tavily" },
+    { name = "langgraph" },
+    { name = "markdown" },
+    { name = "pydantic-settings" },
+    { name = "pypdf" },
+    { name = "python-dotenv" },
+    { name = "python-multipart" },
+    { name = "requests" },
+    { name = "sqlalchemy" },
+    { name = "tzdata" },
+    { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "alembic", specifier = ">=1.20.0" },
+    { name = "fastapi", specifier = ">=0.142.4" },
+    { name = "google-auth", specifier = ">=2.61.0" },
+    { name = "langchain", specifier = ">=1.4.3" },
+    { name = "langchain-openai", specifier = ">=1.6.7" },
+    { name = "langchain-tavily", specifier = ">=0.2.18" },
+    { name = "langgraph", specifier = ">=1.2.13" },
+    { name = "markdown", specifier = ">=3.11" },
+    { name = "pydantic-settings", specifier = ">=2.15.0" },
+    { name = "pypdf", specifier = ">=6.19.0" },
+    { name = "python-dotenv", specifier = ">=1.2.4" },
+    { name = "python-multipart", specifier = ">=0.0.32" },
+    { name = "requests", specifier = ">=2.34.2" },
+    { name = "sqlalchemy", specifier = ">=2.0" },
+    { name = "tzdata", specifier = ">=2026.5" },
+    { name = "uvicorn", specifier = ">=0.54.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.16.10" },
+]
+
+[[package]]
 name = "jsonpatch"
 version = "1.33"
 source = { registry = "https://pypi.org/simple" }
@@ -1584,63 +1641,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
-]
-
-[[package]]
-name = "projet-recherche-emploi"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "alembic" },
-    { name = "fastapi" },
-    { name = "google-auth" },
-    { name = "langchain" },
-    { name = "langchain-openai" },
-    { name = "langchain-tavily" },
-    { name = "langgraph" },
-    { name = "markdown" },
-    { name = "pydantic-settings" },
-    { name = "pypdf" },
-    { name = "python-dotenv" },
-    { name = "python-multipart" },
-    { name = "requests" },
-    { name = "sqlalchemy" },
-    { name = "tzdata" },
-    { name = "uvicorn" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "alembic", specifier = ">=1.20.0" },
-    { name = "fastapi", specifier = ">=0.142.4" },
-    { name = "google-auth", specifier = ">=2.61.0" },
-    { name = "langchain", specifier = ">=1.4.3" },
-    { name = "langchain-openai", specifier = ">=1.6.7" },
-    { name = "langchain-tavily", specifier = ">=0.2.18" },
-    { name = "langgraph", specifier = ">=1.2.13" },
-    { name = "markdown", specifier = ">=3.11" },
-    { name = "pydantic-settings", specifier = ">=2.15.0" },
-    { name = "pypdf", specifier = ">=6.19.0" },
-    { name = "python-dotenv", specifier = ">=1.2.4" },
-    { name = "python-multipart", specifier = ">=0.0.32" },
-    { name = "requests", specifier = ">=2.34.2" },
-    { name = "sqlalchemy", specifier = ">=2.0" },
-    { name = "tzdata", specifier = ">=2026.5" },
-    { name = "uvicorn", specifier = ">=0.54.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "pytest", specifier = ">=9.1.1" },
-    { name = "ruff", specifier = ">=0.16.10" },
 ]
 
 [[package]]

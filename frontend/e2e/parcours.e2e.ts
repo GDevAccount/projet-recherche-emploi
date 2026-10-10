@@ -32,8 +32,8 @@ test("sans JavaScript, l'accueil décrit l'application et renvoie aux pages lég
   const plain = await context.newPage();
 
   await plain.goto('/');
-  await expect(plain.getByRole('heading', { name: 'Tamis' })).toBeVisible();
-  await expect(plain.getByText("Tamis cherche des offres d'emploi")).toBeVisible();
+  await expect(plain.getByRole('heading', { name: 'JobGrep' })).toBeVisible();
+  await expect(plain.getByText("JobGrep cherche des offres d'emploi")).toBeVisible();
 
   await plain.getByRole('link', { name: 'Règles de confidentialité' }).click();
   await expect(plain.getByRole('heading', { level: 1, name: 'Règles de confidentialité' })).toBeVisible();
@@ -65,7 +65,7 @@ test('un mot de passe faux est refusé, le bon ouvre la session', async () => {
 
 test('un nouvel arrivant reçoit la visite guidée, une seule fois', async () => {
   const tour = page.locator('app-welcome-tour');
-  await expect(tour.getByRole('heading', { name: 'Tamis lit les annonces à votre place' })).toBeVisible();
+  await expect(tour.getByRole('heading', { name: 'JobGrep lit les annonces à votre place' })).toBeVisible();
 
   for (const title of ['1. Dites-lui qui vous êtes', '2. Lancez une recherche', '3. Suivez vos candidatures']) {
     await tour.getByRole('button', { name: 'Écran suivant' }).click();

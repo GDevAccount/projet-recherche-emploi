@@ -33,4 +33,4 @@ EXPOSE 8000
 
 # La base est migrée et la configuration de connexion contrôlée avant de servir : une migration qui échoue,
 # ou une connexion à moitié réglée, arrête le déploiement au lieu de casser la première visite
-CMD ["sh", "-c", "uv run --no-sync projet-recherche-emploi migrate && exec uv run --no-sync projet-recherche-emploi serve"]
+CMD ["sh", "-c", "uv run --no-sync jobgrep migrate && exec uv run --no-sync jobgrep serve"]

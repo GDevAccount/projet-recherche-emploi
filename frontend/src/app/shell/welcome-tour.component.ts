@@ -20,7 +20,7 @@ const SEEN = 'seen';
 /** Écrans de la visite, dans l'ordre. Le dessin est le tracé d'une icône, sur une grille de 24. */
 const SLIDES = [
   {
-    title: 'Tamis lit les annonces à votre place',
+    title: 'JobGrep lit les annonces à votre place',
     icon: 'M3 5h18l-7 8v6l-4-2v-4L3 5Z',
     lines: [
       "Un agent parcourt les sites d'emploi, lit chaque annonce et la compare à votre CV. Il ne garde que celles qui correspondent à ce que vous cherchez.",

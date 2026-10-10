@@ -18,8 +18,8 @@ describe('describeError', () => {
   it('should keep the type, the screen and the place in the code, never the message', () => {
     const stack = [
       "TypeError: Cannot read properties of undefined (reading 'Ingénieur IA chez Exemple')",
-      '    at JobCard.title (https://tamis.exemple/chunk-AB12CD34.js:7:1532)',
-      '    at https://tamis.exemple/main-5UFRYBOQ.js:1:99',
+      '    at JobCard.title (https://jobgrep.exemple/chunk-AB12CD34.js:7:1532)',
+      '    at https://jobgrep.exemple/main-5UFRYBOQ.js:1:99',
     ].join('\n');
 
     const report = describeError(
@@ -84,7 +84,7 @@ describe('ReportingErrorHandler', () => {
     const error = crash(
       'RangeError',
       'contenu',
-      'at x (https://tamis.exemple/main-5UFRYBOQ.js:1:42)',
+      'at x (https://jobgrep.exemple/main-5UFRYBOQ.js:1:42)',
     );
 
     handler.handleError(error);

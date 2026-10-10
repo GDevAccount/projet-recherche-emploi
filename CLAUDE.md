@@ -8,12 +8,12 @@ Toutes se lancent depuis la racine du projet, car `jobs.db` est un chemin relati
 
 ```bash
 uv sync                                                   # installer les dépendances
-uv run projet-recherche-emploi                            # recherche seule, sans le serveur
-uv run projet-recherche-emploi api                        # serveur de développement sur http://127.0.0.1:8000 (documentation : /docs)
-uv run projet-recherche-emploi serve                      # serveur tel qu'en ligne : toutes les interfaces, sans la documentation
-uv run projet-recherche-emploi graph                      # régénérer graph.png (service en ligne mermaid.ink)
-uv run projet-recherche-emploi migrate                    # créer la base ou l'amener au dernier schéma
-uv run projet-recherche-emploi purge                      # supprimer les comptes d'invités inactifs (fait aussi par le serveur, une fois par jour)
+uv run jobgrep                            # recherche seule, sans le serveur
+uv run jobgrep api                        # serveur de développement sur http://127.0.0.1:8000 (documentation : /docs)
+uv run jobgrep serve                      # serveur tel qu'en ligne : toutes les interfaces, sans la documentation
+uv run jobgrep graph                      # régénérer graph.png (service en ligne mermaid.ink)
+uv run jobgrep migrate                    # créer la base ou l'amener au dernier schéma
+uv run jobgrep purge                      # supprimer les comptes d'invités inactifs (fait aussi par le serveur, une fois par jour)
 uv add <paquet>                                           # ajouter une dépendance
 ```
 
@@ -46,7 +46,7 @@ L'instance en ligne tourne sur Fly.io (`fly.toml`) et sert, dans un seul process
 
 ## Architecture
 
-Le code du serveur est dans `src/projet_recherche_emploi/`, celui du front dans `frontend/`. Les dépendances ne vont que vers le bas, et `tests/test_architecture.py` le vérifie :
+Le code du serveur est dans `src/jobgrep/`, celui du front dans `frontend/`. Les dépendances ne vont que vers le bas, et `tests/test_architecture.py` le vérifie :
 
 ```
    api/   cli.py           interfaces : aucune règle métier
@@ -68,7 +68,7 @@ Le code du serveur est dans `src/projet_recherche_emploi/`, celui du front dans 
 - `schemas.py` définit les objets que les services renvoient (Pydantic) : l'API les sert tels quels en JSON.
 - `errors.py` définit les erreurs destinées à l'utilisateur.
 - `config.py` regroupe les réglages : `Settings` pour les variables d'environnement, des constantes pour le reste (modèle, sites, quota, recherches par défaut).
-- `cli.py` est la commande `projet-recherche-emploi`.
+- `cli.py` est la commande `jobgrep`.
 
 Le front Angular est hors de ce paquet, dans `frontend/` : composants autonomes en `OnPush`, état en signaux, dépendances par `inject()`, composants PrimeNG. Il ne connaît que l'API.
 
@@ -77,7 +77,7 @@ Le front Angular est hors de ce paquet, dans `frontend/` : composants autonomes 
 - **Un import ne doit rien déclencher.** Le conteneur est construit au premier appel de `get_container()`, le graph à la première recherche, les clients Tavily et OpenAI à leur premier usage, et les logs sont réglés par `configure_logging()` dans chaque point d'entrée. Ne pas remettre d'appel réseau, d'accès à la base, de `load_dotenv()` ni de `basicConfig` au niveau d'un module. Pour l'API, c'est `create_app()` qui fait tout : le serveur la lance en mode « factory ».
 - **Les réglages sont lus une fois.** `Settings()` lit les variables d'environnement à la construction du conteneur : en changer une demande de redémarrer. Un test ne modifie pas l'environnement, il passe ses réglages à `Settings(...)` ; la fixture `clean_environment` efface ceux de la machine.
 - **Une vraie recherche coûte de l'argent.** Chaque exécution du graph consomme des crédits Tavily et OpenAI. Ne pas la lancer pour vérifier un changement sans l'accord de l'utilisateur ; tester avec `FakeSearchEngine` et `FakeEvaluator` de `tests/conftest.py`.
-- **Changer le schéma demande une migration.** Modifier `data/models.py` n'a aucun effet sur un `jobs.db` existant. Il faut une migration Alembic dans `data/migrations/versions/`, écrite avec `alembic revision --autogenerate` puis relue. `test_schema.py` échoue si les modèles et les migrations ne décrivent plus le même schéma. L'application applique les migrations en attente à la construction du conteneur, et l'image Docker le fait avant de servir (`projet-recherche-emploi migrate` dans le `Dockerfile`) : une migration qui échoue arrête le déploiement au lieu de casser la première visite. La base du volume Fly.io ne se migre que par ce biais.
+- **Changer le schéma demande une migration.** Modifier `data/models.py` n'a aucun effet sur un `jobs.db` existant. Il faut une migration Alembic dans `data/migrations/versions/`, écrite avec `alembic revision --autogenerate` puis relue. `test_schema.py` échoue si les modèles et les migrations ne décrivent plus le même schéma. L'application applique les migrations en attente à la construction du conteneur, et l'image Docker le fait avant de servir (`jobgrep migrate` dans le `Dockerfile`) : une migration qui échoue arrête le déploiement au lieu de casser la première visite. La base du volume Fly.io ne se migre que par ce biais.
 - **Une migration est copiée d'abord, et tient en une transaction.** Avant d'en appliquer une à une base existante, `Database.migrate()` copie la base dans `jobs.avant-migration-<version>.db`, à côté d'elle. `database.py` fait émettre le `BEGIN` par SQLAlchemy, parce que le pilote `sqlite3` n'en ouvre pas pour un `CREATE` ou un `ALTER` : ne pas retirer `_use_explicit_transactions`. Ces copies contiennent les données de tous les utilisateurs : les supprimer une fois la migration vérifiée. La suppression d'un compte retire ses données de chacune sans les effacer (`Database.purge_user_from_backups`) : elles restent le seul moyen de revenir en arrière après une migration ratée.
 - **La première migration ne crée que les tables manquantes.** Avant Alembic, chaque dépôt créait sa table à son premier usage : une base ancienne peut ne pas avoir `users` ni `search_runs`. `0001_schema_initial.py` teste donc chaque table. Les migrations suivantes n'ont pas à le faire.
 - **Les colonnes gardent les types d'avant SQLAlchemy.** Les dates sont du texte UTC au format de `CURRENT_TIMESTAMP`, les booléens des entiers : `UtcDateTime` et `IntBool` de `models.py` font la conversion. Utiliser ces deux types pour toute nouvelle colonne de date ou de booléen, sinon les comparaisons de dates en texte ne tiennent plus.
@@ -94,7 +94,7 @@ Le front Angular est hors de ce paquet, dans `frontend/` : composants autonomes 
 - **Les fichiers du front sont publics.** Ils sont servis sans connexion : ne rien y mettre de secret, ni dans `environment.ts`. Ce sont les routes de l'API qui protègent les données.
 - **Le front ne garde aucune preuve d'identité.** Le jeton Google ou le mot de passe ne sert qu'à `POST /api/session` (`SessionService.open`), puis le cookie `HttpOnly` prend le relais : ne rien mettre dans `localStorage`. Les gardes de route (`core/auth.guard.ts`) évitent seulement un écran vide ; la protection, c'est l'API. Un 401 sur un appel de données renvoie à l'écran de connexion (`core/api.interceptor.ts`).
 - **Le bouton Google du front dépend de la console Google.** Il passe par Google Identity Services (`core/google-identity.service.ts`), qui exige l'adresse du site dans les « origines JavaScript autorisées » de l'ID client. Changer d'adresse, ou externaliser le front, demande de l'y ajouter.
-- **Le nom affiché, Tamis, est celui déclaré à Google.** La validation de l'écran de connexion compare le nom saisi dans la console Google (page « Branding ») à celui de la page d'accueil lue sans JavaScript (`frontend/src/index.html`) : changer l'un demande de changer l'autre. Le paquet, le dépôt et l'instance Fly.io gardent le nom `projet-recherche-emploi`.
+- **Le nom affiché, JobGrep, est celui déclaré à Google.** La validation de l'écran de connexion compare le nom saisi dans la console Google (page « Branding ») à celui de la page d'accueil lue sans JavaScript (`frontend/src/index.html`) : changer l'un demande de changer l'autre. Le paquet et la commande s'appellent `jobgrep` ; l'instance Fly.io garde le nom `projet-recherche-emploi`, et le site est servi à l'adresse `jobgrep.fr`.
 - **Le front a son identité visuelle.** Encre et citron vert, thème clair et sombre. Les couleurs de l'application sont les variables `--app-*` de `frontend/src/styles.scss`, celles des composants PrimeNG viennent de `AppPreset` (`core/theme.ts`) : changer une teinte demande de regarder les deux. Le thème de départ est le sombre, quel que soit le système : le clair ne vient que du choix de l'utilisateur, gardé dans `localStorage` (`theme`). Le thème sombre est la classe `app-dark` sur `<html>`, posée par `ThemeService`, et avant lui par `frontend/public/theme-init.js`, pour que le mauvais thème n'apparaisse pas au chargement : les deux appliquent la même règle, changer l'une demande de changer l'autre. Les deux posent aussi `app-light` en thème clair, et donnent à la barre du navigateur mobile (`theme-color`) la couleur du fond. Les pages légales recopient ces couleurs (`PAGE_STYLE` de `api/public_pages.py`), parce qu'elles sont servies hors d'Angular, et chargent `theme-init.js` pour prendre le thème choisi dans le site : sombres d'office, elles ne passent au clair qu'avec `app-light`. Sans JavaScript ou sans front construit, elles restent sombres. Renommer ce script ou ces classes demande de reprendre ces pages. L'icône mobile et le manifeste (`frontend/public/`) portent aussi le citron vert et l'encre. Un nouvel écran se vérifie par capture d'écran dans les deux thèmes et en largeur mobile.
 - **Un nouvel arrivant reçoit une visite guidée, une fois.** `WelcomeTourComponent` (`frontend/src/app/shell/`) explique l'application en cinq écrans, avec flèches, points et touches du clavier. Le cadre (`ShellComponent`) l'ouvre de lui-même pour un compte qui ne peut pas encore chercher (`can_search` faux) et qui ne l'a pas vue sur ce navigateur (`tour` dans `localStorage`, une simple commodité : rien n'en dépend) ; le lien « Comment ça marche » du pied de page la rouvre à tout moment. Ses textes décrivent le fonctionnement réel : les reprendre quand un écran, un libellé cité (« C'était une bonne offre ») ou la durée d'une recherche change. Le quota qu'elle rappelle vient de `/api/me`. Elle recouvre l'écran : le parcours de bout en bout la ferme avant de cliquer ailleurs.
 - **Le front ne décide rien.** Un calcul dont un écran a besoin s'écrit dans un service Python, et l'API le renvoie. L'adresse de l'API vient de `environment.apiUrl`, jamais d'une chaîne en dur : en local comme en ligne, elle vaut `/api`, et c'est `proxy.conf.json` qui relaie vers le port 8000 avec `npm start`.

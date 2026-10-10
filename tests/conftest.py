@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from projet_recherche_emploi.agent.ports import EvaluationUsage, JobEvaluation
-from projet_recherche_emploi.config import MODEL_PRICES_USD, ModelPrice, Settings
-from projet_recherche_emploi.container import build_container
-from projet_recherche_emploi.data.database import Database
+from jobgrep.agent.ports import EvaluationUsage, JobEvaluation
+from jobgrep.config import MODEL_PRICES_USD, ModelPrice, Settings
+from jobgrep.container import build_container
+from jobgrep.data.database import Database
 
 
 class FakeSearchEngine:
