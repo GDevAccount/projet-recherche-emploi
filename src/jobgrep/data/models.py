@@ -372,6 +372,64 @@ class ActivityDay(Base):
     day: Mapped[str] = mapped_column(Text)
 
 
+class AssistantPassage(Base):
+    """Passage d'un texte du site, avec le vecteur qui le situe : c'est là que l'assistant cherche ses réponses.
+
+    Sans « user_id » : ces lignes ne viennent que des textes du site. Elles sont recalculées quand un texte ou
+    le modèle d'embedding change, jamais saisies.
+    """
+
+    __tablename__ = "assistant_passages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Nom du texte d'où vient le passage (SITE_TEXTS), son titre, et celui de la section
+    source: Mapped[str] = mapped_column(Text)
+    page_title: Mapped[str] = mapped_column(Text)
+    section: Mapped[str] = mapped_column(Text)
+    content: Mapped[str] = mapped_column(Text)
+    # Empreinte du passage : un passage dont le texte change est un autre passage
+    content_hash: Mapped[str] = mapped_column(Text)
+    embedding_model: Mapped[str] = mapped_column(Text)
+    # Vecteur du passage, en JSON : une liste de nombres
+    embedding: Mapped[str] = mapped_column(Text)
+
+
+class AssistantMessage(Base):
+    """Question posée à l'assistant, et sa réponse. Comptée par le quota journalier.
+
+    Le texte est effacé après ASSISTANT_MESSAGE_DAYS : la ligne reste alors, avec ses seuls compteurs, pour
+    que le coût de l'assistant reste connu.
+    """
+
+    __tablename__ = "assistant_messages"
+    __table_args__ = (Index("ix_assistant_messages_user", "user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer)
+    # Vides une fois le délai de conservation passé
+    question: Mapped[str | None] = mapped_column(Text)
+    answer: Mapped[str | None] = mapped_column(Text)
+    # Textes du site cités par la réponse, en JSON (AssistantSource de schemas.py)
+    sources: Mapped[str | None] = mapped_column(Text)
+    # Textes d'où venaient les passages donnés au modèle, le plus proche en premier, en JSON : ce qui dit,
+    # devant une mauvaise réponse, si c'est la recherche des passages ou le modèle qui s'est trompé
+    retrieved: Mapped[str | None] = mapped_column(Text)
+    # « answered », « unknown » ou « off_topic » (AssistantOutcome de schemas.py)
+    outcome: Mapped[str] = mapped_column(Text)
+    model: Mapped[str | None] = mapped_column(Text)
+    prompt_version: Mapped[str | None] = mapped_column(Text)
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    # Parts des jetons d'entrée lues ou écrites en cache
+    cache_read_tokens: Mapped[int | None] = mapped_column(Integer)
+    cache_write_tokens: Mapped[int | None] = mapped_column(Integer)
+    # Modèle qui a situé la question parmi les passages, et ce qu'il a lu
+    embedding_model: Mapped[str | None] = mapped_column(Text)
+    embedding_tokens: Mapped[int | None] = mapped_column(Integer)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+
 class ArchivedUsage(Base):
     """Consommation d'un compte supprimé, additionnée par mois et par modèle : ni adresse, ni contenu, ni date précise.
 

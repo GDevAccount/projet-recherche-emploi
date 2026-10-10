@@ -6,6 +6,7 @@ import { environment } from '../../environments/environment';
 import {
   AccountDetail,
   AlertTest,
+  AssistantOverview,
   BudgetOverview,
   HealthOverview,
   JourneyOverview,
@@ -60,6 +61,11 @@ export class TrackingService {
   /** Fiche d'un compte : la chronologie de ce qu'il a fait, et ce qui écarte ses pages. */
   getJourney(userId: number): Observable<AccountDetail> {
     return this.http.get<AccountDetail>(`${environment.apiUrl}/admin/journeys/${userId}`);
+  }
+
+  /** Ce qui est demandé à l'assistant sur tous les comptes, pendant les derniers jours. */
+  getAssistant(days: number): Observable<AssistantOverview> {
+    return this.http.get<AssistantOverview>(`${environment.apiUrl}/admin/assistant`, { params: { days } });
   }
 
   /** Envoie une alerte d'essai, et dit si elle est partie. */

@@ -12,7 +12,7 @@ Quand l'exploitant le propose, l'application peut aussi être essayée sans comp
 
 ## Limites d'utilisation
 
-Chaque recherche a un coût, pris en charge par l'exploitant de l'application. Le nombre de recherches est donc limité à {max_searches} par jour et par utilisateur, et à {trial_searches} en tout pour un essai sans compte. Le nombre d'essais ouverts chaque jour est lui aussi limité, pour l'application entière et par connexion internet. L'exploitant fixe enfin un budget par jour : une fois atteint, plus aucune recherche ne peut être lancée avant le lendemain. Ces limites peuvent changer.
+Chaque recherche a un coût, pris en charge par l'exploitant de l'application. Le nombre de recherches est donc limité à {max_searches} par jour et par utilisateur, et à {trial_searches} en tout pour un essai sans compte. Le nombre d'essais ouverts chaque jour est lui aussi limité, pour l'application entière et par connexion internet. Les questions posées à l'assistant sont limitées à {max_questions} par jour et par utilisateur. L'exploitant fixe enfin un budget par jour : une fois atteint, plus aucune recherche ne peut être lancée ni aucune question posée avant le lendemain. Ces limites peuvent changer.
 
 ## Ce que vous vous engagez à faire
 
@@ -23,6 +23,8 @@ Chaque recherche a un coût, pris en charge par l'exploitant de l'application. L
 ## Ce que le service ne garantit pas
 
 Les offres proviennent de sites tiers et sont triées automatiquement. L'application peut écarter une offre qui vous aurait convenu, ou en retenir une qui ne vous convient pas, qui a expiré ou dont le contenu est inexact. Vérifiez toujours une offre sur le site d'origine avant de postuler.
+
+L'assistant répond à partir des textes de ce site, à l'aide d'un modèle d'intelligence artificielle : il peut se tromper. En cas de doute, ce sont ces conditions et les règles de confidentialité qui font foi.
 
 Le service est fourni en l'état, sans garantie de disponibilité ni de conservation des données. Il peut être interrompu, modifié ou arrêté à tout moment. L'exploitant ne peut être tenu responsable des conséquences de son utilisation, notamment d'une candidature manquée ou d'une perte de données.
 

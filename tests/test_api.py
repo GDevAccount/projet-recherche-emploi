@@ -4,7 +4,7 @@ import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from conftest import FakeEvaluator, FakeNotifier, FakeSearchEngine
+from conftest import FakeAnswerModel, FakeEmbedder, FakeEvaluator, FakeNotifier, FakeSearchEngine
 from fastapi.testclient import TestClient
 from helpers import blank_pdf, job
 from sqlalchemy import select
@@ -17,6 +17,7 @@ from jobgrep.config import (
     DEFAULT_USER_ID,
     FILTER_MODEL,
     INACTIVE_ACCOUNT_DAYS,
+    MAX_ASSISTANT_QUESTIONS_PER_DAY,
     MAX_SEARCHES_PER_DAY,
     MAX_TRIALS_PER_IP_PER_DAY,
     SESSION_DAYS,
@@ -28,7 +29,7 @@ from jobgrep.data.cv_ingestion.pdf_reader import CvPdfReader
 from jobgrep.data.models import TrialStart
 from jobgrep.data.repositories.job_repository import JobRepository
 from jobgrep.data.repositories.user_repository import UserRepository
-from jobgrep.schemas import DELETE_REASONS
+from jobgrep.schemas import DELETE_REASONS, MAX_QUESTION_CHARS
 
 ALICE = {"Authorization": "Bearer jeton-alice"}
 BOB = {"Authorization": "Bearer jeton-bob"}
@@ -58,7 +59,11 @@ def make_client(tmp_path, evaluator=None, base_url="http://localhost", **setting
     # Sans front construit, sauf si le test en fournit un : celui de la machine ne doit pas répondre à sa place
     settings.setdefault("frontend_dir", tmp_path / "pas-de-front")
     container = build_container(
-        Settings(data_dir=tmp_path, **settings), FakeSearchEngine(), evaluator or FakeEvaluator()
+        Settings(data_dir=tmp_path, **settings),
+        FakeSearchEngine(),
+        evaluator or FakeEvaluator(),
+        embedder=FakeEmbedder(),
+        answer_model=FakeAnswerModel(),
     )
     # Adresse locale : le cookie de session n'y est pas réservé à HTTPS, donc le client de test le renvoie
     return TestClient(create_app(container, FakeIdentityVerifier()), base_url=base_url)
@@ -163,6 +168,9 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/admin/journeys"),
         ("GET", "/api/admin/journeys/1"),
         ("POST", "/api/jobs/1/open"),
+        ("GET", "/api/assistant"),
+        ("POST", "/api/assistant/questions"),
+        ("GET", "/api/admin/assistant"),
     ],
 )
 def test_every_data_route_requires_an_identity(client, method, path):
@@ -1164,3 +1172,54 @@ def test_trial_accounts_are_followed_apart_from_the_users(tmp_path, valid_pdf):
     usage = client.get("/api/admin/usage", headers=OWNER).json()
     assert [(row["plan"], row["deleted"]) for row in usage["accounts"]] == [("trial", True)]
     assert client.get("/api/admin/journeys", headers=OWNER).json()["trials"] == 0
+
+
+def test_assistant_answers_about_the_application_and_keeps_the_conversation(client):
+    question = {"question": "Puis-je remplacer mon fichier par un autre PDF scanné ?"}
+
+    reply = client.post("/api/assistant/questions", json=question, headers=ALICE)
+
+    assert reply.status_code == 200
+    message = reply.json()["message"]
+    assert (message["question"], message["outcome"]) == (question["question"], "answered")
+    [source] = message["sources"]
+    assert source == {"title": "Guide d'utilisation", "section": "Déposer ou remplacer son CV", "url": None}
+    assert reply.json()["remaining_questions"] == MAX_ASSISTANT_QUESTIONS_PER_DAY - 1
+    # Après un rechargement, la conversation est rendue telle quelle, à son seul auteur
+    assert client.get("/api/assistant", headers=ALICE).json()["messages"] == [message]
+    assert client.get("/api/assistant", headers=BOB).json()["messages"] == []
+
+    # Une question vide ou sans fin est refusée avant tout appel au modèle
+    for refused in ("", "x" * (MAX_QUESTION_CHARS + 1)):
+        assert client.post("/api/assistant/questions", json={"question": refused}, headers=ALICE).status_code == 422
+    assert len(client.app.state.container.assistant.answer_model.asked) == 1
+
+
+def test_assistant_refuses_once_the_daily_quota_is_reached(client):
+    question = {"question": "Comment supprimer mon compte ?"}
+    for _ in range(MAX_ASSISTANT_QUESTIONS_PER_DAY):
+        assert client.post("/api/assistant/questions", json=question, headers=ALICE).status_code == 200
+
+    refused = client.post("/api/assistant/questions", json=question, headers=ALICE)
+
+    assert refused.status_code == 429 and "revenez demain" in refused.json()["detail"]
+    assert client.get("/api/assistant", headers=ALICE).json()["remaining_questions"] == 0
+    # Le quota d'un compte n'est pas celui d'un autre
+    assert client.post("/api/assistant/questions", json=question, headers=BOB).status_code == 200
+
+
+def test_only_administrators_read_what_is_asked_and_never_by_whom(client):
+    client.post("/api/assistant/questions", json={"question": "Comment supprimer mon compte ?"}, headers=ALICE)
+
+    assert client.get("/api/admin/assistant", headers=ALICE).status_code == 403
+    overview = client.get("/api/admin/assistant", headers=OWNER)
+
+    assert overview.status_code == 200
+    assert (overview.json()["questions"], overview.json()["accounts"]) == (1, 1)
+    [entry] = overview.json()["entries"]
+    assert set(entry) == {"created_at", "question", "answer", "outcome", "sources", "retrieved"}
+    assert "alice" not in overview.text
+
+    # Les questions partent avec le compte
+    assert client.delete("/api/me", headers=ALICE).status_code == 204
+    assert client.get("/api/admin/assistant", headers=OWNER).json()["questions"] == 0

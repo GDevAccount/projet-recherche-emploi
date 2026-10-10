@@ -119,6 +119,9 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/admin/budget` | Dépense du mois en cours à l'heure de Paris, tous comptes réunis (`spent_usd`), face au budget de l'instance (`budget_usd`, réglé par `MONTHLY_BUDGET_USD`) : moyenne par jour, dépense projetée en fin de mois au rythme des jours écoulés (`projected_usd`), jours restants, part des invités, et dépassement constaté (`over_budget`) ou annoncé (`projected_over_budget`). `partial` est vrai quand le tarif d'un modèle manque : seul le moteur de recherche est alors compté. S'y ajoutent le budget du jour (`daily_budget_usd`, réglé par `DAILY_BUDGET_USD`), ce qui en est dépensé (`today_spent_usd`) et s'il est atteint (`daily_budget_reached`) |
 | `GET /api/admin/journeys` | Parcours des invités : combien ont créé un compte, déposé un CV, saisi un poste, lancé une recherche, obtenu une offre retenue, ouvert une annonce, envoyé une candidature, et sont revenus un autre jour (`steps`, avec la part des invités), puis où en est chaque compte (`accounts` : adresse, CV déposé ou non, nombres de postes, de recherches, d'offres, de candidatures, d'entretiens et de corrections, dernière visite). Le propriétaire a sa ligne sans compter parmi les invités ; un compte supprimé n'y est plus. Les comptes d'essai (`is_trial`) ne comptent pas non plus parmi eux : ils ont leur nombre (`trials`) et leurs propres étapes (`trial_steps`). Aucun poste, aucune offre d'un autre compte n'en sort. Chaque compte porte aussi l'étape où il s'est arrêté (`step`), les jours écoulés depuis sa dernière visite (`idle_days`) et le nombre de jours où il est venu (`active_days`) |
 | `GET /api/admin/journeys/{user_id}` | Fiche d'un compte : sa ligne du parcours, la suite datée de ce qu'il a fait (`events`, le plus récent en premier : compte créé, CV déposé, poste ajouté, recherche et ce qu'elle a ramené, annonce ouverte, candidature, entretien, refus, correction avec son motif, erreur rencontrée), et le nombre de pages écartées pour chaque raison (`rejections`). Ni intitulé, ni lien, ni phrase de recherche. 404 pour un compte inconnu ou supprimé |
+| `GET /api/assistant` | Derniers échanges de l'appelant avec l'assistant (`messages` : question, réponse, issue, textes du site cités), ce qu'il peut encore demander aujourd'hui (`remaining_questions`, `null` pour le propriétaire), la longueur d'une question et la durée de conservation |
+| `POST /api/assistant/questions` | Pose une question sur l'application (`{"question": "…"}`, 500 caractères au plus). La réponse ne vient que des textes du site, qu'elle cite (`sources`). `outcome` vaut `answered`, `unknown` (les textes n'en disent rien) ou `off_topic` (la question ne porte pas sur l'application : refus). 429 une fois le quota ou le budget du jour atteint |
+| `GET /api/admin/assistant` | Usage de l'assistant sur tous les comptes, réservé aux administrateurs : nombre de questions par issue, comptes qui en ont posé, coût, et les dernières questions avec leur réponse, les textes cités (`sources`) et ceux où la recherche est allée (`retrieved`), sans le compte qui les a posées (`entries`). `days` limite la période |
 
 L'appelant prouve son identité par un en-tête `Authorization: Bearer <jeton>`. La règle :
 
@@ -288,7 +291,7 @@ Pour passer en mode « En production », Google demande deux liens, que l'applic
 - règles de confidentialité : `https://jobgrep.fr/confidentialite`
 - conditions d'utilisation : `https://jobgrep.fr/conditions`
 
-Ce sont des pages HTML simples, lisibles par les robots de Google, qui ne voient pas le contenu d'une page construite en JavaScript. Leurs textes sont dans `src/jobgrep/api/legal/`. Ils décrivent ce que fait l'application telle qu'elle est : les relire, et les tenir à jour si elle change. Même en production, seules les adresses de `OWNER_EMAIL` et `ALLOWED_EMAILS` accèdent à l'application, sauf si `ALLOWED_EMAILS` vaut `*`.
+Ce sont des pages HTML simples, lisibles par les robots de Google, qui ne voient pas le contenu d'une page construite en JavaScript. Leurs textes sont dans `src/jobgrep/texts/`. Ils décrivent ce que fait l'application telle qu'elle est : les relire, et les tenir à jour si elle change. Même en production, seules les adresses de `OWNER_EMAIL` et `ALLOWED_EMAILS` accèdent à l'application, sauf si `ALLOWED_EMAILS` vaut `*`.
 
 Google peut aussi demander la preuve que le site vous appartient. Dans [Search Console](https://search.google.com/search-console), ajouter une propriété de type « Préfixe de l'URL » avec l'adresse de l'instance, choisir la méthode « Fichier HTML », et mettre le nom du fichier proposé dans `GOOGLE_SITE_VERIFICATION_FILE` : l'application le sert alors à la racine du site, sans qu'il faille le déposer.
 
@@ -297,7 +300,7 @@ Google peut aussi demander la preuve que le site vous appartient. Dans [Search C
 Un moteur de recherche ne lit que ce qui est servi sans connexion :
 
 - la page d'accueil, dont le texte est écrit dans `frontend/src/index.html` pour qui n'exécute pas le JavaScript ;
-- `/fonctionnement`, qui présente l'application étape par étape (texte dans `src/jobgrep/api/pages/`) ;
+- `/fonctionnement`, qui présente l'application étape par étape (texte dans `src/jobgrep/texts/`) ;
 - `/confidentialite` et `/conditions`.
 
 Tout le reste demande une session, et `/robots.txt` écarte l'API. Un robot n'ouvre pas non plus d'essai sans compte : cela demande un clic.
@@ -364,6 +367,22 @@ La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/)
 | `FilterDuplicates` | Écarte les pages dont l'URL est déjà en base, offres supprimées et pages rejetées comprises, pour ne pas les faire évaluer à nouveau. |
 | `FilterJobs` | Lit le texte du CV, enregistré sans coordonnées, et demande à un modèle OpenAI, pour chaque page restante, ce qu'elle dit (sa nature : offre, liste d'offres, article, fiche métier, page d'accueil, offre expirée, formation ou autre ; contrat, lieu, mode de travail) et trois avis : le métier est-il l'un de ceux des recherches enregistrées, le CV couvre-t-il les compétences principales, le niveau d'expérience est-il compatible. Le graph applique ensuite les règles de contrat et de lieu : une offre n'est retenue que si tous les critères sont remplis. |
 | `InsertJobs` | Enregistre les offres retenues et les pages rejetées dans la base SQLite `jobs.db`. |
+
+### L'assistant
+
+Un bouton, en bas de chaque écran, ouvre un assistant qui répond aux questions sur l'application : marche à suivre, limites, données gardées, droits. C'est un RAG, sur les seuls textes du site (`src/jobgrep/texts/` : la page de présentation, les règles de confidentialité, les conditions d'utilisation, et un guide d'utilisation, `aide.md`, que seul l'assistant lit). Les textes sont découpés et indexés une fois, puis chaque question parcourt un graph LangGraph (`assistant/graph.py`) : `RetrievePassages` → `GenerateAnswer`, puis `CiteSources`, `DeclineQuestion` ou `ReferToOperator` selon ce que le modèle a rendu.
+
+| Étape | Rôle |
+|---|---|
+| Découpage | Chaque texte est coupé en passages par les splitters de LangChain : `MarkdownHeaderTextSplitter` en fait un par section, `RecursiveCharacterTextSplitter` recoupe une section trop longue entre deux paragraphes (`assistant/passages.py`). |
+| Indexation | À la première question, chaque passage est situé par un modèle d'embedding OpenAI, et son vecteur gardé dans la table `assistant_passages`. Ensuite, seuls les passages dont le texte a changé sont situés de nouveau. |
+| Recherche (`RetrievePassages`) | La question est située de la même façon, et les 5 passages les plus proches sont retenus (similarité cosinus, calculée en Python : une cinquantaine de passages ne demandent pas de base vectorielle). |
+| Réponse (`GenerateAnswer`) | Le modèle répond à partir de ces seuls passages, et dit lesquels ont servi. Il dit aussi si la question porte sur l'application. |
+| Suite | Une réponse garde ses sources (`CiteSources`). Une question hors sujet est refusée (`DeclineQuestion`), et une question à laquelle les textes ne répondent pas est renvoyée vers l'exploitant (`ReferToOperator`) : ces deux textes sont écrits par le serveur, pas par le modèle. |
+
+L'assistant ne reçoit rien d'un compte : ni CV, ni recherche, ni offre. Chaque compte a 20 questions par jour (`MAX_ASSISTANT_QUESTIONS_PER_DAY`), le propriétaire n'est pas limité, et le budget du jour arrête les questions comme les recherches. Questions et réponses sont enregistrées (`assistant_messages`) : leur texte est effacé au bout de 90 jours, leurs compteurs restent. La rubrique Suivi les montre aux administrateurs, sans le compte : celles restées « sans réponse » disent ce qui manque aux textes.
+
+Pour que l'assistant sache répondre à une nouvelle question, compléter `aide.md` ou l'un des autres textes : le passage est indexé au redémarrage suivant, à la première question.
 
 ## Base de données
 
@@ -550,7 +569,31 @@ Table `activity_days`, les jours où un invité s'est servi de l'application. `u
 | `user_id` | Compte |
 | `day` | Jour à l'heure de Paris, `AAAA-MM-JJ` ; un jour n'est noté qu'une fois par compte |
 
-Table `archived_usage`, la consommation des comptes supprimés. Elle est écrite à la suppression d'un compte, juste avant l'effacement de ses lancements, et n'est jamais vidée :
+Table `assistant_passages`, les passages des textes du site où l'assistant cherche ses réponses. Elle ne porte aucun compte, et se recalcule seule quand un texte ou le modèle d'embedding change :
+
+| Colonne | Contenu |
+|---|---|
+| `id` | Identifiant de la ligne |
+| `source`, `page_title`, `section` | Texte d'où vient le passage (`aide`, `confidentialite`…), son titre, et celui de la section |
+| `content` | Texte du passage |
+| `content_hash` | Empreinte du passage : elle change avec son texte |
+| `embedding_model`, `embedding` | Modèle qui a situé le passage, et son vecteur (une liste de nombres, en JSON) |
+
+Table `assistant_messages`, les questions posées à l'assistant. Elles servent au quota journalier et à réafficher la conversation. Le texte est effacé au bout de 90 jours (`ASSISTANT_MESSAGE_DAYS`), la ligne reste avec ses compteurs :
+
+| Colonne | Contenu |
+|---|---|
+| `id`, `user_id`, `created_at` | Identifiant, compte et date (UTC) |
+| `question`, `answer` | Question et réponse ; vides une fois le délai passé |
+| `sources` | Textes du site cités par la réponse, en JSON |
+| `retrieved` | Textes d'où venaient les passages donnés au modèle, le plus proche en premier, en JSON : devant une mauvaise réponse, ils disent si la recherche ou le modèle s'est trompé. Effacés avec le texte |
+| `outcome` | `answered`, `unknown` ou `off_topic` |
+| `model`, `prompt_version` | Modèle qui a répondu, et empreinte de ses consignes |
+| `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens` | Jetons de la réponse |
+| `embedding_model`, `embedding_tokens` | Modèle qui a situé la question, et jetons lus |
+| `duration_ms` | Durée de la réponse du modèle |
+
+Table `archived_usage`, la consommation des comptes supprimés. Les questions posées à l'assistant y entrent aussi, en lignes sans lancement. Elle est écrite à la suppression d'un compte, juste avant l'effacement de ses lancements, et n'est jamais vidée :
 
 | Colonne | Contenu |
 |---|---|
@@ -598,6 +641,11 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 | Jours avant la suppression d'un compte d'essai (`TRIAL_ACCOUNT_DAYS`) | `src/jobgrep/config.py` | `30` |
 | Modèle OpenAI du filtre (`FILTER_MODEL`) | `src/jobgrep/config.py` | `gpt-5-mini` |
 | Taille maximale de page envoyée au modèle (`MAX_PAGE_CHARS`) | `src/jobgrep/config.py` | `8000` |
+| Modèle OpenAI de l'assistant (`ASSISTANT_MODEL`), et modèle d'embedding (`EMBEDDING_MODEL`) | `src/jobgrep/config.py` | `gpt-6-luna`, `text-embedding-3-small` |
+| Questions à l'assistant par jour et par compte (`MAX_ASSISTANT_QUESTIONS_PER_DAY`) | `src/jobgrep/config.py` | `20` |
+| Passages donnés au modèle pour une question (`ASSISTANT_PASSAGES`) | `src/jobgrep/config.py` | `5` |
+| Jours de conservation du texte des questions (`ASSISTANT_MESSAGE_DAYS`) | `src/jobgrep/config.py` | `90` |
+| Consignes de l'assistant (`ANSWER_PROMPT`) | `src/jobgrep/assistant/prompts.py` | — |
 | Recherches créées avec la base (`DEFAULT_QUERIES`) | `src/jobgrep/config.py` | 2 recherches CDI, 2 freelance (ingénieur IA) |
 | Types de contrat proposés (`CONTRACT_TYPES`) | `src/jobgrep/config.py` | CDI, freelance, CDD, alternance, stage |
 | Sites autorisés à appeler l'API depuis un navigateur (`CORS_ORIGINS`) | variable d'environnement | aucun |
@@ -635,6 +683,7 @@ Les tests tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI. I
 - une base créée avant Alembic garde ses lignes après migration, et les modèles décrivent bien le schéma migré ;
 - une recherche utilise les recherches et le CV de son utilisateur, et respecte le quota journalier ;
 - toute route de l'API qui touche aux données exige une identité ;
+- l'assistant ne répond qu'à partir des textes du site, ne situe de nouveau que les passages qui ont changé, et respecte son quota ;
 - un cookie de session falsifié, expiré ou présenté par un autre site est refusé ;
 - la documentation de l'API n'est pas servie en ligne, et une connexion à moitié réglée arrête le serveur ;
 - le front est servi à la racine sans masquer l'API ni sortir de son dossier ;
@@ -651,13 +700,14 @@ src/jobgrep/
 ├── schemas.py           # objets échangés entre services et interfaces (Pydantic)
 ├── container.py         # assemblage : relie réglages, base, graph et services
 ├── cli.py               # commande jobgrep
+├── site_texts.py        # lecture des textes du site, leurs champs remplis
+├── texts/               # textes du site en Markdown : présentation, textes légaux, guide lu par l'assistant
 ├── api/                 # serveur FastAPI, seule couche qui importe fastapi
 │   ├── main.py          # construction du serveur, traduction des erreurs en codes HTTP
 │   ├── security.py      # identification de l'appelant (jeton Google ou mot de passe), cookie de session
 │   ├── routers/         # routes : compte, offres, postes recherchés, CV, recherche
 │   ├── public_pages.py  # pages HTML servies sans connexion (textes légaux, validation Google)
-│   ├── frontend.py      # fichiers du front Angular, servis à la racine
-│   └── legal/           # textes des règles de confidentialité et des conditions d'utilisation
+│   └── frontend.py      # fichiers du front Angular, servis à la racine
 ├── services/            # règles métier, sans dépendance à une interface
 │   ├── account_service.py # suppression d'un compte et de tout ce qu'il contient
 │   ├── auth_service.py    # adresse Google -> utilisateur, mot de passe de l'instance, jeton de session
@@ -666,7 +716,16 @@ src/jobgrep/
 │   ├── usage_service.py   # consommation et coût de chaque compte, pour les administrateurs
 │   ├── cv_service.py      # enregistrement du CV et de son texte sans coordonnées, oubli des rejets de l'ancien
 │   ├── job_service.py     # offres retenues et pages rejetées
-│   └── query_service.py   # postes recherchés
+│   ├── query_service.py   # postes recherchés
+│   └── assistant_service.py # questions à l'assistant : quota, passages gardés en base, lancement du graph, journal
+├── assistant/           # RAG sur les textes du site
+│   ├── graph.py         # construction du graph
+│   ├── nodes.py         # ses nœuds : chercher les passages, répondre, citer, refuser, renvoyer vers l'exploitant
+│   ├── state.py         # état partagé entre les nœuds
+│   ├── passages.py      # découpage des textes en passages, et recherche des plus proches d'une question
+│   ├── ports.py         # ce que l'assistant attend de l'extérieur : un modèle d'embedding, un modèle qui répond
+│   ├── adapters.py      # leurs branchements réels : OpenAI
+│   └── prompts.py       # consignes de l'assistant
 ├── agent/               # recherche LangGraph
 │   ├── graph.py         # construction du graph
 │   ├── nodes.py         # les quatre étapes : search_jobs, filter_duplicates, filter_jobs, insert_jobs
@@ -686,6 +745,8 @@ src/jobgrep/
     │   ├── page_evaluation_repository.py  # journal des pages évaluées
     │   ├── usage_repository.py         # consommation additionnée par compte, pour les administrateurs
     │   ├── user_repository.py          # comptes
+    │   ├── assistant_passage_repository.py  # passages des textes du site et leurs vecteurs
+    │   ├── assistant_message_repository.py  # questions posées à l'assistant, par compte et pour les administrateurs
     │   └── cv_text_repository.py       # texte des CV, coordonnées retirées, et date du dépôt
     └── cv_ingestion/    # du PDF déposé au texte enregistré : le PDF n'est pas conservé
         ├── ingestion.py     # lit le PDF, retire les coordonnées, enregistre le texte

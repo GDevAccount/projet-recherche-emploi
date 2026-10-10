@@ -6,6 +6,7 @@ from jobgrep.api.security import AdminId, Services
 from jobgrep.schemas import (
     AccountDetail,
     AlertTest,
+    AssistantOverview,
     BudgetOverview,
     HealthOverview,
     JourneyOverview,
@@ -80,3 +81,16 @@ def get_journey(user_id: int, admin_id: AdminId, services: Services) -> AccountD
     Réservé aux administrateurs. Des dates, des nombres et des motifs : ni intitulé, ni lien, ni recherche.
     """
     return services.usage.get_journey(user_id)
+
+
+@router.get("/admin/assistant")
+def get_assistant_overview(
+    admin_id: AdminId,
+    services: Services,
+    days: Annotated[int | None, Query(ge=1, le=MAX_USAGE_DAYS)] = None,
+) -> AssistantOverview:
+    """Usage de l'assistant sur tous les comptes, et les dernières questions qui lui ont été posées.
+
+    Réservé aux administrateurs. Le texte des questions et des réponses en sort, jamais le compte qui les a posées.
+    """
+    return services.assistant.get_overview(days)

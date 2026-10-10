@@ -689,3 +689,81 @@ class Account(BaseModel):
     # et non pour aujourd'hui
     remaining_searches: int | None
     max_searches_per_day: int
+
+
+# Longueur d'une question à l'assistant : au-delà, ce n'est plus une question, et chaque caractère est payé
+MAX_QUESTION_CHARS = 500
+# « answered » : l'assistant a répondu à partir des textes du site ; « unknown » : la question porte sur
+# l'application, mais les textes n'y répondent pas ; « off_topic » : elle ne porte pas sur l'application
+AssistantOutcome = Literal["answered", "unknown", "off_topic"]
+
+
+class AssistantQuestion(BaseModel):
+    question: str = Field(min_length=1, max_length=MAX_QUESTION_CHARS)
+
+
+class AssistantSource(BaseModel):
+    """Texte du site d'où vient une réponse de l'assistant."""
+
+    title: str
+    # Section du texte ; None pour son introduction
+    section: str | None
+    # Adresse de la page ; None pour le guide d'utilisation, qui n'est pas une page du site
+    url: str | None
+
+
+class AssistantMessageRead(BaseModel):
+    id: int
+    created_at: datetime
+    question: str
+    answer: str
+    outcome: AssistantOutcome
+    sources: list[AssistantSource]
+
+
+class AssistantConversation(BaseModel):
+    """Ce que l'assistant affiche à son ouverture : les derniers échanges, et ce qui peut encore être demandé."""
+
+    messages: list[AssistantMessageRead]
+    # None pour le propriétaire, qui n'a pas de quota
+    remaining_questions: int | None
+    max_questions_per_day: int
+    max_question_chars: int
+    # Nombre de jours pendant lesquels le texte d'une question est gardé
+    retention_days: int
+
+
+class AssistantReply(BaseModel):
+    message: AssistantMessageRead
+    remaining_questions: int | None
+
+
+class AssistantJournalEntry(BaseModel):
+    """Question posée à l'assistant, telle que la lit un administrateur : sans le compte qui l'a posée."""
+
+    created_at: datetime
+    question: str
+    answer: str
+    outcome: AssistantOutcome
+    sources: list[AssistantSource]
+    # Textes d'où venaient les passages donnés au modèle, le plus proche en premier : ceux de « sources »
+    # en font partie. Vide pour une question d'avant leur enregistrement
+    retrieved: list[AssistantSource]
+
+
+class AssistantOverview(BaseModel):
+    """Usage de l'assistant, tous comptes réunis : ce qu'on lui demande, et ce qu'il ne sait pas dire."""
+
+    # Début de la période comptée ; None quand tout l'historique l'est
+    since: datetime | None
+    questions: int
+    answered: int
+    # Questions sur l'application restées sans réponse : ce qui manque aux textes du site
+    unknown: int
+    off_topic: int
+    # Comptes qui ont posé au moins une question
+    accounts: int
+    # Coût en dollars ; None si le tarif d'un modèle manque
+    cost_usd: float | None
+    # Dernières questions encore lisibles, la plus récente en premier
+    entries: list[AssistantJournalEntry]

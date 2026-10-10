@@ -119,6 +119,22 @@ REMOTE_JOB_SITES = [
 FILTER_MODEL = "gpt-6-luna"
 MAX_PAGE_CHARS = 8000
 
+# Assistant : il répond aux questions sur l'application à partir des textes du site (texts/)
+ASSISTANT_MODEL = "gpt-6-luna"
+# Modèle qui situe les passages et les questions les uns par rapport aux autres. En changer fait recalculer
+# les passages à la première question
+EMBEDDING_MODEL = "text-embedding-3-small"
+# Questions par jour pour chaque compte, essais compris (le propriétaire n'est pas limité)
+MAX_ASSISTANT_QUESTIONS_PER_DAY = 20
+# Passages du site donnés au modèle pour répondre à une question
+ASSISTANT_PASSAGES = 5
+# Échanges précédents rappelés au modèle, s'ils sont assez récents : une question peut renvoyer à la précédente
+ASSISTANT_HISTORY_TURNS = 3
+ASSISTANT_HISTORY_MINUTES = 30
+# Durée de conservation du texte des questions et des réponses : au-delà, il n'en reste que les compteurs.
+# Les règles de confidentialité affichent cette durée : elles suivent cette valeur.
+ASSISTANT_MESSAGE_DAYS = 90
+
 
 class ModelPrice(NamedTuple):
     """Tarif d'un modèle, en dollars par million de jetons."""
@@ -133,6 +149,8 @@ class ModelPrice(NamedTuple):
 # tarif ici corrige aussi le coût affiché des recherches passées. Un modèle absent n'a pas de coût affiché.
 MODEL_PRICES_USD = {
     "gpt-6-luna": ModelPrice(input=0.10, output=0.50, cache_read=0.01, cache_write=0.125),
+    # Un modèle d'embedding ne facture que le texte qu'il lit
+    "text-embedding-3-small": ModelPrice(input=0.02, output=0, cache_read=0, cache_write=0),
 }
 TAVILY_CREDIT_PRICE_USD = 0.008
 # Une recherche en profondeur « advanced », celle de TavilyJobSearch, coûte deux crédits

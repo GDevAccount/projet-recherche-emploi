@@ -7,6 +7,7 @@ import { EvaluationGroup, SearchRun, SearchStats } from '../core/api.models';
 import { CountPipe, DurationPipe, UsdPipe } from '../core/format.pipe';
 import { SearchRunService } from '../core/search-run.service';
 import { TrackingService } from '../core/tracking.service';
+import { AssistantCardComponent } from './assistant-card.component';
 import { BudgetCardComponent } from './budget-card.component';
 import { CorrectionsCardComponent } from './corrections-card.component';
 import { HealthCardComponent } from './health-card.component';
@@ -41,6 +42,7 @@ const GROUPS_SHOWN = 8;
     UsdPipe,
     DurationPipe,
     CountPipe,
+    AssistantCardComponent,
     BudgetCardComponent,
     CorrectionsCardComponent,
     HealthCardComponent,

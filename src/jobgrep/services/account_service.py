@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from jobgrep.config import DEFAULT_PLAN, INACTIVE_ACCOUNT_DAYS, TRIAL_ACCOUNT_DAYS, TRIAL_PLAN
 from jobgrep.data.database import Database
 from jobgrep.data.repositories.activity_repository import ActivityRepository
+from jobgrep.data.repositories.assistant_message_repository import AssistantMessageRepository
 from jobgrep.data.repositories.correction_repository import CorrectionRepository
 from jobgrep.data.repositories.cv_text_repository import CvTextRepository
 from jobgrep.data.repositories.engine_call_repository import EngineCallRepository
@@ -46,10 +47,14 @@ class AccountService:
             JobRepository(session, user_id).delete_all()
             RejectedJobRepository(session, user_id).clear()
             QueryRepository(session, user_id).delete_all()
-            # Avant d'effacer les lancements : ce qu'ils ont consommé reste, en totaux mensuels sans adresse
+            # Avant d'effacer les lancements et les questions à l'assistant : ce qu'ils ont consommé reste,
+            # en totaux mensuels sans adresse
             plan = TRIAL_PLAN if UserRepository(session).is_trial(user_id) else DEFAULT_PLAN
-            UsageRepository(session).archive_account(user_id, plan, datetime.now(UTC))
+            deleted_at = datetime.now(UTC)
+            UsageRepository(session).archive_account(user_id, plan, deleted_at)
+            UsageRepository(session).archive_assistant(user_id, plan, deleted_at)
             SearchRunRepository(session, user_id).delete_all()
+            AssistantMessageRepository(session, user_id).delete_all()
             PageEvaluationRepository(session, user_id).delete_all()
             CorrectionRepository(session, user_id).delete_all()
             EngineCallRepository(session, user_id).delete_all()

@@ -528,3 +528,58 @@ export interface UsageOverview {
   /** Part du coût due aux comptes autres que celui du propriétaire */
   guests_cost_usd: number | null;
 }
+
+/** Issue d'une question à l'assistant : il a répondu, les textes du site n'en disent rien, ou elle est hors sujet. */
+export type AssistantOutcome = 'answered' | 'unknown' | 'off_topic';
+
+/** Texte du site d'où vient une réponse de l'assistant. */
+export interface AssistantSource {
+  title: string;
+  section: string | null;
+  /** null pour le guide d'utilisation, qui n'est pas une page du site */
+  url: string | null;
+}
+
+export interface AssistantMessage {
+  id: number;
+  created_at: string;
+  question: string;
+  answer: string;
+  outcome: AssistantOutcome;
+  sources: AssistantSource[];
+}
+
+/** Ce que l'assistant affiche à son ouverture. */
+export interface AssistantConversation {
+  messages: AssistantMessage[];
+  /** null pour le propriétaire, qui n'a pas de quota */
+  remaining_questions: number | null;
+  max_questions_per_day: number;
+  max_question_chars: number;
+  /** Nombre de jours pendant lesquels le texte d'une question est gardé */
+  retention_days: number;
+}
+
+export interface AssistantReply {
+  message: AssistantMessage;
+  remaining_questions: number | null;
+}
+
+/** Question posée à l'assistant, telle que la lit un administrateur : sans le compte qui l'a posée. */
+export interface AssistantJournalEntry extends Omit<AssistantMessage, 'id'> {
+  /** Textes d'où venaient les passages donnés au modèle, le plus proche en premier */
+  retrieved: AssistantSource[];
+}
+
+/** Usage de l'assistant, tous comptes réunis, pour les administrateurs. */
+export interface AssistantOverview {
+  since: string | null;
+  questions: number;
+  answered: number;
+  /** Questions sur l'application restées sans réponse : ce qui manque aux textes du site */
+  unknown: number;
+  off_topic: number;
+  accounts: number;
+  cost_usd: number | null;
+  entries: AssistantJournalEntry[];
+}

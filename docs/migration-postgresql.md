@@ -43,6 +43,7 @@ Les variantes de SQLite répliqué n'acceptent les écritures que sur une machin
 | `account_service.py`, `delete_account` | Garde la ligne du compte parce que SQLite redonnerait son identifiant | Sans objet sous PostgreSQL, mais sans danger : laisser tel quel | 0 |
 | `tests/` | Base temporaire dans un fichier ; `test_schema.py`, `test_auth.py`, `test_services.py` et `conftest.py` ouvrent `sqlite3` ou un chemin de base | Lancer PostgreSQL pour les tests, en local et dans le workflow GitHub ; reprendre ces tests | 1 à 2 jours |
 | `Dockerfile`, `fly.toml`, `Settings` | `DATA_DIR`, volume monté sur `/data`, migration au démarrage du conteneur | Adresse de la base en secret Fly ; migration lancée une seule fois par déploiement (`release_command`) ; le volume ne sert plus | 0,5 jour |
+| `assistant_passages.embedding` | Vecteurs en JSON dans une colonne de texte, comparés en Python | Fonctionne tel quel. `pgvector` ne vaut la peine que si les textes dépassent quelques milliers de passages | 0 |
 | Données existantes | Un fichier `jobs.db` | Script de copie table par table, avec conversion des dates et des booléens ; répétition sur une copie avant la bascule | 1 jour |
 
 ## Ce qui suppose un seul processus
@@ -56,6 +57,7 @@ Tout ceci doit passer en base avant de lancer une seconde machine. Avec PostgreS
 | `AlertService._last_sent` | Dernier envoi de chaque alerte | Une table `alerts_sent`, ou accepter un doublon par machine | 0,5 jour |
 | `AccountService._last_purge_day` | La purge des comptes inactifs ne tourne qu'une fois par jour | Sans danger à plusieurs : la purge ne trouve plus rien la seconde fois. À laisser | 0 |
 | `api/routers/searches.py` | La recherche tourne dans un fil du processus qui a reçu la requête | Fonctionne à plusieurs machines. Un déploiement l'interrompt toujours : la sortir dans une file de tâches est un autre chantier | hors périmètre |
+| `AssistantService._index` | Passages et vecteurs relus de la base à la première question | Fonctionne à plusieurs machines : chacune relit la même table. Deux machines qui démarrent ensemble sur un texte modifié peuvent écrire ses passages en double, sans effet sur les réponses | 0 |
 | `container.py`, `get_container` | Un conteneur par processus | Fonctionne tel quel | 0 |
 
 ## Total

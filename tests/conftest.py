@@ -1,8 +1,12 @@
+import re
+import unicodedata
+import zlib
 from pathlib import Path
 
 import pytest
 
 from jobgrep.agent.ports import EvaluationUsage, JobEvaluation
+from jobgrep.assistant.ports import DraftAnswer, ModelUsage
 from jobgrep.config import MODEL_PRICES_USD, ModelPrice, Settings
 from jobgrep.container import build_container
 from jobgrep.data.database import Database
@@ -81,6 +85,50 @@ class FakeEvaluator:
             )
 
 
+class FakeEmbedder:
+    """Situe un texte d'après ses mots, sans appeler OpenAI : deux textes qui en partagent sont proches."""
+
+    model_name = "faux-embedding"
+    SIZE = 256
+
+    def __init__(self):
+        self.embedded: list[list[str]] = []
+
+    def embed(self, texts):
+        self.embedded.append(list(texts))
+        return [self._vector(text) for text in texts], sum(len(text.split()) for text in texts)
+
+    def _vector(self, text):
+        plain = unicodedata.normalize("NFD", text.lower()).encode("ascii", "ignore").decode()
+        vector = [0.0] * self.SIZE
+        # Les mots courts (le, de, un) sont partout : ils ne situent rien
+        for word in re.findall(r"[a-z]{4,}", plain):
+            vector[zlib.crc32(word.encode()) % self.SIZE] += 1.0
+        return vector
+
+
+class FakeAnswerModel:
+    """Répond en citant le premier passage reçu, sans appeler OpenAI, et garde ce qu'on lui a demandé."""
+
+    model_name = "faux-assistant"
+
+    def __init__(self):
+        self.asked = []
+        # Ce que le modèle est censé dire de chaque question
+        self.outcome = "answered"
+        self.cited = [1]
+        # Texte de sa réponse ; None : une phrase qui nomme le premier passage reçu
+        self.text = None
+        self.usage = ModelUsage(input_tokens=2000, output_tokens=100, duration_ms=300)
+
+    def answer(self, question, passages, history):
+        self.asked.append((question, list(passages), list(history)))
+        answer = f"Voir « {passages[0].heading} »." if self.outcome == "answered" else ""
+        if self.text is not None:
+            answer = self.text
+        return DraftAnswer(outcome=self.outcome, answer=answer, passages=self.cited), self.usage
+
+
 class FakeNotifier:
     """Destinataire des alertes : il garde ce qu'il reçoit, ou refuse tout si « works » est faux."""
 
@@ -130,8 +178,18 @@ def search_engine():
 
 
 @pytest.fixture
-def container(settings, search_engine, evaluator):
-    return build_container(settings, search_engine, evaluator)
+def embedder():
+    return FakeEmbedder()
+
+
+@pytest.fixture
+def answer_model():
+    return FakeAnswerModel()
+
+
+@pytest.fixture
+def container(settings, search_engine, evaluator, embedder, answer_model):
+    return build_container(settings, search_engine, evaluator, embedder=embedder, answer_model=answer_model)
 
 
 @pytest.fixture
@@ -140,13 +198,13 @@ def notifier():
 
 
 @pytest.fixture
-def alerting(settings, search_engine, evaluator, notifier, monkeypatch):
+def alerting(settings, search_engine, evaluator, notifier, embedder, answer_model, monkeypatch):
     """Application dont les alertes arrivent, sans attendre, au faux destinataire.
 
     Le faux modèle y a un tarif, nul : sans lui, chaque recherche préviendrait d'un tarif manquant.
     """
     monkeypatch.setitem(MODEL_PRICES_USD, FakeEvaluator.model_name, ModelPrice(0, 0, 0, 0))
-    container = build_container(settings, search_engine, evaluator, notifier)
+    container = build_container(settings, search_engine, evaluator, notifier, embedder, answer_model)
     container.alerts.dispatch = lambda send: send()
     return container
 

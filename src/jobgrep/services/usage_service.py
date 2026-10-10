@@ -169,14 +169,15 @@ class UsageService:
     def get_daily_spend(self, now: datetime | None = None) -> float:
         """Renvoie la dépense du jour en cours, à l'heure de Paris, tous comptes réunis.
 
-        Comme pour le mois, un modèle sans tarif ne laisse que le coût du moteur de recherche : un plancher.
+        Les questions posées à l'assistant y comptent, comme dans le mois. Comme pour lui, un modèle sans
+        tarif ne laisse que le coût du moteur de recherche : un plancher.
         Une recherche en cours n'y est pas encore, ni celles d'un compte supprimé dans la journée, dont il ne
         reste que des totaux par mois.
         """
         local = (now or datetime.now(UTC)).astimezone(ZoneInfo(LOCAL_TIMEZONE))
         start = local.replace(hour=0, minute=0, second=0, microsecond=0)
         with self.database.session() as session:
-            rows = UsageRepository(session).summarize_runs(start.astimezone(UTC))
+            rows = _consumption(session, start.astimezone(UTC))
         accounts = [
             _describe_account(user_id, None, DEFAULT_PLAN, deleted=False, rows=rows)
             for user_id, rows in _by_user(rows).items()
@@ -322,19 +323,19 @@ class UsageService:
         return accounts
 
     def list_unpriced_models(self, since: datetime | None = None) -> list[str]:
-        """Renvoie les modèles qui ont évalué des pages depuis cette date et dont le tarif manque.
+        """Renvoie les modèles qui ont servi depuis cette date, au tri ou à l'assistant, et dont le tarif manque.
 
         Leur coût vaut None partout, et le budget ne compte plus qu'eux en moins : c'est à corriger dans
         MODEL_PRICES_USD dès que FILTER_MODEL change.
         """
         with self.database.session() as session:
-            rows = UsageRepository(session).summarize_runs(since)
+            rows = _consumption(session, since)
         used = {row.model for row in rows if row.input_tokens is not None}
         return sorted(model or "inconnu" for model in used if model not in MODEL_PRICES_USD)
 
     def _overview(self, since: datetime | None, archived_since: datetime | None) -> UsageOverview:
         with self.database.session() as session:
-            rows = UsageRepository(session).summarize_runs(since)
+            rows = _consumption(session, since)
             archived_rows = UsageRepository(session).summarize_archived(archived_since)
             users = UserRepository(session).list_users()
             emails = {user.id: user.email for user in users}
@@ -370,6 +371,12 @@ class UsageService:
             cost_usd=sum_costs(account.cost_usd for account in accounts),
             guests_cost_usd=sum_costs(account.cost_usd for account in guests),
         )
+
+
+def _consumption(session, since: datetime | None) -> list:
+    """Renvoie ce que chaque compte a consommé, par modèle : ses recherches, puis ses questions à l'assistant."""
+    usage = UsageRepository(session)
+    return usage.summarize_runs(since) + usage.summarize_assistant(since)
 
 
 def _count_steps(accounts: list[AccountJourney]) -> list[JourneyStep]:
