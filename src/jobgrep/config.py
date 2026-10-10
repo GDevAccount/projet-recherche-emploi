@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from typing import Literal, NamedTuple, get_args
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -191,6 +192,9 @@ class Settings(BaseSettings):
 
     contact_email: str = ""
     google_site_verification_file: str = ""
+    # Adresse publique du site, « https://jobgrep.fr » : les moteurs de recherche n'en retiennent qu'une.
+    # Réglée, toute autre adresse de l'instance y renvoie, et le plan du site est servi. Vide : ni l'un ni l'autre
+    site_url: str = ""
 
     # Origines autorisées à appeler l'API depuis un navigateur, séparées par des virgules
     cors_origins: str = ""
@@ -199,6 +203,14 @@ class Settings(BaseSettings):
     @classmethod
     def _strip(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value
+
+    @field_validator("site_url")
+    @classmethod
+    def _check_site_url(cls, value: str) -> str:
+        value = value.rstrip("/")
+        if value and not urlsplit(value).netloc:
+            raise ValueError("SITE_URL doit être une adresse complète, comme https://jobgrep.fr")
+        return value
 
     @property
     def db_path(self) -> Path:

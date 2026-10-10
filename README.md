@@ -292,6 +292,32 @@ Ce sont des pages HTML simples, lisibles par les robots de Google, qui ne voient
 
 Google peut aussi demander la preuve que le site vous appartient. Dans [Search Console](https://search.google.com/search-console), ajouter une propriété de type « Préfixe de l'URL » avec l'adresse de l'instance, choisir la méthode « Fichier HTML », et mettre le nom du fichier proposé dans `GOOGLE_SITE_VERIFICATION_FILE` : l'application le sert alors à la racine du site, sans qu'il faille le déposer.
 
+### Être trouvé par les moteurs de recherche
+
+Un moteur de recherche ne lit que ce qui est servi sans connexion :
+
+- la page d'accueil, dont le texte est écrit dans `frontend/src/index.html` pour qui n'exécute pas le JavaScript ;
+- `/fonctionnement`, qui présente l'application étape par étape (texte dans `src/jobgrep/api/pages/`) ;
+- `/confidentialite` et `/conditions`.
+
+Tout le reste demande une session, et `/robots.txt` écarte l'API. Un robot n'ouvre pas non plus d'essai sans compte : cela demande un clic.
+
+`SITE_URL` donne au site son adresse publique. Une fois réglée :
+
+- `/sitemap.xml` liste ces quatre pages, et `/robots.txt` l'annonce ;
+- chaque page publique déclare son adresse canonique ;
+- toute page demandée à une autre adresse de l'instance (celle en `fly.dev`) est renvoyée vers `SITE_URL` (301), pour que le site ne soit pas référencé deux fois. L'API n'est pas concernée : la sonde de disponibilité peut garder l'ancienne adresse.
+
+Sur Fly.io, elle est écrite dans `fly.toml` (section `[env]`) : ce n'est pas un secret. L'adresse canonique et l'aperçu de partage de la page d'accueil (`og:…`) sont, eux, écrits en dur dans `frontend/src/index.html` : les changer avec l'adresse du site.
+
+Reste à déclarer le site, à la main :
+
+1. Dans [Search Console](https://search.google.com/search-console), ajouter une propriété de type « Domaine » et la valider par l'enregistrement TXT demandé, chez le registraire du nom de domaine.
+2. Dans « Sitemaps », envoyer `sitemap.xml`. Dans « Inspection de l'URL », demander l'indexation de la page d'accueil et de `/fonctionnement`.
+3. Dans [Bing Webmaster Tools](https://www.bing.com/webmasters), importer la propriété depuis Search Console.
+
+Ce sont ensuite les liens venus d'autres sites qui pèsent le plus.
+
 ### 2. Renseigner les variables
 
 | Variable | Valeur |
@@ -301,8 +327,9 @@ Google peut aussi demander la preuve que le site vous appartient. Dans [Search C
 | `OWNER_EMAIL` | Adresse Google du propriétaire |
 | `ALLOWED_EMAILS` | Adresses des invités, séparées par des virgules (peut être vide), ou `*` pour accepter tout compte Google |
 | `ADMIN_EMAILS` | Adresses des administrateurs, séparées par des virgules (facultatif). Comme le propriétaire, ils ont accès au suivi des recherches et à la consommation de chaque compte. Un administrateur peut se connecter sans figurer dans `ALLOWED_EMAILS` ; il garde un compte d'invité, avec son quota |
-| `CONTACT_EMAIL` | Adresse de contact affichée sur les deux pages publiques (facultatif, mais attendu par le RGPD) |
+| `CONTACT_EMAIL` | Adresse de contact affichée sur les deux pages légales (facultatif, mais attendu par le RGPD) |
 | `GOOGLE_SITE_VERIFICATION_FILE` | Nom du fichier de validation donné par Google Search Console, par exemple `google1a2b3c.html` (facultatif) |
+| `SITE_URL` | Adresse publique du site, par exemple `https://jobgrep.fr` (facultatif) : voir « Être trouvé par les moteurs de recherche » |
 
 Les trois premières vont ensemble : avec `GOOGLE_CLIENT_ID` mais sans `OWNER_EMAIL` ou sans `AUTH_COOKIE_SECRET`, l'application refuse de démarrer plutôt que de s'ouvrir sans la connexion attendue.
 

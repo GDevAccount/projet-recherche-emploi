@@ -8,6 +8,10 @@ primary_region = 'cdg'
 
 [build]
 
+[env]
+  # Seule adresse du site : celle que donne Fly.io y renvoie, et le plan du site la déclare aux moteurs
+  SITE_URL = 'https://jobgrep.fr'
+
 [http_service]
   internal_port = 8000
   force_https = true

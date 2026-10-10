@@ -32,6 +32,11 @@ def test_home_page_describes_the_application_without_javascript():
     assert "offres d'emploi" in page
     assert 'href="/confidentialite"' in page
     assert 'href="/conditions"' in page
+    # Ce qui mène un moteur de recherche à la page de présentation, et lui dit quelle adresse retenir
+    assert 'href="/fonctionnement"' in page
+    assert '<link rel="canonical" href="https://jobgrep.fr/">' in page
+    assert '<meta property="og:image" content="https://jobgrep.fr/social-card.png">' in page
+    assert (FRONTEND / "public" / "social-card.png").is_file()
 
 
 def test_public_files_are_not_taken_for_hashed_files():
