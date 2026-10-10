@@ -258,6 +258,47 @@ test("l'assistant répond à partir des textes du site, et la conversation reste
   await expect(assistant.getByRole('dialog')).toHaveCount(0);
 });
 
+test("l'assistant s'utilise au clavier seul, et le rend à son bouton en se fermant", async () => {
+  const assistant = page.locator('app-assistant');
+  const launcher = assistant.locator('.launcher');
+  const insidePanel = () => page.evaluate(() => !!document.activeElement?.closest('.panel'));
+
+  // Ouvrir, écrire et envoyer sans la souris : le clavier arrive dans le champ de saisie
+  await launcher.focus();
+  await page.keyboard.press('Enter');
+  await expect(assistant.getByLabel('Votre question')).toBeFocused();
+  await page.keyboard.type('Comment supprimer mon compte ?');
+  await page.keyboard.press('Enter');
+  await expect(assistant.locator('.question')).toHaveText('Comment supprimer mon compte ?');
+  await expect(assistant.getByRole('log')).toContainText('Supprimer son compte');
+
+  // À côté de la page, Tab en sort : le panneau ne retient pas le clavier
+  for (let press = 0; press < 12; press++) {
+    await page.keyboard.press('Tab');
+  }
+  expect(await insidePanel()).toBe(false);
+
+  // Échap le ferme depuis l'intérieur, et le clavier revient sur le bouton
+  await assistant.getByLabel('Votre question').focus();
+  await page.keyboard.press('Escape');
+  await expect(assistant.getByRole('dialog')).toHaveCount(0);
+  await expect(launcher).toBeFocused();
+
+  // Sur un téléphone, le panneau couvre tout l'écran : Tab y tourne en rond, dans les deux sens
+  const viewport = page.viewportSize()!;
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.keyboard.press('Enter');
+  await expect(assistant.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+  await expect(assistant.getByLabel('Votre question')).toBeFocused();
+  for (let press = 0; press < 12; press++) {
+    await page.keyboard.press(press % 3 ? 'Tab' : 'Shift+Tab');
+    expect(await insidePanel()).toBe(true);
+  }
+  await page.keyboard.press('Escape');
+  await expect(assistant.getByRole('dialog')).toHaveCount(0);
+  await page.setViewportSize(viewport);
+});
+
 test('le suivi montre le bilan des recherches et le détail de leurs pages', async () => {
   // Le mot de passe de l'instance désigne le propriétaire : la rubrique lui est ouverte
   await page.getByRole('link', { name: 'Suivi', exact: true }).click();

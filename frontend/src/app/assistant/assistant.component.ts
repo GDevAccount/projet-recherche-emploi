@@ -1,3 +1,6 @@
+import { CdkTrapFocus } from '@angular/cdk/a11y';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -8,7 +11,9 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
+import { map } from 'rxjs';
 
 import { apiErrorMessage } from '../core/api-error';
 import {
@@ -18,6 +23,9 @@ import {
   AssistantStep,
 } from '../core/api.models';
 import { AssistantService } from '../core/assistant.service';
+
+/** Largeur sous laquelle le panneau prend tout l'écran : la même que dans assistant.component.scss. */
+const FULL_SCREEN_QUERY = '(max-width: 44rem)';
 
 /** Questions proposées tant que la conversation est vide. */
 const SUGGESTIONS = [
@@ -40,7 +48,7 @@ const STEP_LABELS: Record<AssistantStep, string> = {
  */
 @Component({
   selector: 'app-assistant',
-  imports: [RouterLink],
+  imports: [RouterLink, CdkTrapFocus],
   templateUrl: './assistant.component.html',
   styleUrl: './assistant.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,6 +58,19 @@ export class AssistantComponent {
   private readonly assistant = inject(AssistantService);
   private readonly thread = viewChild<ElementRef<HTMLElement>>('thread');
   private readonly field = viewChild<ElementRef<HTMLTextAreaElement>>('field');
+  private readonly launcher = viewChild.required<ElementRef<HTMLButtonElement>>('launcher');
+  private readonly document = inject(DOCUMENT);
+
+  /**
+   * Vrai quand le panneau recouvre tout l'écran, sur un téléphone : la page derrière n'est plus atteignable,
+   * donc le clavier ne doit pas pouvoir y partir. La largeur est celle de la règle du fichier de styles.
+   */
+  protected readonly fullScreen = toSignal(
+    inject(BreakpointObserver)
+      .observe(FULL_SCREEN_QUERY)
+      .pipe(map((state) => state.matches)),
+    { initialValue: false },
+  );
 
   protected readonly suggestions = SUGGESTIONS;
   protected readonly open = signal(false);
@@ -101,8 +122,21 @@ export class AssistantComponent {
     this.focusField();
   }
 
-  protected close(): void {
+  /**
+   * Ferme le panneau. Si le clavier s'y trouvait, il revient sur le bouton qui l'a ouvert : sans cela, il
+   * serait perdu en haut de la page. Sauf quand on ferme pour aller à un écran, qui prend alors le focus.
+   */
+  protected close(restoreFocus = true): void {
+    if (!this.open()) {
+      return;
+    }
+    const panel = this.thread()?.nativeElement.closest('.panel');
+    const wasInside = !!panel?.contains(this.document.activeElement);
     this.open.set(false);
+    if (restoreFocus && wasInside) {
+      // Après le rendu : sur un téléphone, le bouton n'est pas affiché tant que le panneau est ouvert
+      setTimeout(() => this.launcher().nativeElement.focus());
+    }
   }
 
   /** Vide l'écran et repart de zéro : la question suivante ne renverra plus aux précédentes. */
@@ -177,6 +211,10 @@ export class AssistantComponent {
         this.conversation.set(conversation);
         this.messages.set(conversation.messages);
         this.remaining.set(conversation.remaining_questions);
+        // Le champ était désactivé tant que la conversation n'était pas lue : il n'a pas pu prendre le focus
+        if (this.open()) {
+          this.focusField();
+        }
       },
       error: (error: unknown) => this.error.set(apiErrorMessage(error)),
     });

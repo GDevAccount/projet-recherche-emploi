@@ -1353,7 +1353,10 @@ def test_the_assistant_answers_about_the_account_of_the_caller_and_says_so(clien
     assert message["consulted"] == ["État de votre compte"] and "CV : aucun CV déposé." in message["answer"]
     # Dans le suivi, la question dit qu'un compte a été consulté, jamais lequel
     overview = client.get("/api/admin/assistant", headers=OWNER)
-    assert overview.json()["consulting"] == 1 and overview.json()["entries"][0]["consulted"] == ["État de votre compte"]
+    [entry] = overview.json()["entries"]
+    assert overview.json()["consulting"] == 1 and entry["consulted"] == ["État de votre compte"]
+    # La réponse est lue avec ce qu'elle cite du compte : c'est ce qui permet de la surveiller
+    assert entry["question"] == "Où en est mon compte ?" and "CV : aucun CV déposé." in entry["answer"]
     assert "alice" not in overview.text
 
 

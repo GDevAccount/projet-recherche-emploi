@@ -378,6 +378,8 @@ class AssistantService:
                 AssistantJournalEntry(
                     created_at=row.created_at,
                     question=row.question,
+                    # Y compris quand elle cite le compte de son auteur : c'est dit dans les règles de
+                    # confidentialité, et c'est ce qui permet de surveiller les réponses qui en dépendent
                     answer=row.answer,
                     outcome=row.outcome,
                     sources=_read_sources(row.sources),

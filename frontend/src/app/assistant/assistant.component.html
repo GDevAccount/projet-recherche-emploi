@@ -1,5 +1,12 @@
 @if (open()) {
-  <section class="panel" role="dialog" aria-labelledby="assistant-title">
+  <section
+    id="assistant-panel"
+    class="panel"
+    role="dialog"
+    aria-labelledby="assistant-title"
+    [attr.aria-modal]="fullScreen() ? 'true' : null"
+    [cdkTrapFocus]="fullScreen()"
+  >
     <header>
       <div>
         <span class="app-eyebrow">Assistant</span>
@@ -40,7 +47,8 @@
       </div>
     </header>
 
-    <div #thread class="thread" aria-live="polite">
+    <!-- Un journal : seul un échange ajouté est lu, une fois. Il prend le focus pour défiler au clavier -->
+    <div #thread class="thread" role="log" aria-label="Conversation" tabindex="0">
       @if (conversation(); as conversation) {
         @if (!messages().length && !pending()) {
           <div class="welcome">
@@ -68,7 +76,13 @@
                 @for (source of message.sources; track $index) {
                   <li>
                     @if (source.url) {
-                      <a [href]="source.url" target="_blank" rel="noopener">{{ source.title }}</a>
+                      <a
+                        target="_blank"
+                        rel="noopener"
+                        [href]="source.url"
+                        [attr.aria-label]="source.title + ', nouvel onglet'"
+                        >{{ source.title }}</a
+                      >
                     } @else {
                       <span>{{ source.title }}</span>
                     }
@@ -76,7 +90,11 @@
                       · {{ source.section }}
                     }
                     @if (source.screen) {
-                      <a class="screen" [routerLink]="source.screen" (click)="close()"
+                      <a
+                        class="screen"
+                        [routerLink]="source.screen"
+                        [attr.aria-label]="'Ouvrir l\'écran : ' + source.section"
+                        (click)="close(false)"
                         >Ouvrir l'écran</a
                       >
                     }
@@ -132,17 +150,21 @@
           </div>
         }
         @if (pending()) {
-          <p class="question">{{ pending() }}</p>
-          @if (writing()) {
-            <div class="answer">
-              <p>{{ writing() }}</p>
-            </div>
-          } @else {
-            <p class="answer waiting" role="status">
-              <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
-              {{ stepLabel() }}
-            </p>
-          }
+          <!-- Caché aux lecteurs d'écran : une réponse lue à chaque mot ajouté serait inaudible. Ils
+               entendent l'étape en cours, plus bas, puis l'échange entier une fois terminé -->
+          <div class="pending" aria-hidden="true">
+            <p class="question">{{ pending() }}</p>
+            @if (writing()) {
+              <div class="answer">
+                <p>{{ writing() }}</p>
+              </div>
+            } @else {
+              <p class="answer waiting">
+                <span class="dots"><i></i><i></i><i></i></span>
+                {{ stepLabel() }}
+              </p>
+            }
+          </div>
         }
       } @else if (!error()) {
         <p class="loading">Chargement…</p>
@@ -152,12 +174,15 @@
       }
     </div>
 
+    <p class="sr-only" role="status">{{ pending() ? stepLabel() : '' }}</p>
+
     <form (submit)="$event.preventDefault(); send()">
       <div class="entry">
         <textarea
           #field
           rows="2"
           aria-label="Votre question"
+          aria-describedby="assistant-notice"
           placeholder="Votre question sur JobGrep…"
           [attr.maxlength]="conversation()?.max_question_chars"
           [disabled]="!conversation() || exhausted()"
@@ -178,7 +203,7 @@
           </svg>
         </button>
       </div>
-      <small>
+      <small id="assistant-notice">
         @if (exhausted()) {
           <strong>Vous avez posé toutes vos questions d'aujourd'hui.</strong>
         } @else if (remaining() !== null) {
@@ -197,8 +222,10 @@
 }
 
 <button
+  #launcher
   type="button"
   class="launcher"
+  aria-controls="assistant-panel"
   [class.on]="open()"
   [attr.aria-label]="open() ? 'Fermer l\'assistant' : 'Ouvrir l\'assistant'"
   [attr.aria-expanded]="open()"
