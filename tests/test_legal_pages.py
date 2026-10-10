@@ -3,7 +3,15 @@ from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
 from projet_recherche_emploi.api.public_pages import build_routes
-from projet_recherche_emploi.config import INACTIVE_ACCOUNT_DAYS, MAX_SEARCHES_PER_DAY, SERVER_ERROR_DAYS, Settings
+from projet_recherche_emploi.config import (
+    INACTIVE_ACCOUNT_DAYS,
+    MAX_SEARCHES_PER_DAY,
+    MAX_TRIAL_SEARCHES,
+    SERVER_ERROR_DAYS,
+    TRIAL_ACCOUNT_DAYS,
+    TRIAL_START_DAYS,
+    Settings,
+)
 
 
 def client(**settings: str) -> TestClient:
@@ -30,6 +38,7 @@ def test_legal_page_is_plain_html_readable_without_javascript(path, title):
     # Aucun champ de remplacement oublié dans le texte
     assert "{contact}" not in response.text and "{max_searches}" not in response.text
     assert "{inactive_months}" not in response.text
+    assert "{trial_" not in response.text
 
 
 def test_conditions_state_the_real_quota_and_link_to_the_privacy_rules():
@@ -44,6 +53,16 @@ def test_privacy_rules_state_the_real_retention_period():
 
     assert f"Un compte resté {INACTIVE_ACCOUNT_DAYS // 30} mois sans utilisation est supprimé automatiquement" in text
     assert f"elles sont effacées au bout de {SERVER_ERROR_DAYS} jours" in text
+
+
+def test_legal_pages_state_the_real_limits_of_a_trial_without_account():
+    conditions, privacy = client().get("/conditions").text, client().get("/confidentialite").text
+
+    assert f"à {MAX_TRIAL_SEARCHES} en tout pour un essai sans compte" in conditions
+    assert f"supprimé au bout de {TRIAL_ACCOUNT_DAYS} jours" in conditions
+    assert f"{TRIAL_ACCOUNT_DAYS} jours après son ouverture" in privacy
+    # Ce qui est gardé de l'adresse IP, pourquoi, et combien de temps
+    assert f"effacée au bout de {TRIAL_START_DAYS * 24} heures" in privacy and "article 6.1.f" in privacy
 
 
 def test_privacy_rules_name_who_receives_the_data():

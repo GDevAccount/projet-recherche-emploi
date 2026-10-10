@@ -5,6 +5,7 @@ from projet_recherche_emploi.api.security import (
     CredentialsCaller,
     CurrentCaller,
     Services,
+    TrialOpening,
     UserId,
     clear_session_cookie,
     set_session_cookie,
@@ -28,6 +29,7 @@ def get_config(services: Services) -> AppConfig:
     return AppConfig(
         login_mode=services.auth.login_mode,
         google_client_id=services.settings.google_client_id or None,
+        trial=services.auth.trial_status(),
         contract_types=CONTRACT_TYPES,
         delete_reasons=[DeleteReasonOption(code=code, label=label) for code, label in DELETE_REASONS.items()],
     )
@@ -53,6 +55,19 @@ def open_session(caller: CredentialsCaller, services: Services, request: Request
     return _account(caller, services)
 
 
+@router.post("/session/trial")
+def open_trial_session(opening: TrialOpening, services: Services, request: Request, response: Response) -> Account:
+    """Ouvre un compte d'essai, sans connexion : une seule recherche, et un cookie pour seule identité.
+
+    Publique, donc plafonnée : par jour pour l'instance, et par adresse IP. Refusée (429) au-delà, et
+    absente (404) si l'instance ne propose pas d'essai.
+    """
+    caller, trial_key = opening
+    if trial_key is not None:
+        set_session_cookie(request, response, services.auth.create_session_token(None, trial_key=trial_key))
+    return _account(caller, services)
+
+
 @router.delete("/session", status_code=status.HTTP_204_NO_CONTENT)
 def close_session(request: Request, response: Response) -> None:
     # Sans contrôle d'identité : on doit pouvoir se déconnecter même avec une session expirée
@@ -64,6 +79,7 @@ def _account(caller: Caller, services: Container) -> Account:
     return Account(
         user_id=user_id,
         is_owner=user_id == DEFAULT_USER_ID,
+        is_trial=caller.is_trial,
         is_admin=services.auth.is_admin(user_id, caller.email),
         email=caller.email,
         name=caller.name,

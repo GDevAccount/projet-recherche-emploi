@@ -15,7 +15,7 @@ const PERIODS = [
 
 type Days = (typeof PERIODS)[number]['days'];
 
-const PLAN_LABELS = { free: 'Gratuit', paid: 'Payant' };
+const PLAN_LABELS = { free: 'Gratuit', paid: 'Payant', trial: 'Essai' };
 
 /** Ce que chaque compte a consommé et coûté sur une période, le plus coûteux en premier. */
 @Component({
@@ -56,6 +56,9 @@ export class UsageCardComponent {
   protected nameOf(account: AccountUsage): string {
     if (account.deleted) {
       return `Compte supprimé nº ${account.user_id}`;
+    }
+    if (account.plan === 'trial') {
+      return `Essai nº ${account.user_id}`;
     }
     return account.email ?? (account.is_owner ? 'Propriétaire' : `Compte nº ${account.user_id}`);
   }

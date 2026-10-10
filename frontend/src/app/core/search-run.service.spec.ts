@@ -7,7 +7,7 @@ import { SearchProgress } from './api.models';
 import { BACKGROUND_POLL_MS, FETCH, SearchRunService } from './search-run.service';
 import { SessionService } from './session.service';
 
-const ACCOUNT = { user_id: 2, is_owner: false, is_admin: false, email: null, name: null, picture: null, can_search: true, search_running: false, remaining_searches: 1, max_searches_per_day: 2 };
+const ACCOUNT = { user_id: 2, is_owner: false, is_trial: false, is_admin: false, email: null, name: null, picture: null, can_search: true, search_running: false, remaining_searches: 1, max_searches_per_day: 2 };
 
 function progress(values: Partial<SearchProgress>): string {
   const event: SearchProgress = {

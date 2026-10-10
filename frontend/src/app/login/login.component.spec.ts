@@ -9,7 +9,7 @@ import { LoginComponent } from './login.component';
 
 const ACCOUNT: Account = {
   user_id: 1,
-  is_owner: true, is_admin: true,
+  is_owner: true, is_trial: false, is_admin: true,
   email: null,
   name: null,
   picture: null,
@@ -57,7 +57,7 @@ describe('LoginComponent', () => {
   afterEach(() => http.verify());
 
   async function serveConfig(config: Partial<AppConfig>): Promise<void> {
-    http.expectOne('/api/config').flush({ login_mode: null, google_client_id: null, contract_types: [], ...config });
+    http.expectOne('/api/config').flush({ login_mode: null, google_client_id: null, trial: null, contract_types: [], ...config });
     await fixture.whenStable();
   }
 
@@ -125,6 +125,43 @@ describe('LoginComponent', () => {
     await fixture.whenStable();
 
     expect(element().textContent).toContain("Cette adresse n'est pas autorisée à utiliser l'application.");
+  });
+
+  it('should open a trial without any credential, when the instance offers one', async () => {
+    await serveConfig({ login_mode: 'google', google_client_id: 'id.apps.googleusercontent.com', trial: 'available' });
+
+    const button = element().querySelector<HTMLButtonElement>('.trial-button')!;
+    expect(button.textContent).toContain('Essayer sans compte');
+    // Le visiteur n'a rien accepté d'autre : les deux textes sont à portée de clic
+    expect(element().querySelector('.terms a[href="/conditions"]')).not.toBeNull();
+    expect(element().querySelector('.terms a[href="/confidentialite"]')).not.toBeNull();
+
+    button.click();
+    const request = http.expectOne('/api/session/trial');
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    request.flush({ ...ACCOUNT, user_id: 7, is_owner: false, is_admin: false, is_trial: true, remaining_searches: 1 });
+
+    expect(navigate).toHaveBeenCalledWith(['/']);
+  });
+
+  it('should show why a trial is refused, and say so beforehand when none is left today', async () => {
+    await serveConfig({ login_mode: 'google', google_client_id: 'id.apps.googleusercontent.com', trial: 'available' });
+
+    element().querySelector<HTMLButtonElement>('.trial-button')!.click();
+    http
+      .expectOne('/api/session/trial')
+      .flush({ detail: "Trop d'essais ont été ouverts depuis votre connexion aujourd'hui." }, { status: 429, statusText: 'Too Many Requests' });
+    await fixture.whenStable();
+
+    expect(element().textContent).toContain("Trop d'essais ont été ouverts depuis votre connexion");
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('should not offer a trial that the instance does not open, or has none left of', async () => {
+    await serveConfig({ login_mode: 'google', google_client_id: 'id.apps.googleusercontent.com', trial: 'exhausted' });
+
+    expect(element().querySelector('.trial-button')).toBeNull();
+    expect(element().textContent).toContain('Les essais sans compte sont épuisés pour aujourd');
   });
 
   it('should say when the instance is not protected', async () => {

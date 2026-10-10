@@ -6,9 +6,10 @@ import { Router } from '@angular/router';
 import { Button } from 'primeng/button';
 import { InputText } from 'primeng/inputtext';
 import { Message } from 'primeng/message';
-import { catchError, of } from 'rxjs';
+import { Observable, catchError, of } from 'rxjs';
 
 import { apiErrorMessage } from '../core/api-error';
+import { Account } from '../core/api.models';
 import { ConfigService } from '../core/config.service';
 import { GoogleIdentityService } from '../core/google-identity.service';
 import { SessionService } from '../core/session.service';
@@ -51,10 +52,18 @@ export class LoginComponent {
     }
   }
 
+  protected startTrial(): void {
+    this.enter(this.session.openTrial());
+  }
+
   private open(credential: string): void {
+    this.enter(this.session.open(credential));
+  }
+
+  private enter(opening: Observable<Account>): void {
     this.pending.set(true);
     this.error.set('');
-    this.session.open(credential).subscribe({
+    opening.subscribe({
       next: () => void this.router.navigate(['/']),
       error: (error: unknown) => {
         this.pending.set(false);

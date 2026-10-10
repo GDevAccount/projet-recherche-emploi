@@ -5,7 +5,7 @@ import { AvatarComponent } from './avatar.component';
 
 const ALICE: Account = {
   user_id: 2,
-  is_owner: false, is_admin: false,
+  is_owner: false, is_trial: false, is_admin: false,
   email: 'alice@exemple.fr',
   name: 'Alice Martin',
   picture: 'https://lh3.googleusercontent.com/alice',

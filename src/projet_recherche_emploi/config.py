@@ -19,6 +19,17 @@ MAX_SEARCHES_PER_DAY = 2
 # Durée d'une session de l'API, après quoi le front redemande une connexion
 SESSION_DAYS = 30
 
+# Un compte d'essai, ouvert sans connexion, n'a droit qu'à ce nombre de recherches, en tout et pour tout
+MAX_TRIAL_SEARCHES = 1
+# Comptes d'essai qu'une même adresse IP peut ouvrir par jour : effacer son cookie ne redonne pas un essai sans fin.
+# Pas un seul : une adresse est partagée par un foyer ou une entreprise
+MAX_TRIALS_PER_IP_PER_DAY = 3
+# Un compte d'essai n'est reconnu que par son cookie : une fois celui-ci expiré, plus personne ne peut y revenir
+TRIAL_ACCOUNT_DAYS = SESSION_DAYS
+# Durée de conservation de l'empreinte de l'adresse IP d'un essai : le plafond se compte par jour.
+# Les règles de confidentialité affichent cette durée : elles suivent cette valeur.
+TRIAL_START_DAYS = 2
+
 # Un compte d'invité resté sans connexion aussi longtemps est supprimé, avec toutes ses données.
 # Les règles de confidentialité affichent cette durée : elles suivent cette valeur.
 INACTIVE_ACCOUNT_DAYS = 365
@@ -47,6 +58,8 @@ CLIENT_ERRORS_PER_DAY = 50
 # Elle est déjà gardée avec la consommation d'un compte supprimé, pour savoir plus tard ce que coûtaient
 # les comptes gratuits et les payants
 DEFAULT_PLAN = "free"
+# Celle d'un compte d'essai : gardée de même, pour savoir ce que coûtent les essais
+TRIAL_PLAN = "trial"
 
 ContractType = Literal["CDI", "freelance", "CDD", "alternance", "stage"]
 CONTRACT_TYPES = list(get_args(ContractType))
@@ -170,6 +183,11 @@ class Settings(BaseSettings):
     ntfy_url: str = "https://ntfy.sh"
     # Budget mensuel de l'instance, en dollars, tous comptes réunis : Tavily et OpenAI. 0 : pas de budget
     monthly_budget_usd: float = 10.0
+    # Budget d'un jour, à l'heure de Paris, tous comptes réunis. Atteint, il refuse les recherches jusqu'au
+    # lendemain, sauf celles du propriétaire. 0 : pas de budget
+    daily_budget_usd: float = 0.5
+    # Comptes d'essai, sans connexion, que l'instance accepte d'ouvrir par jour. 0 : aucun essai sans compte
+    max_trials_per_day: int = 0
 
     contact_email: str = ""
     google_site_verification_file: str = ""

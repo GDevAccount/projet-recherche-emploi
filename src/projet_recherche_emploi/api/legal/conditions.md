@@ -8,9 +8,11 @@ Tamis est une application qui cherche des offres d'emploi sur le web, les compar
 
 L'accès se fait avec un compte Google. Votre compte est personnel : ne partagez pas votre accès. L'exploitant peut limiter l'accès à certaines personnes, et retirer le vôtre à tout moment, sans préavis.
 
+Quand l'exploitant le propose, l'application peut aussi être essayée sans compte. Cet essai n'est reconnu que par le navigateur qui l'a ouvert, et il est supprimé au bout de {trial_days} jours. Ce qu'il contient n'est pas repris par le compte Google avec lequel vous vous connecteriez ensuite. En ouvrant un essai, vous acceptez ces conditions et les règles de confidentialité.
+
 ## Limites d'utilisation
 
-Chaque recherche a un coût, pris en charge par l'exploitant de l'application. Le nombre de recherches est donc limité à {max_searches} par jour et par utilisateur. Cette limite peut changer.
+Chaque recherche a un coût, pris en charge par l'exploitant de l'application. Le nombre de recherches est donc limité à {max_searches} par jour et par utilisateur, et à {trial_searches} en tout pour un essai sans compte. Le nombre d'essais ouverts chaque jour est lui aussi limité, pour l'application entière et par connexion internet. L'exploitant fixe enfin un budget par jour : une fois atteint, plus aucune recherche ne peut être lancée avant le lendemain. Ces limites peuvent changer.
 
 ## Ce que vous vous engagez à faire
 

@@ -7,6 +7,7 @@ import pytest
 from conftest import FakeEvaluator, FakeNotifier, FakeSearchEngine
 from fastapi.testclient import TestClient
 from helpers import blank_pdf, job
+from sqlalchemy import select
 
 from projet_recherche_emploi.api.main import create_app
 from projet_recherche_emploi.api.security import Identity
@@ -17,11 +18,14 @@ from projet_recherche_emploi.config import (
     FILTER_MODEL,
     INACTIVE_ACCOUNT_DAYS,
     MAX_SEARCHES_PER_DAY,
+    MAX_TRIALS_PER_IP_PER_DAY,
     SESSION_DAYS,
+    TRIAL_ACCOUNT_DAYS,
     Settings,
 )
 from projet_recherche_emploi.container import build_container
 from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
+from projet_recherche_emploi.data.models import TrialStart
 from projet_recherche_emploi.data.repositories.job_repository import JobRepository
 from projet_recherche_emploi.data.repositories.user_repository import UserRepository
 from projet_recherche_emploi.schemas import DELETE_REASONS
@@ -102,6 +106,8 @@ def test_config_tells_the_front_how_to_log_in(client, tmp_path):
     assert client.get("/api/config").json() == {
         "login_mode": "google",
         "google_client_id": "id.apps.googleusercontent.com",
+        # Sans MAX_TRIALS_PER_DAY, aucun essai sans compte n'est proposé
+        "trial": None,
         "contract_types": CONTRACT_TYPES,
         "delete_reasons": [{"code": code, "label": label} for code, label in DELETE_REASONS.items()],
     }
@@ -173,8 +179,8 @@ def test_every_route_is_covered_by_the_identity_test(client):
         # Routes publiques : elles ne lisent aucune donnée d'utilisateur, et ont leurs propres tests
         if path not in ("/api/health", "/api/config")
         for method in operations
-        # La déconnexion ne lit aucune donnée : elle a son propre test
-        if (method, path) != ("delete", "/api/session")
+        # La déconnexion ne lit aucune donnée, et l'essai sans compte s'ouvre sans identité : ils ont leurs tests
+        if (method, path) not in (("delete", "/api/session"), ("post", "/api/session/trial"))
     }
 
     assert routes == set(tested)
@@ -192,6 +198,7 @@ def test_account_tells_who_is_calling(client):
     assert owner == {
         "user_id": DEFAULT_USER_ID,
         "is_owner": True,
+        "is_trial": False,
         "is_admin": True,
         "email": "proprietaire@exemple.fr",
         "name": "Proprietaire",
@@ -976,3 +983,184 @@ def test_uploaded_cv_loses_the_name_of_the_google_account(client, valid_pdf, mon
     user_id = client.get("/api/me", headers=ALICE).json()["user_id"]
     # Le faux Google de ces tests donne « Alice » pour nom de compte
     assert client.app.state.container.cv.read_text(user_id) == "[nom] Durand, [e-mail], Python"
+
+
+TRIAL_SETTINGS = {
+    "google_client_id": "id.apps.googleusercontent.com",
+    "owner_email": "proprietaire@exemple.fr",
+    "allowed_emails": "alice@exemple.fr",
+    "auth_cookie_secret": SECRET,
+    "max_trials_per_day": 5,
+}
+
+
+def test_trial_is_not_offered_unless_the_instance_opens_it(client):
+    assert client.get("/api/config").json()["trial"] is None
+    assert client.post("/api/session/trial").status_code == 404
+    assert "session" not in client.cookies
+
+
+def test_trial_account_gets_a_single_search_ever(tmp_path, valid_pdf):
+    client = make_client(tmp_path, **TRIAL_SETTINGS)
+    assert client.get("/api/config").json()["trial"] == "available"
+
+    # Sans aucune preuve d'identité : un cookie, et un compte à soi
+    opened = client.post("/api/session/trial")
+
+    assert opened.status_code == 200 and "httponly" in opened.headers["set-cookie"].lower()
+    account = opened.json()
+    assert (account["is_trial"], account["is_owner"], account["is_admin"]) == (True, False, False)
+    assert (account["email"], account["name"], account["remaining_searches"]) == (None, None, 1)
+    assert account["user_id"] not in (DEFAULT_USER_ID, client.get("/api/me", headers=ALICE).json()["user_id"])
+    # Il part d'une liste vide, pas des recherches du propriétaire, et le suivi lui est fermé
+    assert client.get("/api/queries").json() == []
+    assert client.get("/api/admin/usage").status_code == 403
+
+    client.put("/api/cv", files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    client.post("/api/queries", json=QUERY)
+    assert client.post("/api/searches").status_code == 200
+    assert len(client.get("/api/jobs").json()) == 1
+    assert client.get("/api/me").json()["remaining_searches"] == 0
+
+    # Une seule recherche, en tout et pour tout
+    refused = client.post("/api/searches")
+    assert refused.status_code == 429 and "Nombre d'essais épuisé" in refused.json()["detail"]
+
+
+def test_trial_visitor_keeps_the_same_account_without_renewing_the_cookie(tmp_path):
+    client = make_client(tmp_path, **TRIAL_SETTINGS)
+    first = client.post("/api/session/trial")
+
+    # Un second clic rend le même compte, et ne compte pas comme un nouvel essai
+    again = client.post("/api/session/trial")
+
+    assert again.json()["user_id"] == first.json()["user_id"]
+    # Comme toute session : un cookie ne se prolonge pas lui-même
+    assert "set-cookie" not in again.headers
+    with client.app.state.container.database.session() as session:
+        assert UserRepository(session).count_trial_starts(datetime(2000, 1, 1, tzinfo=UTC)) == 1
+
+
+def test_trials_are_capped_by_address_then_for_the_whole_instance(tmp_path):
+    client = make_client(tmp_path, **TRIAL_SETTINGS | {"max_trials_per_day": MAX_TRIALS_PER_IP_PER_DAY + 1})
+    here, elsewhere = {"Fly-Client-IP": "203.0.113.7"}, {"Fly-Client-IP": "198.51.100.9"}
+
+    # Effacer son cookie ne redonne pas un essai sans fin
+    for _ in range(MAX_TRIALS_PER_IP_PER_DAY):
+        client.cookies.clear()
+        assert client.post("/api/session/trial", headers=here).status_code == 200
+    client.cookies.clear()
+    refused = client.post("/api/session/trial", headers=here)
+    assert refused.status_code == 429 and "depuis votre connexion" in refused.json()["detail"]
+    assert "session" not in client.cookies
+
+    # Une autre adresse a encore droit au dernier essai du jour, puis plus personne
+    assert client.get("/api/config").json()["trial"] == "available"
+    assert client.post("/api/session/trial", headers=elsewhere).status_code == 200
+    client.cookies.clear()
+    assert client.get("/api/config").json()["trial"] == "exhausted"
+    exhausted = client.post("/api/session/trial", headers={"Fly-Client-IP": "192.0.2.1"})
+    assert exhausted.status_code == 429 and "épuisés pour aujourd'hui" in exhausted.json()["detail"]
+
+    # Ni adresse ni compte dans ce qui est gardé : une empreinte
+    with client.app.state.container.database.session() as session:
+        hashes = set(session.scalars(select(TrialStart.ip_hash)))
+    assert len(hashes) == 2 and not any("203.0.113.7" in value or len(value) != 64 for value in hashes)
+
+
+def test_trial_cannot_be_opened_from_another_site(tmp_path):
+    client = make_client(tmp_path, **TRIAL_SETTINGS)
+
+    assert client.post("/api/session/trial", headers=FOREIGN_ORIGIN).status_code == 403
+    assert "session" not in client.cookies
+
+
+def test_deleted_trial_account_closes_its_session_and_does_not_give_the_trial_back(tmp_path):
+    client = make_client(tmp_path, **TRIAL_SETTINGS | {"max_trials_per_day": 1})
+    token = client.post("/api/session/trial").cookies["session"]
+
+    assert client.delete("/api/me").status_code == 204
+
+    # Le cookie gardé de côté ne désigne plus personne
+    client.cookies.set("session", token)
+    assert client.get("/api/me").status_code == 401
+    client.cookies.clear()
+    # L'essai du jour reste compté : supprimer son compte n'en rend pas un
+    assert client.post("/api/session/trial").status_code == 429
+
+
+def test_closing_trials_closes_the_trial_sessions(tmp_path):
+    token = make_client(tmp_path, **TRIAL_SETTINGS).post("/api/session/trial").cookies["session"]
+
+    closed = make_client(tmp_path, **TRIAL_SETTINGS | {"max_trials_per_day": 0})
+    closed.cookies.set("session", token)
+
+    assert closed.get("/api/me").status_code == 401
+
+
+def test_trial_accounts_are_deleted_once_their_cookie_has_expired(tmp_path, valid_pdf):
+    client = make_client(tmp_path, **TRIAL_SETTINGS)
+    trial_id = client.post("/api/session/trial").json()["user_id"]
+    client.put("/api/cv", files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    account = client.app.state.container.account
+    now = datetime.now(UTC)
+
+    assert account.delete_inactive_accounts(now + timedelta(days=TRIAL_ACCOUNT_DAYS - 1)) == 0
+    assert client.get("/api/me").status_code == 200
+
+    # Actif ou non : passé ce délai, plus aucun cookie ne mène à ce compte
+    assert account.delete_inactive_accounts(now + timedelta(days=TRIAL_ACCOUNT_DAYS + 1)) == 1
+    assert client.get("/api/me").status_code == 401
+    assert client.app.state.container.cv.get_status(trial_id).updated_at is None
+
+
+def test_daily_budget_stops_everyone_but_the_owner(tmp_path, valid_pdf):
+    # Une recherche du faux moteur coûte 0,016 $ par poste recherché : la première suffit à atteindre ce budget
+    client = make_client(tmp_path, **TRIAL_SETTINGS | {"daily_budget_usd": 0.01})
+    for headers in (OWNER, ALICE):
+        client.put("/api/cv", headers=headers, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    client.post("/api/queries", headers=ALICE, json=QUERY)
+    assert client.get("/api/config").json()["trial"] == "available"
+
+    assert client.post("/api/searches", headers=ALICE).status_code == 200
+
+    # Le budget du jour est atteint : ni recherche ni essai avant demain, et le quota d'Alice n'est pas entamé
+    refused = client.post("/api/searches", headers=ALICE)
+    assert refused.status_code == 429 and "budget du jour" in refused.json()["detail"]
+    assert client.get("/api/me", headers=ALICE).json()["remaining_searches"] == MAX_SEARCHES_PER_DAY - 1
+    assert client.get("/api/config").json()["trial"] == "exhausted"
+    assert client.post("/api/session/trial").status_code == 429
+    # Le propriétaire, lui, cherche toujours : c'est lui qui paie
+    assert client.post("/api/searches", headers=OWNER).status_code == 200
+
+    budget = client.get("/api/admin/budget", headers=OWNER).json()
+    assert (budget["daily_budget_usd"], budget["daily_budget_reached"]) == (0.01, True)
+    assert budget["today_spent_usd"] == round(0.016 * (1 + len(DEFAULT_QUERIES)), 6)
+
+
+def test_trial_accounts_are_followed_apart_from_the_users(tmp_path, valid_pdf):
+    client = make_client(tmp_path, **TRIAL_SETTINGS)
+    client.get("/api/me", headers=ALICE)
+    client.post("/api/session/trial")
+    client.put("/api/cv", files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    client.post("/api/queries", json=QUERY)
+    client.post("/api/searches")
+    client.cookies.clear()
+
+    journeys = client.get("/api/admin/journeys", headers=OWNER).json()
+
+    # Un essai ne compte pas parmi les utilisateurs : il a ses propres étapes
+    assert (journeys["guests"], journeys["trials"]) == (1, 1)
+    assert [step["count"] for step in journeys["steps"]][:2] == [1, 0]
+    reached = {step["label"]: step["count"] for step in journeys["trial_steps"]}
+    assert (reached["CV déposé"], reached["Recherche lancée"], reached["Candidature envoyée"]) == (1, 1, 0)
+    [trial] = [account for account in journeys["accounts"] if account["is_trial"]]
+    assert (trial["email"], trial["step"]) == (None, "Offre retenue")
+
+    # Sa consommation porte sa formule, et lui survit sous cette formule
+    usage = client.get("/api/admin/usage", headers=OWNER).json()
+    assert [(row["plan"], row["deleted"]) for row in usage["accounts"]] == [("trial", False)]
+    client.app.state.container.account.delete_account(trial["user_id"])
+    usage = client.get("/api/admin/usage", headers=OWNER).json()
+    assert [(row["plan"], row["deleted"]) for row in usage["accounts"]] == [("trial", True)]
+    assert client.get("/api/admin/journeys", headers=OWNER).json()["trials"] == 0

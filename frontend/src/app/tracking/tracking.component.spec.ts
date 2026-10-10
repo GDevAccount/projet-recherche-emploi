@@ -225,12 +225,15 @@ function budget(values: Partial<BudgetOverview> = {}): BudgetOverview {
     projected_rate: 0.93,
     over_budget: false,
     projected_over_budget: false,
+    daily_budget_usd: 0,
+    today_spent_usd: 0,
+    daily_budget_reached: false,
     ...values,
   };
 }
 
 function journeys(values: Partial<JourneyOverview> = {}): JourneyOverview {
-  return { guests: 0, steps: [], accounts: [], ...values };
+  return { guests: 0, steps: [], trials: 0, trial_steps: [], accounts: [], ...values };
 }
 
 function week(start: string, values: Partial<WeekStats> = {}): WeekStats {
@@ -269,7 +272,7 @@ describe('TrackingComponent', () => {
   let spending = budget();
   beforeEach(() => (spending = budget()));
 
-  /** Ce que l'API répond pour le parcours des invités : un test le change avant d'appeler serve. */
+  /** Ce que l'API répond pour le parcours des utilisateurs : un test le change avant d'appeler serve. */
   let guests = journeys();
   beforeEach(() => (guests = journeys()));
 
@@ -557,7 +560,7 @@ describe('TrackingComponent', () => {
       'Projection en fin de mois 9,30 $',
       'Moyenne par jour 0,300 $',
       'Jours restants 23',
-      'Dont les invités 0,400 $',
+      'Dont les autres comptes 0,400 $',
     ]);
   });
 
@@ -603,6 +606,7 @@ describe('TrackingComponent', () => {
           user_id: 2,
           email: 'alice@exemple.fr',
           is_owner: false,
+          is_trial: false,
           created_at: '2026-10-01T08:00:00Z',
           last_seen_at: '2026-10-08T00:00:00Z',
           has_cv: true,
@@ -622,6 +626,7 @@ describe('TrackingComponent', () => {
           user_id: 1,
           email: null,
           is_owner: true,
+          is_trial: false,
           created_at: '2026-09-01T08:00:00Z',
           last_seen_at: null,
           has_cv: false,
@@ -642,7 +647,7 @@ describe('TrackingComponent', () => {
     await serve(stats({ runs: 0 }), []);
 
     const card = element().querySelector('app-journeys-card')!;
-    expect(text(card.querySelector('h2'))).toBe('4 invités');
+    expect(text(card.querySelector('h2'))).toBe('4 utilisateurs');
     expect([...card.querySelectorAll('.steps li')].map((step) => text(step))).toEqual([
       'Compte créé 4 100 %',
       'Recherche lancée 2 50 %',
@@ -704,9 +709,9 @@ describe('TrackingComponent', () => {
     await serve(stats({ runs: 0 }), []);
 
     const card = element().querySelector('app-journeys-card')!;
-    expect(text(card.querySelector('h2'))).toBe('0 invité');
+    expect(text(card.querySelector('h2'))).toBe('0 utilisateur');
     expect(card.querySelector('.steps')).toBeNull();
-    expect(text(card)).toContain("Aucun invité pour l'instant");
+    expect(text(card)).toContain("Aucun utilisateur pour l'instant");
   });
 
   it('should draw the last weeks, one chart for each measure', async () => {
@@ -741,7 +746,7 @@ describe('TrackingComponent', () => {
     await serve(stats());
 
     const card = element().querySelector('app-usage-card')!;
-    expect(text(card.querySelector('h2'))).toBe('0,516 $ dont 0,181 $ pour les invités');
+    expect(text(card.querySelector('h2'))).toBe('0,516 $ dont 0,181 $ pour les autres comptes');
     expect([...card.querySelectorAll('tbody th')].map((cell) => text(cell))).toEqual([
       'Propriétaire',
       'compte2@exemple.fr',

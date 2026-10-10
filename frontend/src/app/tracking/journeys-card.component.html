@@ -1,14 +1,14 @@
 <section class="app-card">
   <header>
-    <span class="app-eyebrow">Parcours des invités</span>
+    <span class="app-eyebrow">Parcours des utilisateurs</span>
     @if (journeys(); as journeys) {
       <h2>
         <strong>{{ journeys.guests | count }}</strong>
-        {{ journeys.guests > 1 ? 'invités' : 'invité' }}
+        {{ journeys.guests > 1 ? 'utilisateurs' : 'utilisateur' }}
       </h2>
     }
     <p>
-      Jusqu'où vont les personnes que vous invitez. Un invité qui postule aux offres retenues et qui
+      Jusqu'où vont les personnes qui se connectent. Un utilisateur qui postule aux offres retenues et qui
       revient un autre jour, c'est la preuve que l'application lui sert.
     </p>
   </header>
@@ -31,9 +31,29 @@
       </ol>
     } @else {
       <p class="hint">
-        Aucun invité pour l'instant. Les personnes que vous ajoutez à <code>ALLOWED_EMAILS</code>
+        Aucun utilisateur pour l'instant. Les personnes autorisées par <code>ALLOWED_EMAILS</code>
         apparaîtront ici dès leur première connexion.
       </p>
+    }
+
+    @if (journeys.trials) {
+      <h3 class="trials">
+        <strong>{{ journeys.trials | count }}</strong>
+        {{ journeys.trials > 1 ? "comptes d'essai" : "compte d'essai" }}
+        <small>sans connexion, une seule recherche : ils ne comptent pas ci-dessus</small>
+      </h3>
+      <ol class="steps">
+        @for (step of journeys.trial_steps; track step.label) {
+          <li>
+            <span class="label">{{ step.label }}</span>
+            <span class="track"><span [style.width.%]="(step.rate ?? 0) * 100"></span></span>
+            <span class="value">
+              <strong>{{ step.count | count }}</strong>
+              <small>{{ step.rate | share }}</small>
+            </span>
+          </li>
+        }
+      </ol>
     }
 
     <div class="scroll">
@@ -64,6 +84,9 @@
                 >
                   {{ nameOf(account) }}
                 </button>
+                @if (account.is_trial) {
+                  <small>essai</small>
+                }
                 @if (account.returned) {
                   <small>revenu</small>
                 }
@@ -151,9 +174,10 @@
 
     <small class="note">
       Cliquez sur un compte pour voir sa fiche. Des dates, des nombres et des motifs seulement : ni
-      les postes recherchés, ni les offres d'un autre compte. Un compte supprimé quitte ce tableau.
+      les postes recherchés, ni les offres d'un autre compte. Un compte supprimé quitte ce tableau, et un
+      compte d'essai l'est au bout de 30 jours.
     </small>
   } @else {
-    <p class="hint">Chargement du parcours des invités…</p>
+    <p class="hint">Chargement du parcours des utilisateurs…</p>
   }
 </section>

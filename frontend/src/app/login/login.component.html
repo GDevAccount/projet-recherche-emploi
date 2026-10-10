@@ -88,6 +88,27 @@
           </p-message>
         }
       }
+      @if (loaded.trial === 'available') {
+        <div class="trial">
+          <span class="or">ou</span>
+          <button type="button" class="trial-button" [disabled]="pending()" (click)="startTrial()">
+            Essayer sans compte
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14m-6-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <p class="terms">
+            Une recherche offerte, avec votre CV. En essayant, vous acceptez les
+            <a href="/conditions">conditions d'utilisation</a> et les
+            <a href="/confidentialite">règles de confidentialité</a>.
+          </p>
+        </div>
+      } @else if (loaded.trial === 'exhausted') {
+        <div class="trial">
+          <span class="or">ou</span>
+          <p class="terms">Les essais sans compte sont épuisés pour aujourd'hui : revenez demain.</p>
+        </div>
+      }
     }
     @if (error()) {
       <p-message severity="error" class="error">{{ error() }}</p-message>

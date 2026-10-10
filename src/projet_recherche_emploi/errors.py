@@ -21,7 +21,11 @@ class ConflictError(AppError):
 
 
 class QuotaExceededError(AppError):
-    """Le quota journalier de recherches de l'utilisateur est atteint."""
+    """Le quota de recherches de l'utilisateur, ou celui des essais sans compte, est atteint."""
+
+
+class BudgetReachedError(AppError):
+    """Le budget du jour de l'instance est atteint : plus de recherche avant le lendemain."""
 
 
 class ConfigurationError(AppError):

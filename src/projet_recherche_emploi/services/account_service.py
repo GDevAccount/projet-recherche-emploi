@@ -2,7 +2,7 @@ import logging
 import threading
 from datetime import UTC, date, datetime, timedelta
 
-from projet_recherche_emploi.config import DEFAULT_PLAN, INACTIVE_ACCOUNT_DAYS
+from projet_recherche_emploi.config import DEFAULT_PLAN, INACTIVE_ACCOUNT_DAYS, TRIAL_ACCOUNT_DAYS, TRIAL_PLAN
 from projet_recherche_emploi.data.database import Database
 from projet_recherche_emploi.data.repositories.activity_repository import ActivityRepository
 from projet_recherche_emploi.data.repositories.correction_repository import CorrectionRepository
@@ -47,7 +47,8 @@ class AccountService:
             RejectedJobRepository(session, user_id).clear()
             QueryRepository(session, user_id).delete_all()
             # Avant d'effacer les lancements : ce qu'ils ont consommé reste, en totaux mensuels sans adresse
-            UsageRepository(session).archive_account(user_id, DEFAULT_PLAN, datetime.now(UTC))
+            plan = TRIAL_PLAN if UserRepository(session).is_trial(user_id) else DEFAULT_PLAN
+            UsageRepository(session).archive_account(user_id, plan, datetime.now(UTC))
             SearchRunRepository(session, user_id).delete_all()
             PageEvaluationRepository(session, user_id).delete_all()
             CorrectionRepository(session, user_id).delete_all()
@@ -76,16 +77,22 @@ class AccountService:
             logger.exception("La suppression des comptes inactifs a échoué")
 
     def delete_inactive_accounts(self, now: datetime | None = None) -> int:
-        """Supprime les comptes d'invités sans activité depuis INACTIVE_ACCOUNT_DAYS, et renvoie leur nombre.
+        """Supprime les comptes sans activité depuis INACTIVE_ACCOUNT_DAYS, et renvoie leur nombre.
 
-        Le propriétaire n'est jamais concerné. Un invité retiré de ALLOWED_EMAILS, qui ne peut plus
-        se connecter, finit donc par être effacé sans avoir à le demander.
+        Le propriétaire n'est jamais concerné. Un utilisateur retiré de ALLOWED_EMAILS, qui ne peut plus
+        se connecter, finit donc par être effacé sans avoir à le demander. Un compte d'essai, lui, part
+        TRIAL_ACCOUNT_DAYS après son ouverture, actif ou non : son cookie a expiré, personne n'y reviendra.
         """
-        since = (now or datetime.now(UTC)) - timedelta(days=INACTIVE_ACCOUNT_DAYS)
+        now = now or datetime.now(UTC)
         with self.database.session() as session:
-            user_ids = UserRepository(session).list_inactive_user_ids(since)
-        for user_id in user_ids:
+            users = UserRepository(session)
+            inactive_ids = users.list_inactive_user_ids(now - timedelta(days=INACTIVE_ACCOUNT_DAYS))
+            trial_ids = users.list_expired_trial_user_ids(now - timedelta(days=TRIAL_ACCOUNT_DAYS))
+        for user_id in inactive_ids:
             self.delete_account(user_id)
             # L'identifiant seul : l'adresse vient d'être effacée, elle n'a rien à faire dans les logs
             logger.info("Compte %d supprimé après %d jours sans activité", user_id, INACTIVE_ACCOUNT_DAYS)
-        return len(user_ids)
+        for user_id in trial_ids:
+            self.delete_account(user_id)
+            logger.info("Compte d'essai %d supprimé %d jours après son ouverture", user_id, TRIAL_ACCOUNT_DAYS)
+        return len(inactive_ids) + len(trial_ids)
