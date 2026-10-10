@@ -82,7 +82,7 @@ La même commande a d'autres usages :
 | `uv run jobgrep` (ou `search`) | Lance une recherche pour le propriétaire |
 | `uv run jobgrep graph` | Génère le schéma du graph dans `graph.png` |
 | `uv run jobgrep migrate` | Crée la base ou l'amène à la dernière version du schéma |
-| `uv run jobgrep purge` | Supprime les comptes d'invités inactifs depuis trop longtemps. Le serveur le fait aussi, une fois par jour |
+| `uv run jobgrep purge` | Supprime les comptes d'invités inactifs depuis trop longtemps, et les données dont la durée de conservation est passée (texte des questions à l'assistant, erreurs, ouvertures d'essais). Le serveur le fait aussi, une fois par jour |
 | `uv run jobgrep index` | Prépare les textes du site pour l'assistant : situe les passages qui ont changé (appel à OpenAI, une fraction de centime). L'image Docker le fait avant de servir, pour que la première question n'attende pas ; un échec ne bloque pas le démarrage |
 | `uv run jobgrep evaluate` | Pose à l'assistant ses questions de référence, fait noter ses réponses par un modèle, et enregistre les mesures (voir [Évaluer l'assistant](#évaluer-lassistant)). Appelle OpenAI : quelques centimes par passage |
 | `uv run jobgrep api` | Sert l'application en développement sur `http://127.0.0.1:8000`, avec la documentation de l'[API](#api) |
