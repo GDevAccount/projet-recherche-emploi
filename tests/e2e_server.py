@@ -13,9 +13,9 @@ from pathlib import Path
 import uvicorn
 from conftest import FakeEvaluator, FakeSearchEngine
 
-from projet_recherche_emploi.api.main import create_app
-from projet_recherche_emploi.config import Settings, configure_logging
-from projet_recherche_emploi.container import build_container
+from jobgrep.api.main import create_app
+from jobgrep.config import Settings, configure_logging
+from jobgrep.container import build_container
 
 FRONTEND_DIR = Path(__file__).parents[1] / "frontend" / "dist" / "frontend" / "browser"
 # Le même que dans frontend/e2e/ : sans connexion Google, il ouvre le compte du propriétaire

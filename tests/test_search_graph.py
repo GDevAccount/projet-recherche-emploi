@@ -5,8 +5,8 @@ from helpers import blank_pdf
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
 
-from projet_recherche_emploi.agent.adapters import OpenAIJobEvaluator
-from projet_recherche_emploi.agent.nodes import (
+from jobgrep.agent.adapters import OpenAIJobEvaluator
+from jobgrep.agent.nodes import (
     ANYWHERE_IN_FRANCE,
     accepts_full_remote,
     build_criteria,
@@ -17,18 +17,18 @@ from projet_recherche_emploi.agent.nodes import (
     format_work_location,
     location_is_accepted,
 )
-from projet_recherche_emploi.agent.ports import EvaluationUsage, JobEvaluation, SearchCriteria
-from projet_recherche_emploi.config import FILTER_MODEL, MAX_PAGE_CHARS
-from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
-from projet_recherche_emploi.data.repositories.cv_text_repository import CvTextRepository
-from projet_recherche_emploi.data.repositories.job_repository import JobRepository
-from projet_recherche_emploi.data.repositories.page_evaluation_repository import PageEvaluationRepository
-from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
-from projet_recherche_emploi.data.repositories.rejected_job_repository import RejectedJobRepository
-from projet_recherche_emploi.errors import InvalidInputError
-from projet_recherche_emploi.schemas import SearchProgress
-from projet_recherche_emploi.services.search_costs import model_cost_usd, search_cost_usd, total_cost_usd
-from projet_recherche_emploi.services.search_service import site_of
+from jobgrep.agent.ports import EvaluationUsage, JobEvaluation, SearchCriteria
+from jobgrep.config import FILTER_MODEL, MAX_PAGE_CHARS
+from jobgrep.data.cv_ingestion.pdf_reader import CvPdfReader
+from jobgrep.data.repositories.cv_text_repository import CvTextRepository
+from jobgrep.data.repositories.job_repository import JobRepository
+from jobgrep.data.repositories.page_evaluation_repository import PageEvaluationRepository
+from jobgrep.data.repositories.query_repository import QueryRepository
+from jobgrep.data.repositories.rejected_job_repository import RejectedJobRepository
+from jobgrep.errors import InvalidInputError
+from jobgrep.schemas import SearchProgress
+from jobgrep.services.search_costs import model_cost_usd, search_cost_usd, total_cost_usd
+from jobgrep.services.search_service import site_of
 
 ALICE = 1
 BOB = 2

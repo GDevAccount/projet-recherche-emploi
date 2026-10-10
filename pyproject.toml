@@ -1,7 +1,7 @@
 [project]
-name = "projet-recherche-emploi"
+name = "jobgrep"
 version = "0.1.0"
-description = "Tamis, agent de recherche d'emploi : cherche des offres, les filtre selon le CV et suit les candidatures"
+description = "JobGrep, agent de recherche d'emploi : cherche des offres, les filtre selon le CV et suit les candidatures"
 readme = "README.md"
 authors = [
     { name = "Guillaume", email = "legall.guilla@gmail.com" }
@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [project.scripts]
-projet-recherche-emploi = "projet_recherche_emploi.cli:main"
+jobgrep = "jobgrep.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13.0"]
@@ -53,4 +53,4 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 # Un paramètre « Depends(...) » par défaut est la façon de faire de FastAPI
-"src/projet_recherche_emploi/api/*" = ["B008"]
+"src/jobgrep/api/*" = ["B008"]

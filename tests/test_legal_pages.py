@@ -2,8 +2,8 @@ import pytest
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
-from projet_recherche_emploi.api.public_pages import build_routes
-from projet_recherche_emploi.config import (
+from jobgrep.api.public_pages import build_routes
+from jobgrep.config import (
     INACTIVE_ACCOUNT_DAYS,
     MAX_SEARCHES_PER_DAY,
     MAX_TRIAL_SEARCHES,

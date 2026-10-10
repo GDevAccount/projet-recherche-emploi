@@ -11,7 +11,7 @@ import {
 } from './core/paths';
 import { LoginComponent } from './login/login.component';
 
-const titled = (section: string) => `${section} · Tamis`;
+const titled = (section: string) => `${section} · JobGrep`;
 
 export const routes: Routes = [
   { path: LOGIN_PATH, component: LoginComponent, canActivate: [loginGuard], title: titled('Connexion') },

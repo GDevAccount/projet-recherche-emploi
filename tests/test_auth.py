@@ -3,11 +3,11 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from helpers import job
 
-from projet_recherche_emploi.config import DEFAULT_USER_ID, Settings
-from projet_recherche_emploi.data.repositories.job_repository import JobRepository
-from projet_recherche_emploi.data.repositories.user_repository import UserRepository
-from projet_recherche_emploi.errors import ConfigurationError
-from projet_recherche_emploi.services.auth_service import AuthService
+from jobgrep.config import DEFAULT_USER_ID, Settings
+from jobgrep.data.repositories.job_repository import JobRepository
+from jobgrep.data.repositories.user_repository import UserRepository
+from jobgrep.errors import ConfigurationError
+from jobgrep.services.auth_service import AuthService
 
 
 def auth_service(database, **settings) -> AuthService:

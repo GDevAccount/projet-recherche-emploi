@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-import projet_recherche_emploi
+import jobgrep
 
-PACKAGE = "projet_recherche_emploi"
-SOURCE_DIR = Path(projet_recherche_emploi.__file__).parent
+PACKAGE = "jobgrep"
+SOURCE_DIR = Path(jobgrep.__file__).parent
 
 # Couche -> couches et modules du paquet qu'elle a le droit d'importer
 ALLOWED = {

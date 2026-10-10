@@ -109,7 +109,7 @@ describe('ShellComponent', () => {
     it('should open by itself for a newcomer, and walk through every screen with the arrows', async () => {
       await openSession(GUEST);
 
-      expect(title()).toBe('Tamis lit les annonces à votre place');
+      expect(title()).toBe('JobGrep lit les annonces à votre place');
       expect(text(tour()!.querySelector('.app-eyebrow')!)).toBe('Comment ça marche · 1 / 5');
       expect(tour()!.querySelector<HTMLButtonElement>('button[aria-label="Écran précédent"]')!.disabled).toBe(true);
 

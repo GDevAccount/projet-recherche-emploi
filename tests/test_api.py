@@ -9,9 +9,9 @@ from fastapi.testclient import TestClient
 from helpers import blank_pdf, job
 from sqlalchemy import select
 
-from projet_recherche_emploi.api.main import create_app
-from projet_recherche_emploi.api.security import Identity
-from projet_recherche_emploi.config import (
+from jobgrep.api.main import create_app
+from jobgrep.api.security import Identity
+from jobgrep.config import (
     CONTRACT_TYPES,
     DEFAULT_QUERIES,
     DEFAULT_USER_ID,
@@ -23,12 +23,12 @@ from projet_recherche_emploi.config import (
     TRIAL_ACCOUNT_DAYS,
     Settings,
 )
-from projet_recherche_emploi.container import build_container
-from projet_recherche_emploi.data.cv_ingestion.pdf_reader import CvPdfReader
-from projet_recherche_emploi.data.models import TrialStart
-from projet_recherche_emploi.data.repositories.job_repository import JobRepository
-from projet_recherche_emploi.data.repositories.user_repository import UserRepository
-from projet_recherche_emploi.schemas import DELETE_REASONS
+from jobgrep.container import build_container
+from jobgrep.data.cv_ingestion.pdf_reader import CvPdfReader
+from jobgrep.data.models import TrialStart
+from jobgrep.data.repositories.job_repository import JobRepository
+from jobgrep.data.repositories.user_repository import UserRepository
+from jobgrep.schemas import DELETE_REASONS
 
 ALICE = {"Authorization": "Bearer jeton-alice"}
 BOB = {"Authorization": "Bearer jeton-bob"}
@@ -493,7 +493,7 @@ def test_administrator_can_check_that_alerts_arrive(client, tmp_path):
     alerting = TestClient(create_app(container, FakeIdentityVerifier()), base_url="http://localhost")
 
     assert alerting.post("/api/admin/alerts/test", headers=PASSWORD).json() == {"sent": True}
-    assert notifier.sent == [("Alerte d'essai", "Les alertes de Tamis arrivent bien ici.")]
+    assert notifier.sent == [("Alerte d'essai", "Les alertes de JobGrep arrivent bien ici.")]
     assert alerting.get("/api/admin/health", headers=PASSWORD).json()["alerts_enabled"] is True
     # Le sujet se lit comme un secret : rien de public ne le donne
     assert "ntfy" not in alerting.get("/api/config").text

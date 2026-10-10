@@ -1,7 +1,7 @@
 {
-  "name": "Tamis · Recherche d'emploi",
-  "short_name": "Tamis",
-  "description": "Tamis cherche des offres d'emploi sur le web et ne garde que celles qui correspondent à votre CV.",
+  "name": "JobGrep · Recherche d'emploi",
+  "short_name": "JobGrep",
+  "description": "JobGrep cherche des offres d'emploi sur le web et ne garde que celles qui correspondent à votre CV.",
   "lang": "fr",
   "start_url": "/",
   "scope": "/",

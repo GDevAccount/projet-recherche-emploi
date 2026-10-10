@@ -5,12 +5,12 @@ import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.runtime.migration import MigrationContext
 
-from projet_recherche_emploi.config import DEFAULT_QUERIES, DEFAULT_USER_ID
-from projet_recherche_emploi.data.database import Database
-from projet_recherche_emploi.data.models import Base
-from projet_recherche_emploi.data.repositories.job_repository import JobRepository
-from projet_recherche_emploi.data.repositories.query_repository import QueryRepository
-from projet_recherche_emploi.data.repositories.user_repository import UserRepository
+from jobgrep.config import DEFAULT_QUERIES, DEFAULT_USER_ID
+from jobgrep.data.database import Database
+from jobgrep.data.models import Base
+from jobgrep.data.repositories.job_repository import JobRepository
+from jobgrep.data.repositories.query_repository import QueryRepository
+from jobgrep.data.repositories.user_repository import UserRepository
 
 TABLES = {
     "jobs",
