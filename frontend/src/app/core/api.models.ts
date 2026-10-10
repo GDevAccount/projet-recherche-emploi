@@ -654,6 +654,10 @@ export interface AssistantEvaluationCase {
   /** Le modèle a-t-il consulté le compte, et le devait-il ; null si la question ne le dit pas */
   consulted: boolean;
   consult_expected: boolean | null;
+  /** Outils appelés, outils attendus, et si le compte a été consulté comme il le fallait ; null si rien n'est attendu */
+  tools: string[];
+  expected_tools: string[];
+  consulted_well: boolean | null;
   faithful: boolean | null;
   correct: boolean | null;
   judge_reason: string;

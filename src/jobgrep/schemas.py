@@ -870,6 +870,10 @@ class AssistantEvaluationCase(BaseModel):
     # Le modèle a-t-il consulté le compte, et le devait-il ; None si la question ne le dit pas
     consulted: bool = False
     consult_expected: bool | None = None
+    # Outils appelés, outils attendus, et si le compte a été consulté comme il le fallait ; None si rien n'est attendu
+    tools: list[str] = []
+    expected_tools: list[str] = []
+    consulted_well: bool | None = None
     # Avis du juge, et sa raison ; None quand il n'a pas été consulté
     faithful: bool | None
     correct: bool | None

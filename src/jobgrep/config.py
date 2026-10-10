@@ -142,6 +142,9 @@ MAX_ASSISTANT_QUESTIONS_PER_DAY = 20
 MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY = 10
 # Fois où le modèle peut consulter le compte pour une même question : au-delà, il répond avec ce qu'il a
 ASSISTANT_TOOL_ROUNDS = 2
+# Offres, ou pages écartées, qu'un outil rend au modèle : les plus récentes. Au-delà, le texte envoyé à OpenAI
+# grossirait avec le compte, et son coût avec lui
+ASSISTANT_LISTED_ITEMS = 30
 # Et par minute : personne ne lit une réponse en moins de temps, un script qui les enchaîne si
 MAX_ASSISTANT_QUESTIONS_PER_MINUTE = 5
 # Passages du site donnés au modèle pour répondre à une question

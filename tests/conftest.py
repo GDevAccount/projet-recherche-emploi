@@ -124,6 +124,8 @@ class FakeAnswerModel:
         # Vrai : il consulte le compte avant de répondre, avec ces paramètres, et répète ce que l'outil rend
         self.consults = False
         self.tool_args = {}
+        # Outil qu'il appelle ; None : le premier qu'on lui propose
+        self.tool = None
         # Outils qui lui ont été proposés à chaque appel
         self.offered = []
 
@@ -133,7 +135,8 @@ class FakeAnswerModel:
         results = [message.content for message in transcript if isinstance(message, ToolMessage)]
         # Comme le vrai modèle : il demande d'abord l'outil, puis répond avec ce que l'outil a rendu
         if self.consults and tools and not results:
-            call = {"name": tools[0].name, "args": dict(self.tool_args), "id": "appel-1", "type": "tool_call"}
+            name = self.tool or tools[0].name
+            call = {"name": name, "args": dict(self.tool_args), "id": "appel-1", "type": "tool_call"}
             return ModelTurn(AIMessage("", tool_calls=[call]), None), self.usage
         answer = f"Voir « {passages[0].heading} »." if self.outcome == "answered" else ""
         if results and self.outcome == "answered":
