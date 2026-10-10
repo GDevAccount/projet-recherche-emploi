@@ -1,7 +1,9 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { provideRouter } from '@angular/router';
+import { of } from 'rxjs';
 
 import { AssistantConversation, AssistantMessage, AssistantProgress } from '../core/api.models';
 import { FETCH } from '../core/search-run.service';
@@ -177,7 +179,8 @@ describe('AssistantComponent', () => {
     stream.push(progress({ answer: 'Ouvrez la rubrique' }));
     await settle();
     expect(text()).toContain('Ouvrez la rubrique');
-    expect(text()).not.toContain('Je rédige la réponse…');
+    // Les points d'attente laissent la place au texte ; l'étape, elle, reste dite aux lecteurs d'écran
+    expect(element().querySelector('.pending')!.textContent).not.toContain('Je rédige la réponse…');
 
     stream.push(event('result', { message: ANSWER, remaining_questions: 19 }));
     stream.end();
@@ -311,11 +314,124 @@ describe('AssistantComponent', () => {
     expect(text()).not.toContain('Je cherche dans les textes');
   });
 
+  it('should give the keyboard back to its button when it closes', async () => {
+    await openWith(conversation({ messages: [ANSWER] }));
+    await settle();
+    // À l'ouverture, le clavier est dans le champ de saisie
+    expect(document.activeElement).toBe(element().querySelector('textarea'));
+    expect(button("Fermer l'assistant").getAttribute('aria-controls')).toBeDefined();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await settle();
+
+    expect(element().querySelector('.panel')).toBeNull();
+    expect(document.activeElement).toBe(button("Ouvrir l'assistant"));
+    expect(button("Ouvrir l'assistant").getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('should leave the keyboard where it is when it was not in the panel', async () => {
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    await openWith(conversation());
+    await settle();
+    outside.focus();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await settle();
+
+    // Fermé au clavier depuis la page : le focus n'y est pas arraché
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it('should tell a screen reader each step, and the answer once, when it is complete', async () => {
+    const stream = controlledStream();
+    fetchMock.mockResolvedValue(stream.response);
+    await openWith(conversation());
+    await type('Comment déposer mon CV ?');
+    const status = () => element().querySelector('[role=status]')!.textContent!.trim();
+
+    button('Envoyer la question').click();
+    await settle();
+    stream.push(progress({ step: 'retrieve' }));
+    await settle();
+    expect(status()).toBe('Je cherche dans les textes du site…');
+    stream.push(progress({ answer: 'Ouvrez la rubrique' }));
+    await settle();
+    // La réponse qui s'écrit est cachée aux lecteurs d'écran : lue à chaque mot, elle serait inaudible
+    const writing = element().querySelector('.pending')!;
+    expect(writing.getAttribute('aria-hidden')).toBe('true');
+    expect(writing.textContent).toContain('Ouvrez la rubrique');
+
+    stream.push(event('result', { message: ANSWER, remaining_questions: 19 }));
+    stream.end();
+    await settle();
+
+    // Terminé, l'échange entre dans le journal de la conversation, qui le fait lire une fois
+    const log = element().querySelector('[role=log]')!;
+    expect(log.querySelector('.pending')).toBeNull();
+    expect(log.textContent).toContain('Ouvrez la rubrique Profil.');
+    expect(status()).toBe('');
+    // Un lien dit où il mène sans son contexte
+    const labels = [...log.querySelectorAll('.sources a')].map((link) =>
+      link.getAttribute('aria-label'),
+    );
+    expect(labels).toEqual([
+      "Ouvrir l'écran : Déposer ou remplacer son CV",
+      'Règles de confidentialité, nouvel onglet',
+    ]);
+  });
+
+  it('should not keep the keyboard inside the panel next to the page', async () => {
+    await openWith(conversation());
+
+    const panel = element().querySelector('.panel')!;
+    expect(panel.getAttribute('aria-modal')).toBeNull();
+    expect(element().querySelectorAll('.cdk-focus-trap-anchor[tabindex="0"]').length).toBe(0);
+  });
+
   it('should stop asking once the daily quota is used', async () => {
     await openWith(conversation({ remaining_questions: 0 }));
 
     expect(text()).toContain("Vous avez posé toutes vos questions d'aujourd'hui.");
     expect(element().querySelector('textarea')!.disabled).toBe(true);
     expect(button('Comment déposer mon CV ?').disabled).toBe(true);
+  });
+});
+
+describe('AssistantComponent on a phone', () => {
+  it('should keep the keyboard inside the panel, which covers the whole screen', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AssistantComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: FETCH, useValue: vi.fn() },
+        {
+          provide: BreakpointObserver,
+          useValue: { observe: () => of({ matches: true, breakpoints: {} }) },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(AssistantComponent);
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+
+    element.querySelector<HTMLButtonElement>('.launcher')!.click();
+    TestBed.inject(HttpTestingController).expectOne('/api/assistant').flush({
+      messages: [],
+      remaining_questions: 20,
+      max_questions_per_day: 20,
+      max_account_questions_per_day: 10,
+      max_question_chars: 500,
+      retention_days: 90,
+    });
+    await fixture.whenStable();
+
+    // La page derrière n'est plus visible : le panneau se déclare modal, et Tab n'en sort plus
+    const panel = element.querySelector('.panel')!;
+    expect(panel.getAttribute('aria-modal')).toBe('true');
+    expect(element.querySelectorAll('.cdk-focus-trap-anchor[tabindex="0"]').length).toBe(2);
   });
 });

@@ -100,6 +100,11 @@ header {
 }
 
 .thread {
+  // Il prend le focus pour défiler au clavier : le contour le dit, à l'intérieur pour ne pas être rogné
+  &:focus-visible {
+    outline-offset: -2px;
+  }
+
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -199,6 +204,24 @@ header {
   a {
     text-underline-offset: 2px;
   }
+}
+
+// Lu par un lecteur d'écran, invisible à l'œil : l'étape en cours de la réponse
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+// Les deux bulles d'un échange en cours se rangent comme celles d'un échange terminé
+.pending {
+  display: contents;
 }
 
 .waiting {
@@ -379,7 +402,8 @@ form {
   }
 }
 
-// Sur un téléphone, la conversation prend tout l'écran : le clavier en mange déjà la moitié
+// Sur un téléphone, la conversation prend tout l'écran : le clavier en mange déjà la moitié.
+// Cette largeur est aussi celle de FULL_SCREEN_QUERY, dans le composant : changer l'une demande de changer l'autre
 @media (max-width: 44rem) {
   :host {
     right: 1rem;
