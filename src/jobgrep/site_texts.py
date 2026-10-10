@@ -15,6 +15,7 @@ from jobgrep.config import (
     JOB_SITES,
     MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY,
     MAX_ASSISTANT_QUESTIONS_PER_DAY,
+    MAX_ASSISTANT_QUESTIONS_PER_MINUTE,
     MAX_SEARCHES_PER_DAY,
     MAX_TRIAL_SEARCHES,
     SERVER_ERROR_DAYS,
@@ -91,6 +92,7 @@ def fill_fields(text: str, contact_email: str = "") -> str:
         "trial_start_hours": TRIAL_START_DAYS * 24,
         "max_questions": MAX_ASSISTANT_QUESTIONS_PER_DAY,
         "max_account_questions": MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY,
+        "max_questions_per_minute": MAX_ASSISTANT_QUESTIONS_PER_MINUTE,
         "assistant_days": ASSISTANT_MESSAGE_DAYS,
     }
     for field, value in values.items():

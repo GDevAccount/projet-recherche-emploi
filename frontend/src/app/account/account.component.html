@@ -42,9 +42,16 @@
       <li>Vos postes recherchés.</li>
       <li>Les offres retenues pour vous, et le suivi de vos candidatures.</li>
       <li>Les pages écartées et la raison de leur rejet.</li>
-      <li>La date de chacune de vos recherches.</li>
+      <li>La date et le bilan chiffré de chacune de vos recherches.</li>
+      <li>Le journal des pages lues pour vous, avec le verdict rendu sur chacune.</li>
+      <li>Vos corrections du tri : les pages que vous avez remises, les offres que vous avez supprimées.</li>
+      <li>Vos questions à l'assistant et ses réponses.</li>
+      <li>Les erreurs que vous avez rencontrées : leur type et leur date, jamais leur contenu.</li>
       @if (account.email && !account.is_owner) {
-        <li>La date de votre dernière utilisation : un compte resté un an sans servir est supprimé.</li>
+        <li>
+          Les jours où vous êtes venu, et la date de votre dernière utilisation : un compte resté un an sans
+          servir est supprimé.
+        </li>
       }
       @if (account.is_trial) {
         <li>La date d'ouverture de votre essai : un compte d'essai est supprimé au bout de 30 jours.</li>
