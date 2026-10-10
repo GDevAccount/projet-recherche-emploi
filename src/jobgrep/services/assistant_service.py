@@ -5,6 +5,7 @@ passages gardés en base, journal des questions. Rien d'un compte n'entre dans u
 """
 
 import json
+import logging
 import threading
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -33,7 +34,7 @@ from jobgrep.data.repositories.assistant_message_repository import (
 )
 from jobgrep.data.repositories.assistant_passage_repository import AssistantPassageRepository
 from jobgrep.data.repositories.usage_repository import UsageRepository
-from jobgrep.errors import BudgetReachedError, InvalidInputError, QuotaExceededError
+from jobgrep.errors import AssistantUnavailableError, BudgetReachedError, InvalidInputError, QuotaExceededError
 from jobgrep.schemas import (
     MAX_QUESTION_CHARS,
     AssistantConversation,
@@ -46,6 +47,9 @@ from jobgrep.schemas import (
 from jobgrep.services.search_costs import model_cost_usd, sum_costs
 from jobgrep.site_texts import SITE_TEXTS, read_site_text
 
+logger = logging.getLogger(__name__)
+
+UNAVAILABLE_MESSAGE = "L'assistant ne répond pas pour l'instant. Réessayez dans un moment."
 # Derniers échanges réaffichés à l'ouverture de l'assistant
 MAX_SHOWN_MESSAGES = 30
 # Dernières questions lues par un administrateur
@@ -124,7 +128,13 @@ class AssistantService:
             recent = messages.list_recent(ASSISTANT_HISTORY_TURNS, now - timedelta(minutes=ASSISTANT_HISTORY_MINUTES))
             history = [Exchange(row.question, row.answer) for row in recent]
 
-        result = self.graph.invoke({"question": question, "history": history})
+        try:
+            result = self.graph.invoke({"question": question, "history": history})
+        except Exception as error:
+            # Le type seulement : le message d'une erreur du modèle peut reprendre la question posée
+            logger.warning("L'assistant n'a pas pu répondre : %s", type(error).__name__)
+            # Rien n'est enregistré : une question restée sans réponse ne compte pas dans le quota
+            raise AssistantUnavailableError(UNAVAILABLE_MESSAGE) from error
         outcome, answer, usage = result["outcome"], result["answer"], result["usage"]
         sources, retrieved = _sources_of(result["cited"]), _sources_of(result["passages"])
 

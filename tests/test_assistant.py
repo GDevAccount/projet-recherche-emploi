@@ -22,7 +22,7 @@ from jobgrep.container import build_container
 from jobgrep.data.models import AssistantMessage, AssistantPassage
 from jobgrep.data.repositories.assistant_message_repository import AssistantMessageRepository
 from jobgrep.data.repositories.user_repository import UserRepository
-from jobgrep.errors import BudgetReachedError, InvalidInputError, QuotaExceededError
+from jobgrep.errors import AssistantUnavailableError, BudgetReachedError, InvalidInputError, QuotaExceededError
 from jobgrep.schemas import MAX_QUESTION_CHARS
 from jobgrep.site_texts import SITE_TEXTS, read_site_text
 
@@ -280,6 +280,21 @@ def test_daily_budget_stops_the_questions_except_the_owner_s(container, answer_m
 
     assert answer_model.asked == []
     assert container.assistant.ask(DEFAULT_USER_ID, "Comment déposer mon CV ?", NOON).message.outcome == "answered"
+
+
+def test_a_failing_model_is_told_to_the_user_and_costs_no_question(container, answer_model):
+    def fail(*call):
+        raise TimeoutError("le modèle ne répond pas à : " + call[0])
+
+    answer_model.answer = fail
+
+    with pytest.raises(AssistantUnavailableError) as refusal:
+        container.assistant.ask(BOB, "Comment déposer mon CV ?", NOON)
+
+    # Le message est pour l'utilisateur : il ne reprend ni l'erreur du modèle, ni la question
+    assert str(refusal.value) == "L'assistant ne répond pas pour l'instant. Réessayez dans un moment."
+    conversation = container.assistant.get_conversation(BOB, NOON)
+    assert (conversation.messages, conversation.remaining_questions) == ([], MAX_ASSISTANT_QUESTIONS_PER_DAY)
 
 
 def test_a_follow_up_question_is_read_with_the_previous_one(container, embedder, answer_model):

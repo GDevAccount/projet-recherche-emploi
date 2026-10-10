@@ -17,7 +17,14 @@ from openai import OpenAI
 from jobgrep.assistant.passages import Passage
 from jobgrep.assistant.ports import DraftAnswer, Exchange, ModelUsage, Verdict
 from jobgrep.assistant.prompts import ANSWER_PROMPT, JUDGE_PROMPT, describe_passages
-from jobgrep.config import ASSISTANT_MODEL, EMBEDDING_MODEL, JUDGE_MODEL
+from jobgrep.config import (
+    ASSISTANT_MODEL,
+    ASSISTANT_RETRIES,
+    ASSISTANT_TIMEOUT_SECONDS,
+    EMBEDDING_MODEL,
+    JUDGE_MODEL,
+    JUDGE_TIMEOUT_SECONDS,
+)
 
 
 class OpenAIEmbedder:
@@ -25,7 +32,7 @@ class OpenAIEmbedder:
 
     @cached_property
     def _client(self) -> OpenAI:
-        return OpenAI()
+        return OpenAI(timeout=ASSISTANT_TIMEOUT_SECONDS, max_retries=ASSISTANT_RETRIES)
 
     def embed(self, texts: Sequence[str]) -> tuple[list[list[float]], int | None]:
         response = self._client.embeddings.create(model=EMBEDDING_MODEL, input=list(texts))
@@ -42,7 +49,9 @@ class OpenAIAnswerModel:
 
     @cached_property
     def _chat_model(self) -> BaseChatModel:
-        return self._injected_chat_model or ChatOpenAI(model=ASSISTANT_MODEL)
+        return self._injected_chat_model or ChatOpenAI(
+            model=ASSISTANT_MODEL, timeout=ASSISTANT_TIMEOUT_SECONDS, max_retries=ASSISTANT_RETRIES
+        )
 
     def answer(
         self, question: str, passages: Sequence[Passage], history: Sequence[Exchange]
@@ -65,7 +74,9 @@ class OpenAIAnswerJudge:
 
     @cached_property
     def _chat_model(self) -> BaseChatModel:
-        return self._injected_chat_model or ChatOpenAI(model=JUDGE_MODEL)
+        return self._injected_chat_model or ChatOpenAI(
+            model=JUDGE_MODEL, timeout=JUDGE_TIMEOUT_SECONDS, max_retries=ASSISTANT_RETRIES
+        )
 
     def judge(
         self, question: str, passages: Sequence[Passage], answer: str, reference: str

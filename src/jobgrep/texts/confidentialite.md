@@ -32,7 +32,7 @@ Ce traitement repose sur l'exécution du service que vous demandez en vous conne
 
 ## À qui elles sont transmises
 
-- **Google**, pour la connexion. L'application reçoit de Google votre adresse e-mail et les informations de base de votre profil.
+- **Google**, pour la connexion. Ici, c'est Google qui transmet à l'application votre adresse e-mail et les informations de base de votre profil ; l'application ne lui envoie ni votre CV, ni vos recherches, ni vos offres.
 - **OpenAI**, pour évaluer les offres. À chaque recherche, le texte de votre CV sans vos coordonnées, vos phrases de recherche et leurs lieux sont envoyés à OpenAI avec le contenu de chaque page d'offre à évaluer.
   Quand vous interrogez l'assistant, votre question et vos derniers échanges avec lui sont envoyés à OpenAI, avec les extraits des textes du site qui servent à y répondre. Votre CV, vos recherches et vos offres n'en font pas partie.
 - **Tavily**, pour la recherche web. Seules vos phrases de recherche, avec leur type de contrat et leur lieu, lui sont envoyées, pas votre CV.
