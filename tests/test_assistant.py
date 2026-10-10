@@ -69,7 +69,12 @@ def test_text_is_split_by_section_and_long_sections_by_paragraph():
 def test_closest_passages_come_first():
     near, far = Passage("a", "A", "", "proche"), Passage("b", "B", "", "loin")
 
-    assert rank_passages([1.0, 0.0], [(far, [0.0, 1.0]), (near, [0.9, 0.1])], 1) == [near]
+    indexed = [(far, [0.0, 1.0]), (near, [0.9, 0.1])]
+
+    assert rank_passages([[1.0, 0.0]], indexed, 1) == [near]
+    # Avec deux questions, chacune place son meilleur passage, la première d'abord, sans doublon
+    assert rank_passages([[1.0, 0.0], [0.0, 1.0]], indexed, 2) == [near, far]
+    assert rank_passages([[1.0, 0.0], [0.9, 0.1]], indexed, 2) == [near, far]
     assert similarity([1.0, 0.0], [2.0, 0.0]) == 1.0
     # Un vecteur nul ne ressemble à rien, sans diviser par zéro
     assert similarity([0.0, 0.0], [1.0, 0.0]) == 0.0
@@ -183,11 +188,11 @@ def test_passages_are_located_once_and_only_changed_ones_again(tmp_path):
     first.assistant.ask(BOB, "Comment déposer mon CV ?", NOON)
     first.assistant.ask(BOB, "Et le remplacer ?", NOON)
     total = count_rows(first, AssistantPassage)
-    # Tous les passages en un appel, puis un appel par question
-    assert [len(texts) for texts in embedders[0].embedded] == [total, 1, 1]
+    # Tous les passages en un appel, puis un appel par question : seule, puis seule et avec la précédente
+    assert [len(texts) for texts in embedders[0].embedded] == [total, 1, 2]
 
     # Après un redémarrage, les vecteurs sont relus de la base
-    start(embedders[1]).assistant.ask(BOB, "Comment déposer mon CV ?", NOON)
+    start(embedders[1]).assistant.ask(CAROL, "Comment déposer mon CV ?", NOON)
     assert [len(texts) for texts in embedders[1].embedded] == [1]
 
     # Un texte qui change ne fait situer que ses passages, et les anciens sont effacés
@@ -285,14 +290,25 @@ def test_a_follow_up_question_is_read_with_the_previous_one(container, embedder,
     assert [(exchange.question, exchange.answer) for exchange in history] == [
         ("Combien de recherches par jour ?", first.message.answer)
     ]
-    # Seule, la seconde question ne dit pas de quoi elle parle : elle est située avec la précédente
-    assert embedder.embedded[-1] == ["Combien de recherches par jour ?\nEt pour un essai ?"]
+    # Seule, la seconde question ne dit pas de quoi elle parle : elle est située avec la précédente, et seule aussi
+    assert embedder.embedded[-1] == ["Et pour un essai ?", "Combien de recherches par jour ?\nEt pour un essai ?"]
 
     # Passé un moment, c'est une autre conversation ; et celle d'un autre compte n'y entre jamais
     later = NOON + timedelta(minutes=ASSISTANT_HISTORY_MINUTES + 2)
     container.assistant.ask(BOB, "Comment supprimer mon compte ?", later)
     container.assistant.ask(CAROL, "Et pour un essai ?", NOON + timedelta(minutes=1))
     assert answer_model.asked[2][2] == [] and answer_model.asked[3][2] == []
+
+
+def test_a_question_on_another_subject_is_not_drowned_in_the_previous_one(container, answer_model):
+    container.assistant.ask(BOB, "À qui mes données sont-elles transmises ?", NOON)
+    # Posée juste après, sans rapport avec la précédente : c'est son passage qui doit arriver en tête
+    container.assistant.ask(BOB, QUESTION, NOON + timedelta(seconds=13))
+
+    _, passages, history = answer_model.asked[1]
+    assert len(history) == 1 and passages[0].section == "Déposer ou remplacer son CV"
+    # La question précédente garde sa part : un rebond y trouverait son passage
+    assert passages[1].section == "À qui elles sont transmises"
 
 
 def test_question_texts_are_forgotten_after_a_while_but_not_their_cost(container, priced):
@@ -337,9 +353,9 @@ def test_administrator_reads_the_questions_without_the_accounts(container, answe
     answered = overview.entries[-1]
     assert answered.sources == answered.retrieved[:1] and 1 < len(answered.retrieved) <= ASSISTANT_PASSAGES
     assert overview.entries[0].sources == [] and overview.entries[0].retrieved
-    # Trois réponses à 2 000 jetons lus et 100 écrits, et trois questions situées : 5 mots, 4, puis 9 pour
-    # la dernière, située avec la précédente du même compte
-    assert overview.cost_usd == pytest.approx(3 * (2000 + 2 * 100) / 1e6 + (5 + 4 + 9) / 1e6)
+    # Trois réponses à 2 000 jetons lus et 100 écrits, et trois questions situées : 5 mots, 4, puis 5 et 9
+    # pour la dernière, située seule et avec la précédente du même compte
+    assert overview.cost_usd == pytest.approx(3 * (2000 + 2 * 100) / 1e6 + (5 + 4 + 5 + 9) / 1e6)
     # Une période qui ne contient aucune question
     assert container.assistant.get_overview(days=1, now=NOON + timedelta(days=3)).questions == 0
 

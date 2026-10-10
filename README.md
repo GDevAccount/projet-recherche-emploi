@@ -379,7 +379,7 @@ Un bouton, en bas de chaque écran, ouvre un assistant qui répond aux questions
 |---|---|
 | Découpage | Chaque texte est coupé en passages par les splitters de LangChain : `MarkdownHeaderTextSplitter` en fait un par section, `RecursiveCharacterTextSplitter` recoupe une section trop longue entre deux paragraphes (`assistant/passages.py`). |
 | Indexation | À la première question, chaque passage est situé par un modèle d'embedding OpenAI, et son vecteur gardé dans la table `assistant_passages`. Ensuite, seuls les passages dont le texte a changé sont situés de nouveau. |
-| Recherche (`RetrievePassages`) | La question est située de la même façon, et les 5 passages les plus proches sont retenus (similarité cosinus, calculée en Python : une cinquantaine de passages ne demandent pas de base vectorielle). |
+| Recherche (`RetrievePassages`) | La question est située de la même façon, seule puis, s'il y en a une, avec la question précédente, pour qu'un rebond comme un changement de sujet trouvent leurs passages. Les 8 passages retenus sont pris à tour de rôle parmi les plus proches de l'une et de l'autre (similarité cosinus, calculée en Python : une cinquantaine de passages ne demandent pas de base vectorielle). |
 | Réponse (`GenerateAnswer`) | Le modèle répond à partir de ces seuls passages, et dit lesquels ont servi. Il dit aussi si la question porte sur l'application. |
 | Suite | Une réponse garde ses sources (`CiteSources`). Une question hors sujet est refusée (`DeclineQuestion`), et une question à laquelle les textes ne répondent pas est renvoyée vers l'exploitant (`ReferToOperator`) : ces deux textes sont écrits par le serveur, pas par le modèle. |
 
@@ -679,7 +679,7 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 | Modèle OpenAI de l'assistant (`ASSISTANT_MODEL`), et modèle d'embedding (`EMBEDDING_MODEL`) | `src/jobgrep/config.py` | `gpt-6-luna`, `text-embedding-3-small` |
 | Modèle qui note les réponses pendant une évaluation (`JUDGE_MODEL`), et questions posées en même temps (`EVALUATION_CONCURRENCY`) | `src/jobgrep/config.py` | `gpt-6-luna`, `4` |
 | Questions à l'assistant par jour et par compte (`MAX_ASSISTANT_QUESTIONS_PER_DAY`) | `src/jobgrep/config.py` | `20` |
-| Passages donnés au modèle pour une question (`ASSISTANT_PASSAGES`) | `src/jobgrep/config.py` | `5` |
+| Passages donnés au modèle pour une question (`ASSISTANT_PASSAGES`) | `src/jobgrep/config.py` | `8` |
 | Jours de conservation du texte des questions (`ASSISTANT_MESSAGE_DAYS`) | `src/jobgrep/config.py` | `90` |
 | Consignes de l'assistant (`ANSWER_PROMPT`) | `src/jobgrep/assistant/prompts.py` | — |
 | Recherches créées avec la base (`DEFAULT_QUERIES`) | `src/jobgrep/config.py` | 2 recherches CDI, 2 freelance (ingénieur IA) |

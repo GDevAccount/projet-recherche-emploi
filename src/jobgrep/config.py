@@ -131,7 +131,7 @@ EMBEDDING_MODEL = "text-embedding-3-small"
 # Questions par jour pour chaque compte, essais compris (le propriétaire n'est pas limité)
 MAX_ASSISTANT_QUESTIONS_PER_DAY = 20
 # Passages du site donnés au modèle pour répondre à une question
-ASSISTANT_PASSAGES = 5
+ASSISTANT_PASSAGES = 8
 # Échanges précédents rappelés au modèle, s'ils sont assez récents : une question peut renvoyer à la précédente
 ASSISTANT_HISTORY_TURNS = 3
 ASSISTANT_HISTORY_MINUTES = 30
