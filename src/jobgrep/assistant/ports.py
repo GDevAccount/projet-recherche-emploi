@@ -4,6 +4,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict
 
 from jobgrep.assistant.passages import Passage
@@ -48,6 +50,22 @@ class ModelUsage:
     duration_ms: int | None = None
 
 
+@dataclass(frozen=True)
+class ModelTurn:
+    """Ce que le modèle rend à un tour : sa réponse, ou la demande d'un outil."""
+
+    # Son message, à remettre dans l'échange quand il demande un outil : c'est lui qui porte la demande
+    message: AIMessage
+    # None quand il demande un outil au lieu de répondre
+    draft: DraftAnswer | None
+
+
+class AccountReader(Protocol):
+    def describe(self, user_id: int) -> str:
+        """Renvoie la situation de ce compte, telle que le modèle peut la lire : des nombres et des dates."""
+        ...
+
+
 class Embedder(Protocol):
     # Nom du modèle interrogé : deux modèles ne placent pas un texte au même endroit
     model_name: str
@@ -66,9 +84,14 @@ class AnswerModel(Protocol):
         question: str,
         passages: Sequence[Passage],
         history: Sequence[Exchange],
+        transcript: Sequence[BaseMessage] = (),
+        tools: Sequence[BaseTool] = (),
         on_answer: Callable[[str], None] | None = None,
-    ) -> tuple[DraftAnswer, ModelUsage]:
-        """Répond à la question à partir de ces seuls passages, numérotés à partir de 1.
+    ) -> tuple[ModelTurn, ModelUsage]:
+        """Répond à la question à partir de ces passages, numérotés à partir de 1, ou demande un outil.
+
+        « tools » sont les outils qu'il peut demander, « transcript » ce qu'il a déjà demandé pour cette
+        question et ce qu'ils ont rendu.
 
         « on_answer » reçoit le texte de la réponse à mesure qu'il s'écrit, entier à chaque fois, et seulement
         quand le modèle répond : un refus ou un renvoi vers l'exploitant ne s'écrit pas ici.
@@ -80,7 +103,7 @@ class Verdict(BaseModel):
     """Ce que le juge dit d'une réponse de l'assistant. La raison vient d'abord : il réfléchit avant de trancher."""
 
     reason: str
-    # Tout ce que la réponse affirme est-il appuyé par les passages donnés au modèle
+    # Tout ce que la réponse affirme est-il appuyé par ce que le modèle a reçu : passages, situation du compte
     faithful: bool
     # La réponse dit-elle l'essentiel de la réponse de référence, sans la contredire
     correct: bool
@@ -91,7 +114,10 @@ class AnswerJudge(Protocol):
     model_name: str
 
     def judge(
-        self, question: str, passages: Sequence[Passage], answer: str, reference: str
+        self, question: str, passages: Sequence[Passage], answer: str, reference: str, account: str = ""
     ) -> tuple[Verdict, ModelUsage]:
-        """Note une réponse de l'assistant au regard des passages qu'il a reçus et de la réponse attendue."""
+        """Note une réponse de l'assistant au regard de ce qu'il a reçu et de la réponse attendue.
+
+        « account » est la situation du compte qu'un outil lui a rendue ; vide s'il n'a rien consulté.
+        """
         ...

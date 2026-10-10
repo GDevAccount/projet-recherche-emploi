@@ -21,6 +21,7 @@ from jobgrep.data.cv_ingestion.ingestion import CvIngestion
 from jobgrep.data.cv_ingestion.pdf_reader import CvPdfReader
 from jobgrep.data.database import Database
 from jobgrep.services.account_service import AccountService
+from jobgrep.services.account_status import AccountStatusReader
 from jobgrep.services.alert_service import AlertService, Notifier, NtfyNotifier
 from jobgrep.services.assistant_evaluation_service import AssistantEvaluationService
 from jobgrep.services.assistant_service import AssistantService
@@ -74,10 +75,11 @@ class Container:
             settings.contact_email,
             self.usage.daily_budget_reached,
             self.cv_ingestion.anonymizer,
+            AccountStatusReader(self.database, self.search, self.cv, self.queries, self.jobs),
         )
         self.evaluation = AssistantEvaluationService(
             self.database,
-            lambda: self.assistant.graph,
+            self.assistant.graph_for,
             judge or OpenAIAnswerJudge(),
             self.assistant.answer_model.model_name,
             self.assistant.embedder.model_name,

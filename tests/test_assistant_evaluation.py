@@ -4,11 +4,12 @@ import pytest
 from conftest import FakeAnswerModel, FakeEmbedder, FakeJudge
 from sqlalchemy import func, select
 
-from jobgrep.assistant.evaluation import EvalCase, evaluate_case, load_cases, summarize
+from jobgrep.assistant.evaluation import CaseAccounts, EvalCase, evaluate_case, load_cases, summarize
 from jobgrep.assistant.graph import build_graph
 from jobgrep.assistant.nodes import AssistantNodes
 from jobgrep.assistant.passages import Passage, split_text
 from jobgrep.assistant.prompts import JUDGE_PROMPT, prompt_version
+from jobgrep.assistant.tools import build_account_tools
 from jobgrep.config import MODEL_PRICES_USD, ModelPrice
 from jobgrep.data.models import AssistantMessage
 from jobgrep.errors import NotFoundError
@@ -36,16 +37,20 @@ def test_reference_questions_point_to_sections_that_exist():
     for case in cases:
         # Une section renommée dans un texte doit l'être ici : sinon la question échouerait sans raison
         assert set(case.sections) <= sections, case.id
-        assert "{" not in case.reference + "".join(turn.answer for turn in case.history), case.id
-        # Seule une réponse se compare à une référence, et il faut savoir où elle devait être trouvée
+        assert "{" not in case.reference + case.account + "".join(turn.answer for turn in case.history), case.id
+        # Seule une réponse se compare à une référence, et il faut savoir d'où elle devait venir : d'une
+        # section des textes, ou du compte
         if case.reference:
-            assert case.outcome == "answered" and case.sections, case.id
+            assert case.outcome == "answered" and (case.sections or case.account), case.id
+        # Une question dont la réponse est dans le compte doit le consulter
+        if case.account:
+            assert case.consults is True, case.id
     assert {case.outcome for case in cases} == {"answered", "unknown", "off_topic"}
     assert any(case.history for case in cases)
 
 
 def test_judge_prompt_takes_what_it_is_given():
-    messages = JUDGE_PROMPT.format_messages(question="q", passages="p", reference="r", answer="a")
+    messages = JUDGE_PROMPT.format_messages(question="q", passages="p", reference="r", answer="a", account="c")
 
     assert "Réponse de référence : r" in messages[1].content and "Réponse de l'assistant : a" in messages[1].content
 
@@ -141,3 +146,36 @@ def test_evaluation_replays_every_reference_question_and_keeps_the_measures(cont
 def test_evaluation_without_a_price_has_no_cost(container):
     assert container.evaluation.run(NOW).cost_usd is None
     assert container.evaluation.list_evaluations()[0].pass_rate is not None
+
+
+def test_a_question_about_the_account_must_consult_it(embedder, answer_model, judge):
+    status = "CV : aucun CV déposé."
+    asks = EvalCase("compte", "Pourquoi ?", "answered", reference="Il manque le CV.", account=status, consults=True)
+    sections = (("aide", "Changer de thème"),)
+    general = EvalCase("guide", "Comment changer de thème ?", "answered", (), sections, "Un bouton.")
+    forbidden = EvalCase("salut", "Bonjour !", "answered", consults=False)
+    cases = [asks, general, forbidden]
+    embedder.embed = lambda texts: ([[1.0, 0.0]], 3)
+    tools = build_account_tools(CaseAccounts(cases))
+    graph = build_graph(AssistantNodes(embedder, answer_model, lambda: [(THEME, [1.0, 0.0])], tools=tools))
+
+    # Le modèle consulte : le compte fictif de la question lui est rendu, et le juge lit ce qu'il a lu
+    answer_model.consults = True
+    consulted = evaluate_case(graph, judge, asks, 0)
+    assert (consulted.consulted, consulted.consult_expected, consulted.passed) == (True, True, True)
+    assert consulted.answer == status and judge.accounts == [status]
+    # Deux appels au modèle pour cette question
+    assert consulted.input_tokens == 4000
+    # Consulter le compte pour une salutation est une faute ; pour une question du guide, ce n'est pas jugé
+    wasted = evaluate_case(graph, judge, forbidden, 2)
+    assert (wasted.consulted, wasted.passed) == (True, False)
+    assert evaluate_case(graph, judge, general, 1).passed is True
+
+    # Le modèle ne consulte pas : la question sur le compte échoue, quoi qu'en dise le juge
+    answer_model.consults = False
+    skipped = evaluate_case(graph, judge, asks, 0)
+    assert (skipped.consulted, skipped.correct, skipped.passed) == (False, True, False)
+    assert judge.accounts[-1] == ""
+
+    counts = summarize([asks, forbidden, general], [consulted, wasted, evaluate_case(graph, judge, general, 1)])
+    assert (counts["consult_cases"], counts["consult_hits"], counts["passed"]) == (2, 1, 2)

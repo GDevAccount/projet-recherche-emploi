@@ -41,6 +41,10 @@
           <dd>{{ overview.off_topic | count }}</dd>
         </div>
         <div>
+          <dt>Compte consulté</dt>
+          <dd>{{ overview.consulting | count }}</dd>
+        </div>
+        <div>
           <dt>Jugées utiles</dt>
           <dd>{{ overview.helpful | count }}</dd>
         </div>
@@ -57,6 +61,17 @@
           <dd>{{ overview.cost_usd | usd }}</dd>
         </div>
       </dl>
+
+      @if (overview.limits.length) {
+        <ul class="limits" aria-label="Limites atteintes">
+          @for (limit of overview.limits; track limit.label) {
+            <li>
+              <strong>{{ limit.count | count }}</strong> refus · {{ limit.label }} ·
+              {{ limit.accounts | count }} {{ limit.accounts > 1 ? 'comptes' : 'compte' }}
+            </li>
+          }
+        </ul>
+      }
 
       <div class="tabs filters" role="group" aria-label="Questions affichées">
         @for (option of filters; track option.key) {
@@ -79,6 +94,9 @@
                 <summary>
                   <span class="question">{{ entry.question }}</span>
                   <span class="outcome" [class]="entry.outcome">{{ labels[entry.outcome] }}</span>
+                  @if (entry.consulted.length) {
+                    <span class="outcome">Compte consulté</span>
+                  }
                   @if (entry.feedback) {
                     <span class="outcome" [class.unknown]="entry.feedback === 'down'">
                       {{ entry.feedback === 'up' ? 'Jugée utile' : 'Jugée inutile' }}

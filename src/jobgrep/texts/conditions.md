@@ -12,7 +12,7 @@ Quand l'exploitant le propose, l'application peut aussi être essayée sans comp
 
 ## Limites d'utilisation
 
-Chaque recherche a un coût, pris en charge par l'exploitant de l'application. Le nombre de recherches est donc limité à {max_searches} par jour et par utilisateur, et à {trial_searches} en tout pour un essai sans compte. Le nombre d'essais ouverts chaque jour est lui aussi limité, pour l'application entière et par connexion internet. Les questions posées à l'assistant sont limitées à {max_questions} par jour et par utilisateur. L'exploitant fixe enfin un budget par jour : une fois atteint, plus aucune recherche ne peut être lancée ni aucune question posée avant le lendemain. Ces limites peuvent changer.
+Chaque recherche a un coût, pris en charge par l'exploitant de l'application. Le nombre de recherches est donc limité à {max_searches} par jour et par utilisateur, et à {trial_searches} en tout pour un essai sans compte. Le nombre d'essais ouverts chaque jour est lui aussi limité, pour l'application entière et par connexion internet. Les questions posées à l'assistant sont limitées à {max_questions} par jour et par utilisateur, ou à {max_account_questions} quand elles demandent à l'assistant de consulter votre compte. L'exploitant fixe enfin un budget par jour : une fois atteint, plus aucune recherche ne peut être lancée ni aucune question posée avant le lendemain. Ces limites peuvent changer.
 
 ## Ce que vous vous engagez à faire
 

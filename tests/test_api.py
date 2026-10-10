@@ -1231,7 +1231,8 @@ def test_only_administrators_read_what_is_asked_and_never_by_whom(client):
     assert overview.status_code == 200
     assert (overview.json()["questions"], overview.json()["accounts"]) == (1, 1)
     [entry] = overview.json()["entries"]
-    assert set(entry) == {"created_at", "question", "answer", "outcome", "sources", "retrieved", "feedback"}
+    fields = {"created_at", "question", "answer", "outcome", "sources", "retrieved", "consulted", "feedback"}
+    assert set(entry) == fields
     assert "alice" not in overview.text
 
     # Les questions partent avec le compte
@@ -1336,3 +1337,46 @@ def test_a_new_conversation_starts_from_nothing(client):
 
     shown = client.get("/api/assistant", headers=ALICE).json()["messages"]
     assert [message["question"] for message in shown] == ["Comment changer de thème ?"]
+
+
+def test_the_assistant_answers_about_the_account_of_the_caller_and_says_so(client):
+    client.app.state.container.assistant.answer_model.consults = True
+
+    question = {"question": "Où en est mon compte ?"}
+
+    response = client.post("/api/assistant/questions/stream", json=question, headers=ALICE)
+
+    events = server_sent_events(response.text)
+    steps = [payload["step"] for name, payload in events if name == "progress"]
+    assert steps[:3] == ["retrieve", "generate", "consult"]
+    message = events[-1][1]["message"]
+    assert message["consulted"] == ["État de votre compte"] and "CV : aucun CV déposé." in message["answer"]
+    # Dans le suivi, la question dit qu'un compte a été consulté, jamais lequel
+    overview = client.get("/api/admin/assistant", headers=OWNER)
+    assert overview.json()["consulting"] == 1 and overview.json()["entries"][0]["consulted"] == ["État de votre compte"]
+    assert "alice" not in overview.text
+
+
+def test_every_limit_reached_by_the_assistant_is_counted_in_the_tracking(client, monkeypatch):
+    service = "jobgrep.services.assistant_service"
+    monkeypatch.setattr(f"{service}.MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY", 1)
+    monkeypatch.setattr(f"{service}.MAX_ASSISTANT_QUESTIONS_PER_MINUTE", 2)
+    client.app.state.container.assistant.answer_model.consults = True
+    question = {"question": "Où en est mon compte ?"}
+
+    assert client.post("/api/assistant/questions", json=question, headers=ALICE).status_code == 200
+    refused = client.post("/api/assistant/questions/stream", json=question, headers=ALICE)
+    again = client.post("/api/assistant/questions", json=question, headers=ALICE)
+    # Bob, lui, pose ses questions trop vite
+    client.app.state.container.assistant.answer_model.consults = False
+    for _ in range(3):
+        last = client.post("/api/assistant/questions", json={"question": "Comment changer de thème ?"}, headers=BOB)
+
+    assert (refused.status_code, again.status_code, last.status_code) == (429, 429, 429)
+    assert refused.json()["detail"] == "Vous avez atteint votre limite de questions pour aujourd'hui : revenez demain."
+    assert "trop vite" in last.json()["detail"]
+    overview = client.get("/api/admin/assistant", headers=OWNER).json()
+    assert overview["limits"] == [
+        {"label": "Consultations du compte épuisées", "count": 2, "accounts": 1},
+        {"label": "Questions trop rapprochées", "count": 1, "accounts": 1},
+    ]

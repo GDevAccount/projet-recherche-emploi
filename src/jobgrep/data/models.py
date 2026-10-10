@@ -416,6 +416,8 @@ class AssistantMessage(Base):
     retrieved: Mapped[str | None] = mapped_column(Text)
     # « answered », « unknown » ou « off_topic » (AssistantOutcome de schemas.py)
     outcome: Mapped[str] = mapped_column(Text)
+    # Outils que le modèle a appelés pour répondre, en JSON ; vide s'il n'a pas consulté le compte
+    consulted: Mapped[str | None] = mapped_column(Text)
     # Note de l'utilisateur, « up » ou « down » ; vide s'il n'a pas noté la réponse
     feedback: Mapped[str | None] = mapped_column(Text)
     # Vrai pour la première question d'une conversation : celles d'avant ne sont plus rappelées ni réaffichées
@@ -467,6 +469,9 @@ class AssistantEvaluation(Base):
     # Réponses notées par le juge, et celles qui ne disent que ce que disent les passages
     judged: Mapped[int] = mapped_column(Integer)
     faithful: Mapped[int] = mapped_column(Integer)
+    # Questions qui disent si le compte devait être consulté, et celles où le modèle a bien fait
+    consult_cases: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    consult_hits: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     # Questions hors sujet, et celles qui ont bien été refusées
     off_topic_cases: Mapped[int] = mapped_column(Integer)
     off_topic_refused: Mapped[int] = mapped_column(Integer)

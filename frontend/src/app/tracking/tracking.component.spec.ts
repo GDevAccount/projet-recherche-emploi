@@ -271,6 +271,8 @@ function assistant(values: Partial<AssistantOverview> = {}): AssistantOverview {
     answered: 0,
     unknown: 0,
     off_topic: 0,
+    consulting: 0,
+    limits: [],
     helpful: 0,
     unhelpful: 0,
     accounts: 0,
@@ -990,6 +992,7 @@ describe('TrackingComponent', () => {
       correct_rate: 0.925,
       faithful_rate: 1,
       refusal_rate: 0.875,
+      consult_rate: 0.75,
       duration_ms: 42000,
       cost_usd: 0.0312,
     };
@@ -1004,6 +1007,7 @@ describe('TrackingComponent', () => {
       '92,5 %',
       '100 %',
       '87,5 %',
+      '75 %',
       '0,031 $',
     ]);
     expect(text(card)).toContain('consignes abc123def456');
@@ -1017,6 +1021,8 @@ describe('TrackingComponent', () => {
       retrieved: ["Guide d'utilisation · Se déconnecter", "Guide d'utilisation · Changer de thème"],
       rank: 2,
       cited: false,
+      consulted: false,
+      consult_expected: null,
       faithful: true,
       correct: false,
       judge_reason: 'Le bouton cité est le mauvais.',
@@ -1035,17 +1041,28 @@ describe('TrackingComponent', () => {
           cited: null,
         },
         { ...result, id: 'perdu', passed: false, question: 'Où est-ce ?', rank: null },
+        {
+          ...result,
+          id: 'compte',
+          passed: false,
+          question: 'Où en suis-je ?',
+          correct: true,
+          consult_expected: true,
+          rank: null,
+          cited: null,
+        },
         { ...result, id: 'bon', passed: true, question: 'Une bonne réponse' },
       ],
     });
     await fixture.whenStable();
 
     // Seules les questions à revoir, chacune avec ce qui lui est reproché : la réponse, l'issue, ou la recherche
-    expect(text(card)).toContain('3 questions à revoir');
+    expect(text(card)).toContain('4 questions à revoir');
     expect(texts('app-evaluation-card .reproach')).toEqual([
       'Le bouton cité est le mauvais.',
       'Attendu : un refus. Obtenu : une réponse.',
       "La section attendue n'est pas parmi les passages retrouvés.",
+      "Le compte devait être consulté, et ne l'a pas été.",
     ]);
     expect(texts('app-evaluation-card .expected')).toEqual([
       "Guide d'utilisation · Changer de thème",
@@ -1074,6 +1091,7 @@ describe('TrackingComponent', () => {
     const entry = {
       created_at: '2026-10-10T08:00:00Z',
       answer: 'Réponse.',
+      consulted: [],
       feedback: null,
       sources: [],
       retrieved: [terms],
@@ -1085,8 +1103,15 @@ describe('TrackingComponent', () => {
       off_topic: 1,
       accounts: 2,
       cost_usd: 0.0012,
+      consulting: 1,
+      limits: [{ label: 'Consultations du compte épuisées', count: 2, accounts: 1 }],
       entries: [
-        { ...entry, question: 'Une application mobile ?', outcome: 'unknown' },
+        {
+          ...entry,
+          question: 'Une application mobile ?',
+          outcome: 'unknown',
+          consulted: ['État de votre compte'],
+        },
         { ...entry, question: 'Écris ma lettre', outcome: 'off_topic', feedback: 'down' },
         {
           ...entry,
@@ -1128,6 +1153,9 @@ describe('TrackingComponent', () => {
     });
     expect(text(card)).toContain('Copié : à coller dans evaluation_cases.json');
 
+    // Les questions qui ont consulté un compte, et les limites opposées, sans dire à qui
+    expect(text(card)).toContain('Compte consulté');
+    expect(text(card)).toContain('2 refus · Consultations du compte épuisées · 1 compte');
     // Ce que les lecteurs ont pensé des réponses, et celles qu'ils ont jugées inutiles
     expect(text(card)).toContain('Jugée inutile');
     await click('Mal notées', 'app-assistant-card button');

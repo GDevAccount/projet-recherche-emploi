@@ -125,7 +125,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `POST /api/assistant/questions` | Pose une question sur l'application (`{"question": "…"}`, 500 caractères au plus). La réponse ne vient que des textes du site, qu'elle cite (`sources`). `outcome` vaut `answered`, `unknown` (les textes n'en disent rien) ou `off_topic` (la question ne porte pas sur l'application : refus). 429 une fois le quota ou le budget du jour atteint |
 | `POST /api/assistant/questions/stream` | La même question, suivie en direct (Server-Sent Events) : des événements `progress` (`step` vaut `retrieve` puis `generate`, et `answer` porte le texte de la réponse à mesure qu'il s'écrit), puis un seul `result`, la réponse enregistrée, ou `error` si l'assistant ne répond pas. Un refus (quota, budget, question vide) est une erreur ordinaire, sans flux. `new_conversation: true` ouvre une conversation : les échanges précédents ne sont plus rappelés à l'assistant ni réaffichés |
 | `PUT /api/assistant/messages/{id}/feedback` | Note une réponse reçue : `{"feedback": "up"}`, `"down"`, ou `null` pour retirer la note. 404 pour la réponse d'un autre compte |
-| `GET /api/admin/assistant` | Usage de l'assistant sur tous les comptes, réservé aux administrateurs : nombre de questions par issue, comptes qui en ont posé, coût, et les dernières questions avec leur réponse, les textes cités (`sources`) et ceux où la recherche est allée (`retrieved`), sans le compte qui les a posées (`entries`). `days` limite la période |
+| `GET /api/admin/assistant` | Usage de l'assistant sur tous les comptes, réservé aux administrateurs : nombre de questions par issue, celles qui ont consulté un compte (`consulting`), refus opposés pour chaque limite atteinte (`limits`), comptes qui en ont posé, coût, et les dernières questions avec leur réponse, les textes cités (`sources`) et ceux où la recherche est allée (`retrieved`), sans le compte qui les a posées (`entries`). `days` limite la période |
 | `GET /api/admin/assistant/evaluations` | Dernières évaluations de l'assistant, la plus récente en premier, réservées aux administrateurs : modèles et version des consignes mesurés, nombre de questions sans reproche, et la part de celles où la section attendue est retrouvée (`retrieval_rate`, et son rang moyen `mean_reciprocal_rank`), où l'issue est la bonne (`outcome_rate`), où la réponse est juste (`correct_rate`) et fidèle aux passages (`faithful_rate`), où le hors-sujet est refusé (`refusal_rate`), avec le coût |
 | `GET /api/admin/assistant/evaluations/{id}` | Une évaluation avec ce que chaque question de référence a donné (`results`, celles qui échouent en premier) : réponse, passages retrouvés, rang de la section attendue, avis du juge et sa raison. 404 si elle n'existe pas |
 
@@ -386,7 +386,9 @@ Un bouton, en bas de chaque écran, ouvre un assistant qui répond aux questions
 | Réponse (`GenerateAnswer`) | Le modèle répond à partir de ces seuls passages, et dit lesquels ont servi. Il dit aussi si la question porte sur l'application. Sa réponse s'affiche à mesure qu'elle s'écrit. |
 | Suite | Une réponse garde ses sources (`CiteSources`). Une question hors sujet est refusée (`DeclineQuestion`), et une question à laquelle les textes ne répondent pas est renvoyée vers l'exploitant (`ReferToOperator`) : ces deux textes sont écrits par le serveur, pas par le modèle. |
 
-L'assistant ne reçoit rien d'un compte : ni CV, ni recherche, ni offre. Ce qui a la forme d'une coordonnée (e-mail, téléphone, lien, adresse) est retiré d'une question avant son envoi au modèle et son enregistrement. Chaque compte a 20 questions par jour (`MAX_ASSISTANT_QUESTIONS_PER_DAY`) et 5 par minute, le propriétaire n'est pas limité, et le budget du jour arrête les questions comme les recherches. Questions et réponses sont enregistrées (`assistant_messages`) : leur texte est effacé au bout de 90 jours, leurs compteurs restent. La rubrique Suivi les montre aux administrateurs, sans le compte : celles restées « sans réponse » disent ce qui manque aux textes. Chaque réponse peut être notée, utile ou non, par celui qui la reçoit ; Suivi compte ces notes et isole les réponses mal notées. Une source cite la section de la page d'où vient la réponse, ou, pour le guide, l'écran de l'application dont elle parle.
+Quand une question porte sur la situation de celui qui la pose (« pourquoi je ne peux pas lancer de recherche ? », « combien m'en reste-t-il ? »), le modèle appelle un outil, `etat_du_compte` : le graph passe alors par `ConsultAccount`, le nœud d'outils de LangGraph, puis rend la main au modèle, qui répond avec ce que l'outil a rendu. L'outil ne rend que des nombres et des dates (CV déposé ou non, recherches restantes, bilan de la dernière recherche, offres par étape, pages écartées par raison), et seulement ceux du compte de l'appelant : son identifiant est mis dans l'état du graph par le serveur, le modèle ne le voit pas et ne peut pas en donner un autre. La réponse dit qu'elle a consulté le compte.
+
+L'assistant ne reçoit ni le CV, ni les postes recherchés, ni l'intitulé ou le lien d'une offre. Ce qui a la forme d'une coordonnée (e-mail, téléphone, lien, adresse) est retiré d'une question avant son envoi au modèle et son enregistrement. Chaque compte a 20 questions par jour (`MAX_ASSISTANT_QUESTIONS_PER_DAY`), dont 10 au plus qui consultent le compte (`MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY`) : ce nombre atteint, la journée est finie. S'y ajoute un plafond de 5 par minute, le propriétaire n'est pas limité, et le budget du jour arrête les questions comme les recherches. Questions et réponses sont enregistrées (`assistant_messages`) : leur texte est effacé au bout de 90 jours, leurs compteurs restent. La rubrique Suivi les montre aux administrateurs, sans le compte : celles restées « sans réponse » disent ce qui manque aux textes. Chaque réponse peut être notée, utile ou non, par celui qui la reçoit ; Suivi compte ces notes et isole les réponses mal notées. Une source cite la section de la page d'où vient la réponse, ou, pour le guide, l'écran de l'application dont elle parle.
 
 Pour que l'assistant sache répondre à une nouvelle question, compléter `aide.md` ou l'un des autres textes : le passage est indexé au redémarrage suivant, à la première question.
 
@@ -401,6 +403,7 @@ Pour que l'assistant sache répondre à une nouvelle question, compléter `aide.
 | Réponse juste | La réponse dit ce que dit la réponse de référence, selon un modèle qui la note (`JUDGE_MODEL`), plus fort que celui qui répond : un modèle est indulgent avec ses propres erreurs. |
 | Fidèle | La réponse ne dit que ce que disent les passages reçus, selon le même juge. |
 | Hors-sujet refusé | Les questions hors sujet et les détournements reçoivent un refus. |
+| Compte consulté à propos | Le modèle consulte le compte quand la question le demande, et seulement alors. Ces questions sont posées au nom de comptes fictifs, décrits dans le jeu de questions. |
 
 Les mesures sont enregistrées (`assistant_evaluations`) avec la version des consignes, et la rubrique Suivi les met côte à côte : on change `ANSWER_PROMPT`, un modèle ou un texte, on relance, on compare. Une évaluation ne passe par aucun compte : elle n'écrit rien dans le journal des questions, ne compte dans aucun quota, et son coût n'entre pas dans le budget de l'instance.
 
@@ -616,6 +619,7 @@ Table `assistant_messages`, les questions posées à l'assistant. Elles servent 
 | `sources` | Textes du site cités par la réponse, en JSON |
 | `retrieved` | Textes d'où venaient les passages donnés au modèle, le plus proche en premier, en JSON : devant une mauvaise réponse, ils disent si la recherche ou le modèle s'est trompé. Effacés avec le texte |
 | `outcome` | `answered`, `unknown` ou `off_topic` |
+| `consulted` | Outils que le modèle a appelés pour répondre, en JSON ; vide s'il n'a pas consulté le compte |
 | `feedback` | Note donnée par l'utilisateur à la réponse, `up` ou `down` ; vide s'il ne l'a pas notée |
 | `starts_conversation` | 1 pour la première question d'une conversation : celles d'avant ne sont plus rappelées à l'assistant ni réaffichées |
 | `model`, `prompt_version` | Modèle qui a répondu, et empreinte de ses consignes |
@@ -634,6 +638,7 @@ Table `assistant_evaluations`, une ligne par passage du banc d'évaluation de l'
 | `retrieval_cases`, `retrieval_hits`, `reciprocal_rank_sum`, `cited_hits` | Questions qui attendent une section, celles où elle est retrouvée, somme des inverses de son rang, celles où la réponse la cite |
 | `answer_cases`, `correct`, `judged`, `faithful` | Questions qui ont une réponse de référence et celles où la réponse est juste ; réponses notées et celles qui sont fidèles aux passages |
 | `off_topic_cases`, `off_topic_refused` | Questions hors sujet, et celles qui sont refusées |
+| `consult_cases`, `consult_hits` | Questions qui disent si le compte devait être consulté, et celles où le modèle a bien fait |
 | `input_tokens`, `output_tokens`, `embedding_tokens`, `judge_input_tokens`, `judge_output_tokens`, `duration_ms` | Ce que l'évaluation a consommé, et sa durée |
 | `details` | Ce que chaque question a donné, en JSON |
 
@@ -688,7 +693,8 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 | Modèle OpenAI de l'assistant (`ASSISTANT_MODEL`), et modèle d'embedding (`EMBEDDING_MODEL`) | `src/jobgrep/config.py` | `gpt-6-luna`, `text-embedding-3-small` |
 | Modèle qui note les réponses pendant une évaluation (`JUDGE_MODEL`), et questions posées en même temps (`EVALUATION_CONCURRENCY`) | `src/jobgrep/config.py` | `gpt-6-sol`, `4` |
 | Délai laissé à un appel de l'assistant à OpenAI, en secondes (`ASSISTANT_TIMEOUT_SECONDS`), et nouvelles tentatives (`ASSISTANT_RETRIES`) | `src/jobgrep/config.py` | `20`, `1` |
-| Questions à l'assistant par jour et par compte (`MAX_ASSISTANT_QUESTIONS_PER_DAY`), et par minute (`MAX_ASSISTANT_QUESTIONS_PER_MINUTE`) | `src/jobgrep/config.py` | `20`, `5` |
+| Questions à l'assistant par jour et par compte (`MAX_ASSISTANT_QUESTIONS_PER_DAY`), dont celles qui consultent le compte (`MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY`), et par minute (`MAX_ASSISTANT_QUESTIONS_PER_MINUTE`) | `src/jobgrep/config.py` | `20`, `10`, `5` |
+| Fois où l'assistant peut consulter le compte pour une même question (`ASSISTANT_TOOL_ROUNDS`) | `src/jobgrep/config.py` | `2` |
 | Passages donnés au modèle pour une question (`ASSISTANT_PASSAGES`) | `src/jobgrep/config.py` | `8` |
 | Jours de conservation du texte des questions (`ASSISTANT_MESSAGE_DAYS`) | `src/jobgrep/config.py` | `90` |
 | Consignes de l'assistant (`ANSWER_PROMPT`) | `src/jobgrep/assistant/prompts.py` | — |
@@ -764,12 +770,14 @@ src/jobgrep/
 │   ├── cv_service.py      # enregistrement du CV et de son texte sans coordonnées, oubli des rejets de l'ancien
 │   ├── job_service.py     # offres retenues et pages rejetées
 │   ├── query_service.py   # postes recherchés
+│   ├── account_status.py  # situation d'un compte telle que l'assistant la lit : des nombres et des dates
 │   ├── assistant_evaluation_service.py # évaluations de l'assistant : lancement, mesures, lecture
 │   └── assistant_service.py # questions à l'assistant : quota, passages gardés en base, lancement du graph, journal
 ├── assistant/           # RAG sur les textes du site
 │   ├── graph.py         # construction du graph
 │   ├── nodes.py         # ses nœuds : chercher les passages, répondre, citer, refuser, renvoyer vers l'exploitant
 │   ├── state.py         # état partagé entre les nœuds
+│   ├── tools.py         # outils que le modèle peut appeler : la situation du compte de l'appelant
 │   ├── passages.py      # découpage des textes en passages, et recherche des plus proches d'une question
 │   ├── ports.py         # ce que l'assistant attend de l'extérieur : un modèle d'embedding, un modèle qui répond
 │   ├── adapters.py      # leurs branchements réels : OpenAI

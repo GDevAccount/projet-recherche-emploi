@@ -700,8 +700,8 @@ AssistantOutcome = Literal["answered", "unknown", "off_topic"]
 
 # Note donnée par l'utilisateur à une réponse : utile, ou non
 AssistantFeedback = Literal["up", "down"]
-# Où en est l'assistant : il cherche les passages, puis il écrit sa réponse
-AssistantStep = Literal["retrieve", "generate"]
+# Où en est l'assistant : il cherche les passages, il écrit sa réponse, ou il consulte le compte
+AssistantStep = Literal["retrieve", "generate", "consult"]
 
 
 class AssistantQuestion(BaseModel):
@@ -742,6 +742,8 @@ class AssistantMessageRead(BaseModel):
     answer: str
     outcome: AssistantOutcome
     sources: list[AssistantSource]
+    # Ce que l'assistant a consulté du compte pour répondre (« État de votre compte ») ; vide s'il n'a rien consulté
+    consulted: list[str]
     # Note que l'utilisateur a donnée à la réponse ; None s'il ne l'a pas notée
     feedback: AssistantFeedback | None
 
@@ -753,6 +755,8 @@ class AssistantConversation(BaseModel):
     # None pour le propriétaire, qui n'a pas de quota
     remaining_questions: int | None
     max_questions_per_day: int
+    # Parmi elles, celles qui peuvent consulter le compte : ce nombre atteint, plus de question avant demain
+    max_account_questions_per_day: int
     max_question_chars: int
     # Nombre de jours pendant lesquels le texte d'une question est gardé
     retention_days: int
@@ -774,8 +778,19 @@ class AssistantJournalEntry(BaseModel):
     # Textes d'où venaient les passages donnés au modèle, le plus proche en premier : ceux de « sources »
     # en font partie. Vide pour une question d'avant leur enregistrement
     retrieved: list[AssistantSource]
+    # Ce que l'assistant a consulté du compte de l'auteur pour répondre ; vide s'il n'a rien consulté
+    consulted: list[str]
     # Note donnée par celui qui a posé la question ; None s'il n'a pas noté la réponse
     feedback: AssistantFeedback | None
+
+
+class AssistantLimit(BaseModel):
+    """Refus opposés par l'assistant pour une même limite atteinte."""
+
+    label: str
+    count: int
+    # Comptes à qui la limite a été opposée
+    accounts: int
 
 
 class AssistantOverview(BaseModel):
@@ -788,6 +803,10 @@ class AssistantOverview(BaseModel):
     # Questions sur l'application restées sans réponse : ce qui manque aux textes du site
     unknown: int
     off_topic: int
+    # Questions pour lesquelles l'assistant a consulté le compte de leur auteur
+    consulting: int
+    # Questions refusées parce qu'une limite était atteinte, par limite, la plus fréquente en premier
+    limits: list[AssistantLimit]
     # Réponses notées utiles, et pas utiles, par ceux qui les ont reçues
     helpful: int
     unhelpful: int
@@ -826,6 +845,8 @@ class AssistantEvaluationRead(BaseModel):
     faithful_rate: float | None
     # Les questions hors sujet sont refusées
     refusal_rate: float | None
+    # Le compte est consulté quand la question le demande, et seulement alors
+    consult_rate: float | None
     duration_ms: int
     # Coût en dollars ; None si le tarif d'un modèle manque
     cost_usd: float | None
@@ -846,6 +867,9 @@ class AssistantEvaluationCase(BaseModel):
     rank: int | None
     # La réponse cite-t-elle la section attendue ; None si la question n'en attend pas
     cited: bool | None
+    # Le modèle a-t-il consulté le compte, et le devait-il ; None si la question ne le dit pas
+    consulted: bool = False
+    consult_expected: bool | None = None
     # Avis du juge, et sa raison ; None quand il n'a pas été consulté
     faithful: bool | None
     correct: bool | None

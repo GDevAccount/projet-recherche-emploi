@@ -66,6 +66,21 @@ header {
   }
 }
 
+.limits {
+  display: grid;
+  gap: 0.25rem;
+  margin: 1.1rem 0 0;
+  padding: 0.75rem 0 0;
+  border-top: 1px solid var(--app-border);
+  list-style: none;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+
+  strong {
+    color: var(--warn);
+  }
+}
+
 .filters {
   margin-top: 1.4rem;
 }
@@ -111,7 +126,7 @@ dl {
 
   summary {
     display: grid;
-    grid-template-columns: 1fr repeat(3, auto);
+    grid-template-columns: 1fr repeat(4, auto);
 
     time {
       grid-column: -2;

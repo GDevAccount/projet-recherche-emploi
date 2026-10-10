@@ -11,6 +11,7 @@ INSERTED_FIELDS = (
     "answer",
     "sources",
     "retrieved",
+    "consulted",
     "outcome",
     "starts_conversation",
     "model",
@@ -43,6 +44,15 @@ class AssistantMessageRepository:
         """Renvoie le nombre de questions posées par l'utilisateur depuis cette date."""
         statement = select(func.count()).where(
             AssistantMessage.user_id == self.user_id, AssistantMessage.created_at >= since
+        )
+        return self.session.scalar(statement)
+
+    def count_consulting_since(self, since: datetime) -> int:
+        """Renvoie le nombre de questions de l'utilisateur qui ont consulté son compte depuis cette date."""
+        statement = select(func.count()).where(
+            AssistantMessage.user_id == self.user_id,
+            AssistantMessage.created_at >= since,
+            AssistantMessage.consulted.is_not(None),
         )
         return self.session.scalar(statement)
 
@@ -100,6 +110,7 @@ class AssistantJournalRepository:
                 AssistantMessage.answer,
                 AssistantMessage.sources,
                 AssistantMessage.retrieved,
+                AssistantMessage.consulted,
                 AssistantMessage.outcome,
                 AssistantMessage.feedback,
             )
@@ -117,6 +128,13 @@ class AssistantJournalRepository:
         if since is not None:
             statement = statement.where(AssistantMessage.created_at >= since)
         return list(self.session.execute(statement))
+
+    def count_consulting(self, since: datetime | None = None) -> int:
+        """Renvoie le nombre de questions qui ont consulté le compte de leur auteur."""
+        statement = select(func.count()).where(AssistantMessage.consulted.is_not(None))
+        if since is not None:
+            statement = statement.where(AssistantMessage.created_at >= since)
+        return self.session.scalar(statement)
 
     def count_feedback(self, since: datetime | None = None) -> list[Row]:
         """Renvoie le nombre de réponses par note donnée ; celles qui n'en ont pas n'y sont pas."""

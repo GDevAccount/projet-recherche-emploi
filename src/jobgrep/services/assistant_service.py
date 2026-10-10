@@ -12,19 +12,22 @@ from datetime import UTC, datetime, timedelta
 from functools import cached_property
 from zoneinfo import ZoneInfo
 
+from langchain_core.messages import ToolMessage
 from langgraph.graph.state import CompiledStateGraph
 
 from jobgrep.assistant.graph import build_graph
 from jobgrep.assistant.nodes import AssistantNodes
 from jobgrep.assistant.passages import IndexedPassage, Passage, split_text
-from jobgrep.assistant.ports import AnswerModel, Embedder, Exchange
+from jobgrep.assistant.ports import AccountReader, AnswerModel, Embedder, Exchange
 from jobgrep.assistant.prompts import prompt_version
+from jobgrep.assistant.tools import ACCOUNT_STATUS_TOOL, build_account_tools
 from jobgrep.config import (
     ASSISTANT_HISTORY_MINUTES,
     ASSISTANT_HISTORY_TURNS,
     ASSISTANT_MESSAGE_DAYS,
     DEFAULT_USER_ID,
     LOCAL_TIMEZONE,
+    MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY,
     MAX_ASSISTANT_QUESTIONS_PER_DAY,
     MAX_ASSISTANT_QUESTIONS_PER_MINUTE,
 )
@@ -36,19 +39,23 @@ from jobgrep.data.repositories.assistant_message_repository import (
     AssistantMessageRepository,
 )
 from jobgrep.data.repositories.assistant_passage_repository import AssistantPassageRepository
+from jobgrep.data.repositories.health_repository import HealthRepository
 from jobgrep.data.repositories.usage_repository import UsageRepository
 from jobgrep.errors import (
+    AssistantAccountLimitError,
+    AssistantDailyLimitError,
+    AssistantRateLimitError,
     AssistantUnavailableError,
     BudgetReachedError,
     InvalidInputError,
     NotFoundError,
-    QuotaExceededError,
 )
 from jobgrep.schemas import (
     MAX_QUESTION_CHARS,
     AssistantConversation,
     AssistantFeedback,
     AssistantJournalEntry,
+    AssistantLimit,
     AssistantMessageRead,
     AssistantOverview,
     AssistantProgress,
@@ -61,6 +68,15 @@ from jobgrep.site_texts import SITE_TEXTS, read_site_text, section_screen, secti
 logger = logging.getLogger(__name__)
 
 UNAVAILABLE_MESSAGE = "L'assistant ne répond pas pour l'instant. Réessayez dans un moment."
+DAILY_LIMIT_MESSAGE = "Vous avez atteint votre limite de questions pour aujourd'hui : revenez demain."
+# Ce que l'assistant a consulté du compte, tel qu'il est dit à l'utilisateur
+TOOL_LABELS = {ACCOUNT_STATUS_TOOL: "État de votre compte"}
+# Limites opposées à une question, telles que la rubrique Suivi les nomme
+LIMIT_LABELS = {
+    AssistantDailyLimitError.__name__: "Questions du jour épuisées",
+    AssistantAccountLimitError.__name__: "Consultations du compte épuisées",
+    AssistantRateLimitError.__name__: "Questions trop rapprochées",
+}
 # Derniers échanges réaffichés à l'ouverture de l'assistant
 MAX_SHOWN_MESSAGES = 30
 # Dernières questions lues par un administrateur
@@ -95,6 +111,11 @@ def _sources_of(passages: list[Passage]) -> list[AssistantSource]:
     ]
 
 
+def _read_consulted(consulted: str | None) -> list[str]:
+    """Renvoie ce que l'assistant a consulté du compte, dans les mots dits à l'utilisateur."""
+    return [TOOL_LABELS.get(name, name) for name in json.loads(consulted or "[]")]
+
+
 def _current_conversation(rows: Sequence[AssistantMessage]) -> Sequence[AssistantMessage]:
     """Renvoie, parmi ces questions de la plus ancienne à la plus récente, celles de la conversation en cours."""
     starts = [position for position, row in enumerate(rows) if row.starts_conversation]
@@ -109,8 +130,21 @@ def _read_message(row: AssistantMessage) -> AssistantMessageRead:
         answer=row.answer,
         outcome=row.outcome,
         sources=_read_sources(row.sources),
+        consulted=_read_consulted(row.consulted),
         feedback=row.feedback,
     )
+
+
+def _count_limits(refusals: Sequence) -> list[AssistantLimit]:
+    """Additionne, par limite, les refus que les deux routes de l'assistant ont rendus."""
+    limits: dict[str, AssistantLimit] = {}
+    for row in refusals:
+        label = LIMIT_LABELS[row.error_type]
+        limit = limits.setdefault(row.error_type, AssistantLimit(label=label, count=0, accounts=0))
+        limit.count += row.count
+        # Le même compte peut être refusé par les deux routes : c'est un plafond, pas un décompte exact
+        limit.accounts = max(limit.accounts, row.accounts)
+    return sorted(limits.values(), key=lambda limit: -limit.count)
 
 
 class AssistantService:
@@ -122,8 +156,11 @@ class AssistantService:
         contact_email: str = "",
         budget_reached: Callable[[], bool] = lambda: False,
         anonymizer: CvAnonymizer | None = None,
+        account: AccountReader | None = None,
     ):
         self.database = database
+        # Lit la situation du compte de l'appelant pour le modèle ; None : l'assistant ne sait rien de lui
+        self.account = account
         # Retire d'une question ce qui a la forme d'une coordonnée, comme d'un CV
         self.anonymizer = anonymizer or CvAnonymizer()
         self.embedder = embedder
@@ -137,8 +174,12 @@ class AssistantService:
 
     @cached_property
     def graph(self) -> CompiledStateGraph:
-        nodes = AssistantNodes(self.embedder, self.answer_model, self._passages, self.contact_email)
-        return build_graph(nodes)
+        return self.graph_for(self.account)
+
+    def graph_for(self, account: AccountReader | None) -> CompiledStateGraph:
+        """Construit le graph de l'assistant sur ce lecteur de comptes : le vrai, ou celui d'une évaluation."""
+        tools = build_account_tools(account) if account else []
+        return build_graph(AssistantNodes(self.embedder, self.answer_model, self._passages, self.contact_email, tools))
 
     def ask(
         self, user_id: int, question: str, now: datetime | None = None, new_conversation: bool = False
@@ -177,10 +218,15 @@ class AssistantService:
         # Lecture seule : l'écriture a sa propre transaction, après le graph et ses appels au modèle
         with self.database.session() as session:
             messages = AssistantMessageRepository(session, user_id)
-            if limited and messages.count_since(_day_start(now)) >= MAX_ASSISTANT_QUESTIONS_PER_DAY:
-                raise QuotaExceededError("Vous avez posé toutes vos questions d'aujourd'hui : revenez demain.")
+            today = _day_start(now)
+            if limited and messages.count_since(today) >= MAX_ASSISTANT_QUESTIONS_PER_DAY:
+                raise AssistantDailyLimitError(DAILY_LIMIT_MESSAGE)
+            # Une question qui consulte le compte coûte un appel de plus : celles-là sont comptées à part, et
+            # leur nombre atteint ferme la journée, quoi que la question suivante demande
+            if limited and messages.count_consulting_since(today) >= MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY:
+                raise AssistantAccountLimitError(DAILY_LIMIT_MESSAGE)
             if limited and messages.count_since(now - timedelta(minutes=1)) >= MAX_ASSISTANT_QUESTIONS_PER_MINUTE:
-                raise QuotaExceededError("Vous posez vos questions trop vite : attendez une minute.")
+                raise AssistantRateLimitError("Vous posez vos questions trop vite : attendez une minute.")
             recent = messages.list_recent(ASSISTANT_HISTORY_TURNS, now - timedelta(minutes=ASSISTANT_HISTORY_MINUTES))
             remembered = [] if new_conversation else _current_conversation(recent)
             history = [Exchange(row.question, row.answer) for row in remembered]
@@ -192,7 +238,9 @@ class AssistantService:
     ) -> Iterator[AssistantProgress | AssistantReply]:
         result: dict = {}
         try:
-            events = self.graph.stream({"question": question, "history": history}, stream_mode=["custom", "values"])
+            # Le compte de l'appelant est mis dans l'état par le serveur : c'est le seul que les outils lisent
+            asked = {"user_id": user_id, "question": question, "history": history}
+            events = self.graph.stream(asked, stream_mode=["custom", "values"])
             for mode, chunk in events:
                 if mode == "custom":
                     yield AssistantProgress(**chunk)
@@ -205,6 +253,9 @@ class AssistantService:
             raise AssistantUnavailableError(UNAVAILABLE_MESSAGE) from error
         outcome, answer, usage = result["outcome"], result["answer"], result["usage"]
         sources, retrieved = _sources_of(result["cited"]), _sources_of(result["passages"])
+        tools_called = [message.name for message in result.get("transcript", []) if isinstance(message, ToolMessage)]
+        # Sans doublon, et vide plutôt que « [] » : c'est ce vide qui dit que le compte n'a pas été consulté
+        consulted = json.dumps(list(dict.fromkeys(tools_called))) if tools_called else None
 
         with self.database.session() as session:
             # L'écriture d'abord : SQLite refuse celle d'une transaction qui a lu pendant qu'une recherche écrit
@@ -216,6 +267,7 @@ class AssistantService:
                     "answer": answer,
                     "sources": _write_sources(sources),
                     "retrieved": _write_sources(retrieved),
+                    "consulted": consulted,
                     "outcome": outcome,
                     "starts_conversation": new_conversation,
                     "model": self.answer_model.model_name,
@@ -239,6 +291,7 @@ class AssistantService:
             answer=answer,
             outcome=outcome,
             sources=sources,
+            consulted=_read_consulted(consulted),
             feedback=None,
         )
         remaining = max(0, MAX_ASSISTANT_QUESTIONS_PER_DAY - used) if limited else None
@@ -263,6 +316,7 @@ class AssistantService:
             messages=[_read_message(row) for row in _current_conversation(rows)],
             remaining_questions=remaining,
             max_questions_per_day=MAX_ASSISTANT_QUESTIONS_PER_DAY,
+            max_account_questions_per_day=MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY,
             max_question_chars=MAX_QUESTION_CHARS,
             retention_days=ASSISTANT_MESSAGE_DAYS,
         )
@@ -280,6 +334,11 @@ class AssistantService:
             journal = AssistantJournalRepository(session)
             counts = {row.outcome: row.count for row in journal.summarize(since)}
             notes = {row.feedback: row.count for row in journal.count_feedback(since)}
+            consulting = journal.count_consulting(since)
+            # Un refus pour limite atteinte est une demande refusée comme une autre : il est déjà gardé, avec
+            # sa route et son type, parmi les erreurs rendues par l'API
+            errors = HealthRepository(session).summarize_errors(since)
+            refusals = [row for row in errors if row.error_type in LIMIT_LABELS]
             accounts = journal.count_accounts(since)
             rows = journal.list_recent(MAX_JOURNAL_ENTRIES, max(since or readable_since, readable_since))
             rows_used = UsageRepository(session).summarize_assistant(since)
@@ -296,6 +355,8 @@ class AssistantService:
             answered=counts.get("answered", 0),
             unknown=counts.get("unknown", 0),
             off_topic=counts.get("off_topic", 0),
+            consulting=consulting,
+            limits=_count_limits(refusals),
             helpful=notes.get("up", 0),
             unhelpful=notes.get("down", 0),
             accounts=accounts,
@@ -308,6 +369,7 @@ class AssistantService:
                     outcome=row.outcome,
                     sources=_read_sources(row.sources),
                     retrieved=_read_sources(row.retrieved),
+                    consulted=_read_consulted(row.consulted),
                     feedback=row.feedback,
                 )
                 for row in rows
