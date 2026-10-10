@@ -1241,3 +1241,19 @@ def test_only_administrators_read_the_evaluations_of_the_assistant(client):
     assert (listed["id"], listed["cases"], "results" in listed) == (evaluation.id, evaluation.cases, False)
     detail = client.get(f"/api/admin/assistant/evaluations/{evaluation.id}", headers=OWNER).json()
     assert len(detail["results"]) == evaluation.cases and detail["results"][0]["passed"] is False
+
+
+def test_assistant_out_of_order_answers_503_and_leaves_a_trace(client):
+    def fail(*call):
+        raise TimeoutError("délai dépassé")
+
+    client.app.state.container.assistant.answer_model.answer = fail
+
+    refused = client.post("/api/assistant/questions", json={"question": "Comment déposer mon CV ?"}, headers=ALICE)
+
+    assert refused.status_code == 503 and "ne répond pas pour l'instant" in refused.json()["detail"]
+    # Une panne de l'assistant est un incident : elle apparaît dans la santé de l'instance
+    health = client.get("/api/admin/health", headers=OWNER).json()
+    assert [(error["route"], error["error_type"]) for error in health["server_errors"]] == [
+        ("/api/assistant/questions", "AssistantUnavailableError")
+    ]

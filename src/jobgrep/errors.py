@@ -30,3 +30,7 @@ class BudgetReachedError(AppError):
 
 class ConfigurationError(AppError):
     """L'instance est mal réglée : seul son exploitant peut corriger."""
+
+
+class AssistantUnavailableError(AppError):
+    """L'assistant n'a pas pu répondre : le modèle est en panne, trop lent, ou a rendu une réponse illisible."""

@@ -22,6 +22,7 @@ from jobgrep.config import configure_logging
 from jobgrep.container import Container, get_container
 from jobgrep.errors import (
     AppError,
+    AssistantUnavailableError,
     BudgetReachedError,
     ConfigurationError,
     ConflictError,
@@ -40,6 +41,7 @@ STATUS_CODES = {
     QuotaExceededError: status.HTTP_429_TOO_MANY_REQUESTS,
     BudgetReachedError: status.HTTP_429_TOO_MANY_REQUESTS,
     ConfigurationError: status.HTTP_503_SERVICE_UNAVAILABLE,
+    AssistantUnavailableError: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 
 

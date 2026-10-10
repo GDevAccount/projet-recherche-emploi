@@ -213,7 +213,7 @@
     "question": "Utilisez-vous des cookies ?",
     "outcome": "answered",
     "sections": [["confidentialite", "Données enregistrées"]],
-    "reference": "Un seul cookie, nécessaire pour maintenir la connexion. Il n'y a aucun outil de mesure d'audience ni de publicité."
+    "reference": "Un seul cookie, nécessaire pour maintenir la connexion."
   },
   {
     "id": "administrateur-cv",
@@ -342,6 +342,80 @@
     "outcome": "answered",
     "sections": [["aide", "Supprimer son compte et ses données"], ["confidentialite", "Vos droits"]],
     "reference": "Non : la suppression est immédiate et sans retour possible."
+  },
+  {
+    "id": "rebond-comment-faire",
+    "history": [
+      {
+        "question": "Mon CV scanné est refusé, pourquoi ?",
+        "answer": "Le fichier doit être un PDF dont le texte peut être sélectionné. Un CV scanné est une image enregistrée en PDF : il est refusé."
+      }
+    ],
+    "question": "Comment faire alors ?",
+    "outcome": "answered",
+    "sections": [["aide", "Déposer ou remplacer son CV"]],
+    "reference": "Exporter le CV en PDF depuis un traitement de texte, puis le déposer."
+  },
+  {
+    "id": "rebond-le-dernier",
+    "history": [
+      {
+        "question": "À qui mes données sont-elles transmises ?",
+        "answer": "À Google pour la connexion, à OpenAI pour évaluer les offres, à Tavily pour la recherche web, et à Fly.io qui héberge l'application."
+      }
+    ],
+    "question": "Et le dernier, où garde-t-il mes données ?",
+    "outcome": "answered",
+    "sections": [["confidentialite", "À qui elles sont transmises"], ["conditions", "Éditeur et hébergeur"]],
+    "reference": "Fly.io garde les données dans la région de Paris."
+  },
+  {
+    "id": "rebond-pourquoi",
+    "history": [
+      {
+        "question": "Comment supprimer une offre qui ne m'intéresse pas ?",
+        "answer": "Dans la rubrique Offres, cliquez sur « Supprimer cette annonce ». L'application vous demande pourquoi."
+      }
+    ],
+    "question": "Pourquoi me demande-t-on ça ?",
+    "outcome": "answered",
+    "sections": [["aide", "Supprimer une offre"], ["fonctionnement", "5. Vous corrigez le tri quand il se trompe"]],
+    "reference": "La réponse sert à mesurer si le tri se trompe, et à l'améliorer."
+  },
+  {
+    "id": "rebond-combien-de-temps",
+    "history": [
+      {
+        "question": "Combien de questions puis-je te poser ?",
+        "answer": "Vous pouvez me poser {max_questions} questions par jour."
+      }
+    ],
+    "question": "Et elles sont gardées combien de temps ?",
+    "outcome": "answered",
+    "sections": [["aide", "L'assistant"], ["confidentialite", "Données enregistrées"]],
+    "reference": "Les questions et les réponses sont gardées {assistant_days} jours."
+  },
+  {
+    "id": "rebond-deux-tours",
+    "history": [
+      {
+        "question": "Puis-je essayer sans créer de compte ?",
+        "answer": "Oui, quand l'essai est proposé : il permet de déposer un CV et de lancer {trial_searches} recherche sans se connecter."
+      },
+      {
+        "question": "Comment passer au thème clair ?",
+        "answer": "Avec le bouton en forme de soleil ou de lune, en haut à droite."
+      }
+    ],
+    "question": "Pour revenir à ma première question, ça dure combien de temps ?",
+    "outcome": "answered",
+    "sections": [
+      ["aide", "L'essai sans compte"],
+      ["conditions", "Accès"],
+      ["fonctionnement", "Ce qu'il faut pour commencer"],
+      ["confidentialite", "Durée de conservation"]
+    ],
+    "reference": "Un essai sans compte est supprimé au bout de {trial_days} jours."
   },
   {
     "id": "changement-de-sujet",

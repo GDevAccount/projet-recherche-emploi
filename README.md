@@ -141,7 +141,7 @@ Un script peut envoyer cet en-tête à chaque requête. Un navigateur ne l'envoi
 
 Un navigateur ne peut appeler l'API depuis un autre site que si son origine figure dans `CORS_ORIGINS`. Le front n'en a pas besoin : il est servi à la même adresse que l'API.
 
-Les erreurs ont la forme `{"detail": "message en français"}`, avec le code 422 (demande refusée), 404 (élément inconnu), 409 (doublon), 429 (quota, essais ou budget du jour atteints) ou 503 (instance mal réglée).
+Les erreurs ont la forme `{"detail": "message en français"}`, avec le code 422 (demande refusée), 404 (élément inconnu), 409 (doublon), 429 (quota, essais ou budget du jour atteints) ou 503 (instance mal réglée, ou assistant qui ne répond pas).
 
 ## Front Angular
 
@@ -395,11 +395,13 @@ Pour que l'assistant sache répondre à une nouvelle question, compléter `aide.
 |---|---|
 | Section retrouvée | La section attendue est parmi les passages donnés au modèle : c'est la recherche qui est mesurée. Le rang moyen dit si elle arrive en tête. |
 | Bonne issue | Le graph a répondu, renvoyé vers l'exploitant ou refusé, comme attendu. |
-| Réponse juste | La réponse dit ce que dit la réponse de référence, selon un modèle qui la note (`JUDGE_MODEL`). |
+| Réponse juste | La réponse dit ce que dit la réponse de référence, selon un modèle qui la note (`JUDGE_MODEL`), plus fort que celui qui répond : un modèle est indulgent avec ses propres erreurs. |
 | Fidèle | La réponse ne dit que ce que disent les passages reçus, selon le même juge. |
 | Hors-sujet refusé | Les questions hors sujet et les détournements reçoivent un refus. |
 
 Les mesures sont enregistrées (`assistant_evaluations`) avec la version des consignes, et la rubrique Suivi les met côte à côte : on change `ANSWER_PROMPT`, un modèle ou un texte, on relance, on compare. Une évaluation ne passe par aucun compte : elle n'écrit rien dans le journal des questions, ne compte dans aucun quota, et son coût n'entre pas dans le budget de l'instance.
+
+Une évaluation coûte environ 0,20 $, presque entièrement pour le juge. D'un passage à l'autre, une ou deux questions peuvent changer de camp sans que rien n'ait changé : le modèle ne répond pas deux fois exactement la même chose. Un écart d'une question ne prouve rien ; c'est la raison donnée par le juge qui dit s'il y a un défaut à corriger.
 
 Elle s'écrit dans la base de la machine où elle tourne. Pour la voir dans la rubrique Suivi en ligne, la lancer sur l'instance : `fly ssh console -C "/app/.venv/bin/jobgrep evaluate"`.
 
@@ -677,7 +679,8 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 | Modèle OpenAI du filtre (`FILTER_MODEL`) | `src/jobgrep/config.py` | `gpt-5-mini` |
 | Taille maximale de page envoyée au modèle (`MAX_PAGE_CHARS`) | `src/jobgrep/config.py` | `8000` |
 | Modèle OpenAI de l'assistant (`ASSISTANT_MODEL`), et modèle d'embedding (`EMBEDDING_MODEL`) | `src/jobgrep/config.py` | `gpt-6-luna`, `text-embedding-3-small` |
-| Modèle qui note les réponses pendant une évaluation (`JUDGE_MODEL`), et questions posées en même temps (`EVALUATION_CONCURRENCY`) | `src/jobgrep/config.py` | `gpt-6-luna`, `4` |
+| Modèle qui note les réponses pendant une évaluation (`JUDGE_MODEL`), et questions posées en même temps (`EVALUATION_CONCURRENCY`) | `src/jobgrep/config.py` | `gpt-6-sol`, `4` |
+| Délai laissé à un appel de l'assistant à OpenAI, en secondes (`ASSISTANT_TIMEOUT_SECONDS`), et nouvelles tentatives (`ASSISTANT_RETRIES`) | `src/jobgrep/config.py` | `20`, `1` |
 | Questions à l'assistant par jour et par compte (`MAX_ASSISTANT_QUESTIONS_PER_DAY`) | `src/jobgrep/config.py` | `20` |
 | Passages donnés au modèle pour une question (`ASSISTANT_PASSAGES`) | `src/jobgrep/config.py` | `8` |
 | Jours de conservation du texte des questions (`ASSISTANT_MESSAGE_DAYS`) | `src/jobgrep/config.py` | `90` |

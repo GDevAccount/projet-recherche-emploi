@@ -121,13 +121,20 @@ MAX_PAGE_CHARS = 8000
 
 # Assistant : il répond aux questions sur l'application à partir des textes du site (texts/)
 ASSISTANT_MODEL = "gpt-6-luna"
-# Modèle qui note les réponses de l'assistant pendant une évaluation (commande « jobgrep evaluate »)
-JUDGE_MODEL = "gpt-6-luna"
+# Modèle qui note les réponses de l'assistant pendant une évaluation (commande « jobgrep evaluate »). Plus fort
+# que celui qui répond : un modèle est indulgent avec ses propres erreurs
+JUDGE_MODEL = "gpt-6-sol"
 # Questions de référence posées en même temps pendant une évaluation
 EVALUATION_CONCURRENCY = 4
 # Modèle qui situe les passages et les questions les uns par rapport aux autres. En changer fait recalculer
 # les passages à la première question
 EMBEDDING_MODEL = "text-embedding-3-small"
+# Délai laissé à chaque appel de l'assistant à OpenAI, en secondes, et nombre de nouvelles tentatives : au-delà,
+# l'utilisateur est prévenu que l'assistant ne répond pas, plutôt que d'attendre sans fin
+ASSISTANT_TIMEOUT_SECONDS = 20
+ASSISTANT_RETRIES = 1
+# Le juge d'une évaluation est plus lent, et personne n'attend sa réponse devant un écran
+JUDGE_TIMEOUT_SECONDS = 90
 # Questions par jour pour chaque compte, essais compris (le propriétaire n'est pas limité)
 MAX_ASSISTANT_QUESTIONS_PER_DAY = 20
 # Passages du site donnés au modèle pour répondre à une question
@@ -153,6 +160,7 @@ class ModelPrice(NamedTuple):
 # tarif ici corrige aussi le coût affiché des recherches passées. Un modèle absent n'a pas de coût affiché.
 MODEL_PRICES_USD = {
     "gpt-6-luna": ModelPrice(input=0.10, output=0.50, cache_read=0.01, cache_write=0.125),
+    "gpt-6-sol": ModelPrice(input=2.0, output=10.0, cache_read=0.20, cache_write=2.50),
     # Un modèle d'embedding ne facture que le texte qu'il lit
     "text-embedding-3-small": ModelPrice(input=0.02, output=0, cache_read=0, cache_write=0),
 }
