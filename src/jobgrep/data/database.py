@@ -1,7 +1,8 @@
 import logging
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import closing, contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from alembic import command
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 from jobgrep.config import DEFAULT_USER_ID
+from jobgrep.data.models import SQLITE_TIMESTAMP_FORMAT
 
 logger = logging.getLogger(__name__)
 
@@ -68,13 +70,28 @@ class Database:
 
         Les copies restent : elles servent à revenir en arrière après une migration ratée, pour tous les autres.
         """
+        return self._clean_backups(lambda backup: _purge_user(backup, user_id))
+
+    def purge_expired_from_backups(
+        self, texts_before: datetime, errors_before: datetime, trial_starts_before: datetime
+    ) -> int:
+        """Retire de ces copies ce dont la durée de conservation est passée, et renvoie leur nombre.
+
+        Ce que la base efface à date fixe (texte des questions à l'assistant, erreurs, ouvertures d'essais)
+        ne doit pas survivre dans une copie.
+        """
+        return self._clean_backups(
+            lambda backup: _purge_expired(backup, texts_before, errors_before, trial_starts_before)
+        )
+
+    def _clean_backups(self, clean: Callable[[Path], None]) -> int:
         backups = list(self.db_path.parent.glob(f"{self.db_path.stem}.avant-migration-*.db"))
         for backup in backups:
             try:
-                _purge_user(backup, user_id)
+                clean(backup)
             except sqlite3.Error:
                 # Une copie illisible ne peut pas être nettoyée : on ne garde pas des données qu'on a promis d'effacer
-                logger.exception("Copie %s illisible : effacée faute de pouvoir en retirer un compte", backup)
+                logger.exception("Copie %s illisible : effacée faute de pouvoir la nettoyer", backup)
                 backup.unlink()
         return len(backups)
 
@@ -106,6 +123,43 @@ def _purge_user(backup: Path, user_id: int) -> None:
         connection.commit()
         # Sans cela, les lignes effacées restent lisibles dans les pages libres du fichier
         connection.execute("VACUUM")
+
+
+# Colonnes de assistant_messages qui portent le texte d'un échange : vidées, la ligne garde ses compteurs
+ASSISTANT_TEXT_COLUMNS = ("question", "answer", "sources", "retrieved")
+ERROR_TABLES = ("server_errors", "client_errors")
+
+
+def _purge_expired(
+    backup: Path, texts_before: datetime, errors_before: datetime, trial_starts_before: datetime
+) -> None:
+    """Retire d'une copie ce que la base n'a plus le droit de garder, quel que soit le schéma qu'elle avait alors."""
+    with closing(sqlite3.connect(backup)) as connection:
+        tables = {name for (name,) in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        changed = 0
+        if "assistant_messages" in tables:
+            columns = {column[1] for column in connection.execute('PRAGMA table_info("assistant_messages")')}
+            emptied = ", ".join(f"{column} = NULL" for column in ASSISTANT_TEXT_COLUMNS if column in columns)
+            changed += connection.execute(
+                f"UPDATE assistant_messages SET {emptied} WHERE created_at < ? AND question IS NOT NULL",
+                (_timestamp(texts_before),),
+            ).rowcount
+        limits = dict.fromkeys(ERROR_TABLES, errors_before) | {"trial_starts": trial_starts_before}
+        for table, limit in limits.items():
+            if table in tables:
+                changed += connection.execute(
+                    f'DELETE FROM "{table}" WHERE created_at < ?', (_timestamp(limit),)
+                ).rowcount
+        connection.commit()
+        if changed:
+            # Sans cela, les lignes effacées restent lisibles dans les pages libres du fichier. Seulement
+            # quand il y a eu quelque chose à retirer : ce passage a lieu chaque jour
+            connection.execute("VACUUM")
+
+
+def _timestamp(moment: datetime) -> str:
+    # Les dates sont du texte UTC : elles se comparent comme du texte, au même format
+    return moment.astimezone(UTC).strftime(SQLITE_TIMESTAMP_FORMAT)
 
 
 def _use_explicit_transactions(engine: Engine) -> None:

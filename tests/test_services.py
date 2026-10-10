@@ -13,6 +13,7 @@ from sqlalchemy import update
 
 from jobgrep.agent.prompts import prompt_version
 from jobgrep.config import (
+    ASSISTANT_MESSAGE_DAYS,
     DEFAULT_QUERIES,
     DEFAULT_USER_ID,
     INACTIVE_ACCOUNT_DAYS,
@@ -23,7 +24,7 @@ from jobgrep.config import (
 )
 from jobgrep.container import build_container
 from jobgrep.data.cv_ingestion.pdf_reader import CvPdfReader
-from jobgrep.data.models import EngineCall, SearchRun, ServerError
+from jobgrep.data.models import ClientError, EngineCall, SearchRun, ServerError
 from jobgrep.data.repositories.activity_repository import ActivityRepository
 from jobgrep.data.repositories.correction_repository import CorrectionRepository
 from jobgrep.data.repositories.cv_text_repository import CvTextRepository
@@ -1141,6 +1142,51 @@ def test_failed_deletion_of_inactive_accounts_does_not_reach_the_caller(containe
     make_inactive_guest(container, "bob@exemple.fr", now + timedelta(days=1))
     container.account.delete_inactive_accounts_if_due(now + timedelta(days=1))
     assert guest_emails(container) == set()
+
+
+def test_expired_records_are_forgotten_every_day_without_waiting_for_a_new_one(container):
+    now = datetime.now(UTC)
+    old = now - timedelta(days=max(ASSISTANT_MESSAGE_DAYS, SERVER_ERROR_DAYS) + 1)
+    # La question récente d'abord : posée après, elle effacerait elle-même l'ancienne
+    container.assistant.ask(BOB, "Comment supprimer mon compte ?", now)
+    container.assistant.ask(BOB, "Comment déposer mon CV ?", old)
+    container.health.record_error(BOB, "GET", "/api/jobs", 404, "NotFoundError")
+    container.health.record_error(BOB, "PUT", "/api/cv", 422, "InvalidInputError")
+    container.health.record_client_error(
+        BOB, ClientErrorReport(route="/offres", error_type="TypeError", source="main.js:1:2"), now
+    )
+    with container.database.session() as session:
+        session.execute(update(ServerError).where(ServerError.error_type == "InvalidInputError").values(created_at=old))
+        session.execute(update(ClientError).values(created_at=old))
+        users = UserRepository(session)
+        users.record_trial_start("empreinte", old)
+        users.record_trial_start("empreinte", now)
+    # Une copie d'avant migration, faite quand tout cela était encore en base
+    db_path = container.settings.db_path
+    backup = db_path.with_name("jobs.avant-migration-0099.db")
+    with closing(sqlite3.connect(db_path)) as source, closing(sqlite3.connect(backup)) as target:
+        source.backup(target)
+    unreadable = db_path.with_name("jobs.avant-migration-0098.db")
+    unreadable.write_bytes(b"ceci n'est pas une base")
+
+    # Personne n'a posé de question, rencontré d'erreur ni ouvert d'essai depuis : le passage du jour suffit
+    container.account.delete_inactive_accounts_if_due(now)
+
+    for path in (db_path, backup):
+        with closing(sqlite3.connect(path)) as connection:
+            messages = connection.execute(
+                "SELECT question, answer, sources, retrieved, input_tokens IS NOT NULL "
+                "FROM assistant_messages ORDER BY created_at"
+            ).fetchall()
+            # Le texte part, la ligne reste pour son coût
+            assert messages[0] == (None, None, None, None, 1)
+            assert messages[1][0] == "Comment supprimer mon compte ?"
+            assert connection.execute("SELECT error_type FROM server_errors").fetchall() == [("NotFoundError",)]
+            assert connection.execute("SELECT COUNT(*) FROM client_errors").fetchone() == (0,)
+            assert connection.execute("SELECT COUNT(*) FROM trial_starts").fetchone() == (1,)
+    assert not unreadable.exists()
+    # Rien de plus à effacer au passage suivant
+    assert container.account.forget_expired_records(now) == 0
 
 
 RAW_CV = "Alice Martin\nalice.martin@exemple.fr - 06 12 34 56 78\n12 rue des Lilas, 75011 Paris\nIngénieure IA, Python"

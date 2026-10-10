@@ -2,10 +2,21 @@ import logging
 import threading
 from datetime import UTC, date, datetime, timedelta
 
-from jobgrep.config import DEFAULT_PLAN, INACTIVE_ACCOUNT_DAYS, TRIAL_ACCOUNT_DAYS, TRIAL_PLAN
+from jobgrep.config import (
+    ASSISTANT_MESSAGE_DAYS,
+    DEFAULT_PLAN,
+    INACTIVE_ACCOUNT_DAYS,
+    SERVER_ERROR_DAYS,
+    TRIAL_ACCOUNT_DAYS,
+    TRIAL_PLAN,
+    TRIAL_START_DAYS,
+)
 from jobgrep.data.database import Database
 from jobgrep.data.repositories.activity_repository import ActivityRepository
-from jobgrep.data.repositories.assistant_message_repository import AssistantMessageRepository
+from jobgrep.data.repositories.assistant_message_repository import (
+    AssistantJournalRepository,
+    AssistantMessageRepository,
+)
 from jobgrep.data.repositories.correction_repository import CorrectionRepository
 from jobgrep.data.repositories.cv_text_repository import CvTextRepository
 from jobgrep.data.repositories.engine_call_repository import EngineCallRepository
@@ -65,7 +76,7 @@ class AccountService:
         self.database.purge_user_from_backups(user_id)
 
     def delete_inactive_accounts_if_due(self, now: datetime | None = None) -> None:
-        """Supprime les comptes inactifs, au plus une fois par jour.
+        """Supprime les comptes inactifs et ce dont la durée de conservation est passée, une fois par jour au plus.
 
         Faute de tâche planifiée, c'est le démarrage et chaque requête identifiée qui passent par ici : une
         machine mise en veille reprend sans redémarrer, le démarrage seul ne suffirait pas. Un échec est
@@ -80,6 +91,29 @@ class AccountService:
             self.delete_inactive_accounts(now)
         except Exception:
             logger.exception("La suppression des comptes inactifs a échoué")
+        # À part : l'échec de l'une ne doit pas empêcher l'autre
+        try:
+            self.forget_expired_records(now)
+        except Exception:
+            logger.exception("L'effacement des données dont la durée de conservation est passée a échoué")
+
+    def forget_expired_records(self, now: datetime | None = None) -> int:
+        """Efface ce que les règles de confidentialité promettent d'effacer à date fixe, et renvoie le nombre de lignes.
+
+        Le texte des questions à l'assistant, les erreurs rencontrées et les ouvertures d'essais sont aussi
+        effacés quand une ligne du même genre s'écrit, mais cela ne suffit pas : sans question, sans erreur
+        ou sans essai, rien ne partirait. Les copies d'avant migration sont nettoyées de même.
+        """
+        now = now or datetime.now(UTC)
+        texts_before = now - timedelta(days=ASSISTANT_MESSAGE_DAYS)
+        errors_before = now - timedelta(days=SERVER_ERROR_DAYS)
+        trial_starts_before = now - timedelta(days=TRIAL_START_DAYS)
+        with self.database.session() as session:
+            forgotten = AssistantJournalRepository(session).forget_texts_before(texts_before)
+            forgotten += HealthRepository(session).delete_errors_before(errors_before)
+            forgotten += UserRepository(session).forget_trial_starts(trial_starts_before)
+        self.database.purge_expired_from_backups(texts_before, errors_before, trial_starts_before)
+        return forgotten
 
     def delete_inactive_accounts(self, now: datetime | None = None) -> int:
         """Supprime les comptes sans activité depuis INACTIVE_ACCOUNT_DAYS, et renvoie leur nombre.

@@ -55,8 +55,9 @@ def index_texts() -> None:
 
 
 def purge() -> None:
-    deleted = get_container().account.delete_inactive_accounts()
-    logger.info("%d compte(s) inactif(s) supprimé(s)", deleted)
+    account = get_container().account
+    logger.info("%d compte(s) inactif(s) supprimé(s)", account.delete_inactive_accounts())
+    logger.info("%d ligne(s) effacée(s), leur durée de conservation étant passée", account.forget_expired_records())
 
 
 def evaluate() -> None:
