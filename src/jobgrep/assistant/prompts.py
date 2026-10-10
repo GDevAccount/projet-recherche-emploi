@@ -51,3 +51,26 @@ def prompt_version() -> str:
     """
     templates = [message.prompt.template for message in ANSWER_PROMPT.messages if hasattr(message, "prompt")]
     return hashlib.sha256("\n".join(templates).encode()).hexdigest()[:12]
+
+
+JUDGE_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "Tu notes la réponse d'un assistant qui renseigne les utilisateurs d'une application, JobGrep, "
+            "à partir de passages tirés des textes de son site.\n\n"
+            "Rends :\n"
+            "- reason : une ou deux phrases qui disent ce qui manque ou ce qui est faux, ou que tout va bien.\n"
+            "- faithful : vrai si tout ce que la réponse affirme se trouve dans les passages. Faux dès qu'elle "
+            "ajoute un fait, un écran, un bouton, un délai ou un droit qui n'y est pas, même s'il est plausible.\n"
+            "- correct : vrai si la réponse dit l'essentiel de la réponse de référence et ne la contredit pas. "
+            "La formulation est libre, et un détail de plus ne la rend pas fausse. Faux si l'information "
+            "principale manque, ou si un chiffre ou un libellé diffère.",
+        ),
+        (
+            "human",
+            "Question : {question}\n\nPassages donnés à l'assistant :\n{passages}\n\n"
+            "Réponse de référence : {reference}\n\nRéponse de l'assistant : {answer}",
+        ),
+    ]
+)

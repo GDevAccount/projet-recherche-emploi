@@ -6,6 +6,8 @@ from jobgrep.api.security import AdminId, Services
 from jobgrep.schemas import (
     AccountDetail,
     AlertTest,
+    AssistantEvaluationDetail,
+    AssistantEvaluationRead,
     AssistantOverview,
     BudgetOverview,
     HealthOverview,
@@ -94,3 +96,18 @@ def get_assistant_overview(
     Réservé aux administrateurs. Le texte des questions et des réponses en sort, jamais le compte qui les a posées.
     """
     return services.assistant.get_overview(days)
+
+
+@router.get("/admin/assistant/evaluations")
+def list_assistant_evaluations(admin_id: AdminId, services: Services) -> list[AssistantEvaluationRead]:
+    """Dernières évaluations de l'assistant sur ses questions de référence, la plus récente en premier.
+
+    Réservé aux administrateurs. Une évaluation se lance par la commande « jobgrep evaluate » : elle coûte.
+    """
+    return services.evaluation.list_evaluations()
+
+
+@router.get("/admin/assistant/evaluations/{evaluation_id}")
+def get_assistant_evaluation(evaluation_id: int, admin_id: AdminId, services: Services) -> AssistantEvaluationDetail:
+    """Une évaluation de l'assistant, avec ce que chaque question de référence a donné. Réservé aux administrateurs."""
+    return services.evaluation.get_evaluation(evaluation_id)

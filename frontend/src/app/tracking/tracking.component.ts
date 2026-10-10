@@ -10,6 +10,7 @@ import { TrackingService } from '../core/tracking.service';
 import { AssistantCardComponent } from './assistant-card.component';
 import { BudgetCardComponent } from './budget-card.component';
 import { CorrectionsCardComponent } from './corrections-card.component';
+import { EvaluationCardComponent } from './evaluation-card.component';
 import { HealthCardComponent } from './health-card.component';
 import { JourneysCardComponent } from './journeys-card.component';
 import { OutcomesCardComponent } from './outcomes-card.component';
@@ -45,6 +46,7 @@ const GROUPS_SHOWN = 8;
     AssistantCardComponent,
     BudgetCardComponent,
     CorrectionsCardComponent,
+    EvaluationCardComponent,
     HealthCardComponent,
     JourneysCardComponent,
     OutcomesCardComponent,

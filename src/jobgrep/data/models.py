@@ -430,6 +430,53 @@ class AssistantMessage(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
 
 
+class AssistantEvaluation(Base):
+    """Passage du banc d'évaluation de l'assistant : ce que les questions de référence ont mesuré ce jour-là.
+
+    Sans « user_id » : aucune ligne ne vient d'un compte. Pour chaque mesure, le nombre de questions qu'elle
+    concerne et le nombre de celles qui passent : les parts se calculent à la lecture.
+    """
+
+    __tablename__ = "assistant_evaluations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    # Ce qui a été mesuré : modèle qui répond, modèle d'embedding, consignes ; et le modèle qui a noté
+    model: Mapped[str] = mapped_column(Text)
+    embedding_model: Mapped[str] = mapped_column(Text)
+    judge_model: Mapped[str] = mapped_column(Text)
+    prompt_version: Mapped[str] = mapped_column(Text)
+    # Questions posées, et celles auxquelles rien n'est à reprocher
+    cases: Mapped[int] = mapped_column(Integer)
+    passed: Mapped[int] = mapped_column(Integer)
+    # Questions dont l'issue (réponse, renvoi, refus) est celle attendue
+    outcome_hits: Mapped[int] = mapped_column(Integer)
+    # Questions qui attendent une section des textes ; celles où elle est parmi les passages retrouvés,
+    # la somme des inverses de son rang, et celles où la réponse la cite
+    retrieval_cases: Mapped[int] = mapped_column(Integer)
+    retrieval_hits: Mapped[int] = mapped_column(Integer)
+    reciprocal_rank_sum: Mapped[float] = mapped_column(REAL)
+    cited_hits: Mapped[int] = mapped_column(Integer)
+    # Questions qui ont une réponse de référence, et celles où la réponse dit la même chose
+    answer_cases: Mapped[int] = mapped_column(Integer)
+    correct: Mapped[int] = mapped_column(Integer)
+    # Réponses notées par le juge, et celles qui ne disent que ce que disent les passages
+    judged: Mapped[int] = mapped_column(Integer)
+    faithful: Mapped[int] = mapped_column(Integer)
+    # Questions hors sujet, et celles qui ont bien été refusées
+    off_topic_cases: Mapped[int] = mapped_column(Integer)
+    off_topic_refused: Mapped[int] = mapped_column(Integer)
+    # Ce que l'évaluation a consommé : réponses, questions situées, notes du juge
+    input_tokens: Mapped[int] = mapped_column(Integer)
+    output_tokens: Mapped[int] = mapped_column(Integer)
+    embedding_tokens: Mapped[int] = mapped_column(Integer)
+    judge_input_tokens: Mapped[int] = mapped_column(Integer)
+    judge_output_tokens: Mapped[int] = mapped_column(Integer)
+    duration_ms: Mapped[int] = mapped_column(Integer)
+    # Détail de chaque question, en JSON (AssistantEvaluationCase de schemas.py)
+    details: Mapped[str] = mapped_column(Text)
+
+
 class ArchivedUsage(Base):
     """Consommation d'un compte supprimé, additionnée par mois et par modèle : ni adresse, ni contenu, ni date précise.
 

@@ -6,6 +6,8 @@ import { environment } from '../../environments/environment';
 import {
   AccountDetail,
   AlertTest,
+  AssistantEvaluation,
+  AssistantEvaluationDetail,
   AssistantOverview,
   BudgetOverview,
   HealthOverview,
@@ -45,7 +47,9 @@ export class TrackingService {
 
   /** Recherches échouées et erreurs de l'API sur tous les comptes, pendant les derniers jours. */
   getHealth(days: number): Observable<HealthOverview> {
-    return this.http.get<HealthOverview>(`${environment.apiUrl}/admin/health`, { params: { days } });
+    return this.http.get<HealthOverview>(`${environment.apiUrl}/admin/health`, {
+      params: { days },
+    });
   }
 
   /** Dépense du mois en cours sur tous les comptes, sa projection et le budget de l'instance. */
@@ -65,7 +69,23 @@ export class TrackingService {
 
   /** Ce qui est demandé à l'assistant sur tous les comptes, pendant les derniers jours. */
   getAssistant(days: number): Observable<AssistantOverview> {
-    return this.http.get<AssistantOverview>(`${environment.apiUrl}/admin/assistant`, { params: { days } });
+    return this.http.get<AssistantOverview>(`${environment.apiUrl}/admin/assistant`, {
+      params: { days },
+    });
+  }
+
+  /** Dernières évaluations de l'assistant sur ses questions de référence, la plus récente en premier. */
+  listAssistantEvaluations(): Observable<AssistantEvaluation[]> {
+    return this.http.get<AssistantEvaluation[]>(
+      `${environment.apiUrl}/admin/assistant/evaluations`,
+    );
+  }
+
+  /** Une évaluation, avec ce que chaque question de référence a donné. */
+  getAssistantEvaluation(id: number): Observable<AssistantEvaluationDetail> {
+    return this.http.get<AssistantEvaluationDetail>(
+      `${environment.apiUrl}/admin/assistant/evaluations/${id}`,
+    );
   }
 
   /** Envoie une alerte d'essai, et dit si elle est partie. */

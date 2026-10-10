@@ -6,16 +6,18 @@ Les clients ne sont créés qu'au premier appel : construire le conteneur ne dem
 import time
 from collections.abc import Sequence
 from functools import cached_property
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
 
 from jobgrep.assistant.passages import Passage
-from jobgrep.assistant.ports import DraftAnswer, Exchange, ModelUsage
-from jobgrep.assistant.prompts import ANSWER_PROMPT, describe_passages
-from jobgrep.config import ASSISTANT_MODEL, EMBEDDING_MODEL
+from jobgrep.assistant.ports import DraftAnswer, Exchange, ModelUsage, Verdict
+from jobgrep.assistant.prompts import ANSWER_PROMPT, JUDGE_PROMPT, describe_passages
+from jobgrep.config import ASSISTANT_MODEL, EMBEDDING_MODEL, JUDGE_MODEL
 
 
 class OpenAIEmbedder:
@@ -51,17 +53,46 @@ class OpenAIAnswerModel:
         for exchange in history:
             messages += [HumanMessage(exchange.question), AIMessage(exchange.answer)]
 
-        started = time.perf_counter()
-        reply = chain.invoke({"passages": describe_passages(passages), "history": messages, "question": question})
-        duration_ms = round((time.perf_counter() - started) * 1000)
-        if reply["parsing_error"]:
-            raise reply["parsing_error"]
-        usage = getattr(reply["raw"], "usage_metadata", None) or {}
-        input_details = usage.get("input_token_details") or {}
-        return reply["parsed"], ModelUsage(
-            input_tokens=usage.get("input_tokens"),
-            output_tokens=usage.get("output_tokens"),
-            cache_read_tokens=input_details.get("cache_read"),
-            cache_write_tokens=input_details.get("cache_creation"),
-            duration_ms=duration_ms,
-        )
+        inputs = {"passages": describe_passages(passages), "history": messages, "question": question}
+        return _invoke(chain, inputs)
+
+
+class OpenAIAnswerJudge:
+    model_name = JUDGE_MODEL
+
+    def __init__(self, chat_model: BaseChatModel | None = None):
+        self._injected_chat_model = chat_model
+
+    @cached_property
+    def _chat_model(self) -> BaseChatModel:
+        return self._injected_chat_model or ChatOpenAI(model=JUDGE_MODEL)
+
+    def judge(
+        self, question: str, passages: Sequence[Passage], answer: str, reference: str
+    ) -> tuple[Verdict, ModelUsage]:
+        chain = JUDGE_PROMPT | self._chat_model.with_structured_output(Verdict, include_raw=True)
+        inputs = {
+            "question": question,
+            "passages": describe_passages(passages),
+            "reference": reference,
+            "answer": answer,
+        }
+        return _invoke(chain, inputs)
+
+
+def _invoke(chain: Runnable, inputs: dict) -> tuple[Any, ModelUsage]:
+    """Interroge le modèle, et renvoie ce qu'il a rendu avec ce que l'appel a coûté."""
+    started = time.perf_counter()
+    reply = chain.invoke(inputs)
+    duration_ms = round((time.perf_counter() - started) * 1000)
+    if reply["parsing_error"]:
+        raise reply["parsing_error"]
+    usage = getattr(reply["raw"], "usage_metadata", None) or {}
+    input_details = usage.get("input_token_details") or {}
+    return reply["parsed"], ModelUsage(
+        input_tokens=usage.get("input_tokens"),
+        output_tokens=usage.get("output_tokens"),
+        cache_read_tokens=input_details.get("cache_read"),
+        cache_write_tokens=input_details.get("cache_creation"),
+        duration_ms=duration_ms,
+    )

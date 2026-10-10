@@ -34,7 +34,7 @@ L'utilisation de vos données est décrite dans les [règles de confidentialité
 
 ## Éditeur et hébergeur
 
-L'application est éditée par un particulier, à titre non professionnel, joignable à l'adresse indiquée ci-dessous.
+L'application est éditée par Guillaume Legall, un particulier, à titre non professionnel, joignable à l'adresse indiquée ci-dessous.
 
 Elle est hébergée par Fly.io, Inc., 2261 Market Street #4990, San Francisco, CA 94114, États-Unis (https://fly.io, support@fly.io), sur des serveurs situés dans la région de Paris.
 

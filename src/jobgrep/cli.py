@@ -50,6 +50,33 @@ def purge() -> None:
     logger.info("%d compte(s) inactif(s) supprimé(s)", deleted)
 
 
+def evaluate() -> None:
+    # Chaque question de référence appelle les modèles : l'évaluation coûte, et ne se lance qu'à la demande
+    result = get_container().evaluation.run()
+
+    def percent(rate: float | None) -> str:
+        return "—" if rate is None else f"{rate:.0%}"
+
+    logger.info(
+        "Évaluation %d, consignes %s : %d question(s) sur %d sans reproche",
+        result.id,
+        result.prompt_version,
+        result.passed,
+        result.cases,
+    )
+    logger.info(
+        "Section retrouvée %s, issue attendue %s, réponse juste %s, fidèle aux passages %s, hors-sujet refusé %s",
+        percent(result.retrieval_rate),
+        percent(result.outcome_rate),
+        percent(result.correct_rate),
+        percent(result.faithful_rate),
+        percent(result.refusal_rate),
+    )
+    for case in result.results:
+        if not case.passed:
+            logger.info("À revoir : %s (%s) %s", case.id, case.outcome, case.judge_reason)
+
+
 def serve_api() -> None:
     import uvicorn
 
@@ -67,6 +94,7 @@ COMMANDS = {
     "search": (run_search, "lance une recherche pour le propriétaire (par défaut)"),
     "graph": (draw_graph, "génère le schéma du graph dans graph.png"),
     "migrate": (migrate, "crée la base ou l'amène à la dernière version du schéma"),
+    "evaluate": (evaluate, "pose à l'assistant ses questions de référence et note ses réponses (appels payants)"),
     "purge": (purge, "supprime les comptes d'invités inactifs depuis trop longtemps (fait aussi par le serveur)"),
     "api": (serve_api, "sert l'application en développement, avec la documentation : http://127.0.0.1:8000/docs"),
     "serve": (serve, "sert l'application en ligne sur le port 8000, sans la documentation de l'API"),

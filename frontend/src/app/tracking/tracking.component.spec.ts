@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import {
   AccountUsage,
+  AssistantEvaluation,
   AssistantOverview,
   BudgetOverview,
   EvaluationGroup,
@@ -305,6 +306,10 @@ describe('TrackingComponent', () => {
   let asked = assistant();
   beforeEach(() => (asked = assistant()));
 
+  /** Ce que l'API répond pour les évaluations de l'assistant : un test le change avant d'appeler serve. */
+  let evaluations: AssistantEvaluation[] = [];
+  beforeEach(() => (evaluations = []));
+
   function element(): HTMLElement {
     return fixture.nativeElement as HTMLElement;
   }
@@ -339,6 +344,7 @@ describe('TrackingComponent', () => {
     http.expectOne({ method: 'GET', url: '/api/admin/budget' }).flush(spending);
     http.expectOne({ method: 'GET', url: '/api/admin/journeys' }).flush(guests);
     http.expectOne({ method: 'GET', url: '/api/admin/assistant?days=30' }).flush(asked);
+    http.expectOne({ method: 'GET', url: '/api/admin/assistant/evaluations' }).flush(evaluations);
     await fixture.whenStable();
     if (served.runs) {
       http.expectOne({ method: 'GET', url: '/api/admin/usage?days=30' }).flush(overview);
@@ -962,6 +968,92 @@ describe('TrackingComponent', () => {
     const card = element().querySelector('app-corrections-card')!;
     expect(card.querySelector('table')).toBeNull();
     expect(text(card)).toContain("Aucune correction pour l'instant");
+  });
+
+  it('should compare the evaluations of the assistant, and open one on what failed', async () => {
+    const evaluation: AssistantEvaluation = {
+      id: 7,
+      created_at: '2026-10-10T08:00:00Z',
+      model: 'gpt-6-luna',
+      embedding_model: 'text-embedding-3-small',
+      judge_model: 'gpt-6-luna',
+      prompt_version: 'abc123def456',
+      cases: 51,
+      passed: 49,
+      pass_rate: 0.9608,
+      outcome_rate: 0.98,
+      retrieval_rate: 0.95,
+      mean_reciprocal_rank: 0.9,
+      citation_rate: 0.9,
+      correct_rate: 0.925,
+      faithful_rate: 1,
+      refusal_rate: 0.875,
+      duration_ms: 42000,
+      cost_usd: 0.0312,
+    };
+    evaluations = [evaluation];
+    await serve(stats({ runs: 0 }), []);
+    const card = element().querySelector('app-evaluation-card')!;
+
+    expect(texts('app-evaluation-card tbody td')).toEqual([
+      '49 / 51',
+      '95 %',
+      '98 %',
+      '92,5 %',
+      '100 %',
+      '87,5 %',
+      '0,031 $',
+    ]);
+    expect(text(card)).toContain('consignes abc123def456');
+
+    await click('10 octobre 2026', 'app-evaluation-card tbody button');
+    const result = {
+      question: 'Comment passer au thème clair ?',
+      expected_outcome: 'answered' as const,
+      outcome: 'answered' as const,
+      answer: 'Réponse.',
+      retrieved: ["Guide d'utilisation · Se déconnecter", "Guide d'utilisation · Changer de thème"],
+      rank: 2,
+      cited: false,
+      faithful: true,
+      correct: false,
+      judge_reason: 'Le bouton cité est le mauvais.',
+    };
+    http.expectOne({ method: 'GET', url: '/api/admin/assistant/evaluations/7' }).flush({
+      ...evaluation,
+      results: [
+        { ...result, id: 'theme', passed: false },
+        {
+          ...result,
+          id: 'lettre',
+          passed: false,
+          question: 'Écris ma lettre',
+          expected_outcome: 'off_topic',
+          rank: null,
+          cited: null,
+        },
+        { ...result, id: 'perdu', passed: false, question: 'Où est-ce ?', rank: null },
+        { ...result, id: 'bon', passed: true, question: 'Une bonne réponse' },
+      ],
+    });
+    await fixture.whenStable();
+
+    // Seules les questions à revoir, chacune avec ce qui lui est reproché : la réponse, l'issue, ou la recherche
+    expect(text(card)).toContain('3 questions à revoir');
+    expect(texts('app-evaluation-card .reproach')).toEqual([
+      'Le bouton cité est le mauvais.',
+      'Attendu : un refus. Obtenu : une réponse.',
+      "La section attendue n'est pas parmi les passages retrouvés.",
+    ]);
+    expect(texts('app-evaluation-card .expected')).toEqual([
+      "Guide d'utilisation · Changer de thème",
+    ]);
+  });
+
+  it('should say how to run a first evaluation of the assistant', async () => {
+    await serve(stats({ runs: 0 }), []);
+
+    expect(text(element().querySelector('app-evaluation-card'))).toContain('jobgrep evaluate');
   });
 
   it('should show what is asked to the assistant, and what it could not answer', async () => {

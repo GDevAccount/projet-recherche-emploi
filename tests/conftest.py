@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from jobgrep.agent.ports import EvaluationUsage, JobEvaluation
-from jobgrep.assistant.ports import DraftAnswer, ModelUsage
+from jobgrep.assistant.ports import DraftAnswer, ModelUsage, Verdict
 from jobgrep.config import MODEL_PRICES_USD, ModelPrice, Settings
 from jobgrep.container import build_container
 from jobgrep.data.database import Database
@@ -129,6 +129,23 @@ class FakeAnswerModel:
         return DraftAnswer(outcome=self.outcome, answer=answer, passages=self.cited), self.usage
 
 
+class FakeJudge:
+    """Note les réponses de l'assistant sans appeler OpenAI, et garde ce qu'on lui a soumis."""
+
+    model_name = "faux-juge"
+
+    def __init__(self):
+        self.judged = []
+        # Ce qu'il dit de chaque réponse
+        self.faithful = True
+        self.correct = True
+        self.usage = ModelUsage(input_tokens=1500, output_tokens=40)
+
+    def judge(self, question, passages, answer, reference):
+        self.judged.append((question, answer, reference))
+        return Verdict(reason="Conforme.", faithful=self.faithful, correct=self.correct), self.usage
+
+
 class FakeNotifier:
     """Destinataire des alertes : il garde ce qu'il reçoit, ou refuse tout si « works » est faux."""
 
@@ -188,8 +205,15 @@ def answer_model():
 
 
 @pytest.fixture
-def container(settings, search_engine, evaluator, embedder, answer_model):
-    return build_container(settings, search_engine, evaluator, embedder=embedder, answer_model=answer_model)
+def judge():
+    return FakeJudge()
+
+
+@pytest.fixture
+def container(settings, search_engine, evaluator, embedder, answer_model, judge):
+    return build_container(
+        settings, search_engine, evaluator, embedder=embedder, answer_model=answer_model, judge=judge
+    )
 
 
 @pytest.fixture

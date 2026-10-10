@@ -4,7 +4,7 @@ JobGrep est une application qui cherche des offres d'emploi sur le web et ne gar
 
 ## Qui est responsable de vos données
 
-L'application est un projet personnel, exploité par un particulier. Pour toute question ou demande concernant vos données : {contact}.
+L'application est un projet personnel, exploité par Guillaume Legall, un particulier. C'est lui le responsable du traitement de vos données. Pour toute question ou demande concernant vos données : {contact}.
 
 ## Données enregistrées
 
