@@ -383,7 +383,7 @@ Un bouton, en bas de chaque écran, ouvre un assistant qui répond aux questions
 | Réponse (`GenerateAnswer`) | Le modèle répond à partir de ces seuls passages, et dit lesquels ont servi. Il dit aussi si la question porte sur l'application. |
 | Suite | Une réponse garde ses sources (`CiteSources`). Une question hors sujet est refusée (`DeclineQuestion`), et une question à laquelle les textes ne répondent pas est renvoyée vers l'exploitant (`ReferToOperator`) : ces deux textes sont écrits par le serveur, pas par le modèle. |
 
-L'assistant ne reçoit rien d'un compte : ni CV, ni recherche, ni offre. Chaque compte a 20 questions par jour (`MAX_ASSISTANT_QUESTIONS_PER_DAY`), le propriétaire n'est pas limité, et le budget du jour arrête les questions comme les recherches. Questions et réponses sont enregistrées (`assistant_messages`) : leur texte est effacé au bout de 90 jours, leurs compteurs restent. La rubrique Suivi les montre aux administrateurs, sans le compte : celles restées « sans réponse » disent ce qui manque aux textes.
+L'assistant ne reçoit rien d'un compte : ni CV, ni recherche, ni offre. Ce qui a la forme d'une coordonnée (e-mail, téléphone, lien, adresse) est retiré d'une question avant son envoi au modèle et son enregistrement. Chaque compte a 20 questions par jour (`MAX_ASSISTANT_QUESTIONS_PER_DAY`) et 5 par minute, le propriétaire n'est pas limité, et le budget du jour arrête les questions comme les recherches. Questions et réponses sont enregistrées (`assistant_messages`) : leur texte est effacé au bout de 90 jours, leurs compteurs restent. La rubrique Suivi les montre aux administrateurs, sans le compte : celles restées « sans réponse » disent ce qui manque aux textes.
 
 Pour que l'assistant sache répondre à une nouvelle question, compléter `aide.md` ou l'un des autres textes : le passage est indexé au redémarrage suivant, à la première question.
 
@@ -405,7 +405,9 @@ Une évaluation coûte environ 0,20 $, presque entièrement pour le juge. D'un p
 
 Elle s'écrit dans la base de la machine où elle tourne. Pour la voir dans la rubrique Suivi en ligne, la lancer sur l'instance : `fly ssh console -C "/app/.venv/bin/jobgrep evaluate"`.
 
-Une question s'ajoute dans `evaluation_cases.json` ; les tests vérifient que les sections qu'elle vise existent dans les textes.
+Une question s'ajoute dans `evaluation_cases.json` ; les tests vérifient que les sections qu'elle vise existent dans les textes. Dans la rubrique Suivi, « Copier pour le jeu d'évaluation » copie une question posée par un utilisateur à ce format, à coller puis à compléter.
+
+L'évaluation n'est lancée par rien d'automatique, ni les tests, ni le déploiement : elle coûte, et ne vaut la peine qu'après un changement des consignes, d'un modèle ou de la recherche des passages.
 
 ## Base de données
 
@@ -681,7 +683,7 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 | Modèle OpenAI de l'assistant (`ASSISTANT_MODEL`), et modèle d'embedding (`EMBEDDING_MODEL`) | `src/jobgrep/config.py` | `gpt-6-luna`, `text-embedding-3-small` |
 | Modèle qui note les réponses pendant une évaluation (`JUDGE_MODEL`), et questions posées en même temps (`EVALUATION_CONCURRENCY`) | `src/jobgrep/config.py` | `gpt-6-sol`, `4` |
 | Délai laissé à un appel de l'assistant à OpenAI, en secondes (`ASSISTANT_TIMEOUT_SECONDS`), et nouvelles tentatives (`ASSISTANT_RETRIES`) | `src/jobgrep/config.py` | `20`, `1` |
-| Questions à l'assistant par jour et par compte (`MAX_ASSISTANT_QUESTIONS_PER_DAY`) | `src/jobgrep/config.py` | `20` |
+| Questions à l'assistant par jour et par compte (`MAX_ASSISTANT_QUESTIONS_PER_DAY`), et par minute (`MAX_ASSISTANT_QUESTIONS_PER_MINUTE`) | `src/jobgrep/config.py` | `20`, `5` |
 | Passages donnés au modèle pour une question (`ASSISTANT_PASSAGES`) | `src/jobgrep/config.py` | `8` |
 | Jours de conservation du texte des questions (`ASSISTANT_MESSAGE_DAYS`) | `src/jobgrep/config.py` | `90` |
 | Consignes de l'assistant (`ANSWER_PROMPT`) | `src/jobgrep/assistant/prompts.py` | — |
@@ -723,6 +725,7 @@ Les tests tournent sur une base temporaire et n'appellent ni Tavily ni OpenAI. I
 - une recherche utilise les recherches et le CV de son utilisateur, et respecte le quota journalier ;
 - toute route de l'API qui touche aux données exige une identité ;
 - l'assistant ne répond qu'à partir des textes du site, ne situe de nouveau que les passages qui ont changé, et respecte son quota ;
+- chaque libellé que le guide de l'assistant cite existe encore dans l'application ;
 - un cookie de session falsifié, expiré ou présenté par un autre site est refusé ;
 - la documentation de l'API n'est pas servie en ligne, et une connexion à moitié réglée arrête le serveur ;
 - le front est servi à la racine sans masquer l'API ni sortir de son dossier ;

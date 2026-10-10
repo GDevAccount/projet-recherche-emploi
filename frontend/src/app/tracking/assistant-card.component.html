@@ -90,6 +90,18 @@
                     }
                   </ol>
                 }
+                <button type="button" class="copy" (click)="copyCase(entry)">
+                  Copier pour le jeu d'évaluation
+                </button>
+                @if (copied()?.question === entry.question) {
+                  <span class="copied" role="status">
+                    {{
+                      copied()?.state === 'copied'
+                        ? 'Copié : à coller dans evaluation_cases.json, puis à compléter.'
+                        : "La copie a échoué : le navigateur l'a refusée."
+                    }}
+                  </span>
+                }
               </details>
             </li>
           }

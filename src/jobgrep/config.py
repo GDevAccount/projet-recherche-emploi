@@ -137,6 +137,8 @@ ASSISTANT_RETRIES = 1
 JUDGE_TIMEOUT_SECONDS = 90
 # Questions par jour pour chaque compte, essais compris (le propriétaire n'est pas limité)
 MAX_ASSISTANT_QUESTIONS_PER_DAY = 20
+# Et par minute : personne ne lit une réponse en moins de temps, un script qui les enchaîne si
+MAX_ASSISTANT_QUESTIONS_PER_MINUTE = 5
 # Passages du site donnés au modèle pour répondre à une question
 ASSISTANT_PASSAGES = 8
 # Échanges précédents rappelés au modèle, s'ils sont assez récents : une question peut renvoyer à la précédente

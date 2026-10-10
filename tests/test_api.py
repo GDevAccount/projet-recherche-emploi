@@ -1198,7 +1198,9 @@ def test_assistant_answers_about_the_application_and_keeps_the_conversation(clie
     assert len(client.app.state.container.assistant.answer_model.asked) == 1
 
 
-def test_assistant_refuses_once_the_daily_quota_is_reached(client):
+def test_assistant_refuses_once_the_daily_quota_is_reached(client, monkeypatch):
+    # Seul le quota du jour est regardé ici : le test pose ses questions bien plus vite qu'une personne
+    monkeypatch.setattr("jobgrep.services.assistant_service.MAX_ASSISTANT_QUESTIONS_PER_MINUTE", 1000)
     question = {"question": "Comment supprimer mon compte ?"}
     for _ in range(MAX_ASSISTANT_QUESTIONS_PER_DAY):
         assert client.post("/api/assistant/questions", json=question, headers=ALICE).status_code == 200

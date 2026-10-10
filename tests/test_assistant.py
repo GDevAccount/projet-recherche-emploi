@@ -14,6 +14,7 @@ from jobgrep.config import (
     ASSISTANT_PASSAGES,
     DEFAULT_USER_ID,
     MAX_ASSISTANT_QUESTIONS_PER_DAY,
+    MAX_ASSISTANT_QUESTIONS_PER_MINUTE,
     MODEL_PRICES_USD,
     ModelPrice,
     Settings,
@@ -251,11 +252,12 @@ def test_empty_or_endless_question_is_refused_before_any_call(container, embedde
 
 
 def test_questions_are_limited_per_day_except_for_the_owner(container, answer_model):
-    for _ in range(MAX_ASSISTANT_QUESTIONS_PER_DAY):
-        last = container.assistant.ask(BOB, "Comment déposer mon CV ?", NOON)
+    # Étalées sur la matinée : posées dans la même minute, c'est l'autre limite qui les arrêterait
+    for minutes_ago in range(MAX_ASSISTANT_QUESTIONS_PER_DAY, 0, -1):
+        last = container.assistant.ask(BOB, "Comment déposer mon CV ?", NOON - timedelta(minutes=minutes_ago))
     assert last.remaining_questions == 0
 
-    with pytest.raises(QuotaExceededError):
+    with pytest.raises(QuotaExceededError, match="revenez demain"):
         container.assistant.ask(BOB, "Comment déposer mon CV ?", NOON)
     # La question refusée n'est pas partie
     assert len(answer_model.asked) == MAX_ASSISTANT_QUESTIONS_PER_DAY
@@ -270,6 +272,35 @@ def test_questions_are_limited_per_day_except_for_the_owner(container, answer_mo
         owner = container.assistant.ask(DEFAULT_USER_ID, "Comment déposer mon CV ?", NOON)
     assert owner.remaining_questions is None
     assert container.assistant.get_conversation(DEFAULT_USER_ID, NOON).remaining_questions is None
+
+
+def test_questions_asked_too_fast_wait_a_minute(container, answer_model):
+    for second in range(MAX_ASSISTANT_QUESTIONS_PER_MINUTE):
+        container.assistant.ask(BOB, "Comment déposer mon CV ?", NOON + timedelta(seconds=second))
+
+    with pytest.raises(QuotaExceededError, match="attendez une minute"):
+        container.assistant.ask(BOB, "Comment déposer mon CV ?", NOON + timedelta(seconds=30))
+
+    assert len(answer_model.asked) == MAX_ASSISTANT_QUESTIONS_PER_MINUTE
+    # Une minute plus tard, la question passe ; et un autre compte n'a jamais été retenu
+    container.assistant.ask(BOB, "Comment déposer mon CV ?", NOON + timedelta(seconds=65))
+    container.assistant.ask(CAROL, "Comment déposer mon CV ?", NOON + timedelta(seconds=30))
+    # Le propriétaire n'est pas limité
+    for _ in range(MAX_ASSISTANT_QUESTIONS_PER_MINUTE + 1):
+        container.assistant.ask(DEFAULT_USER_ID, "Comment déposer mon CV ?", NOON)
+
+
+def test_contact_details_are_removed_from_a_question_before_anything_else(container, embedder, answer_model):
+    question = "Mon compte jean.dupont@exemple.fr (06 12 34 56 78) est bloqué, voir https://exemple.fr/moi"
+
+    reply = container.assistant.ask(BOB, question, NOON)
+
+    cleaned = "Mon compte [e-mail] ([téléphone]) est bloqué, voir [lien]"
+    # Ni OpenAI, ni la base, ni les administrateurs ne reçoivent ces coordonnées
+    assert (reply.message.question, embedder.embedded[-1], answer_model.asked[0][0]) == (cleaned, [cleaned], cleaned)
+    assert container.assistant.get_overview(now=NOON).entries[0].question == cleaned
+    with container.database.session() as session:
+        assert session.scalar(select(AssistantMessage.question)) == cleaned
 
 
 def test_daily_budget_stops_the_questions_except_the_owner_s(container, answer_model):
