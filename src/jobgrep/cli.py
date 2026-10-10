@@ -45,6 +45,15 @@ def migrate() -> None:
     get_container().auth.check_configuration()
 
 
+def index_texts() -> None:
+    # Au déploiement, pour que la première question à l'assistant n'attende pas ce calcul. Un échec ne doit
+    # pas empêcher le serveur de démarrer : la première question le refera
+    try:
+        logger.info("%d passage(s) des textes du site prêts pour l'assistant", get_container().assistant.index_texts())
+    except Exception as error:
+        logger.warning("Les textes du site n'ont pas pu être préparés pour l'assistant : %s", type(error).__name__)
+
+
 def purge() -> None:
     deleted = get_container().account.delete_inactive_accounts()
     logger.info("%d compte(s) inactif(s) supprimé(s)", deleted)
@@ -94,6 +103,7 @@ COMMANDS = {
     "search": (run_search, "lance une recherche pour le propriétaire (par défaut)"),
     "graph": (draw_graph, "génère le schéma du graph dans graph.png"),
     "migrate": (migrate, "crée la base ou l'amène à la dernière version du schéma"),
+    "index": (index_texts, "prépare les textes du site pour l'assistant, si l'un d'eux a changé (appel à OpenAI)"),
     "evaluate": (evaluate, "pose à l'assistant ses questions de référence et note ses réponses (appels payants)"),
     "purge": (purge, "supprime les comptes d'invités inactifs depuis trop longtemps (fait aussi par le serveur)"),
     "api": (serve_api, "sert l'application en développement, avec la documentation : http://127.0.0.1:8000/docs"),

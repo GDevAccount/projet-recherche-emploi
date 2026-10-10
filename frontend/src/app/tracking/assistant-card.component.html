@@ -41,6 +41,14 @@
           <dd>{{ overview.off_topic | count }}</dd>
         </div>
         <div>
+          <dt>Jugées utiles</dt>
+          <dd>{{ overview.helpful | count }}</dd>
+        </div>
+        <div>
+          <dt>Jugées inutiles</dt>
+          <dd [class.warn]="overview.unhelpful > 0">{{ overview.unhelpful | count }}</dd>
+        </div>
+        <div>
           <dt>Comptes</dt>
           <dd>{{ overview.accounts | count }}</dd>
         </div>
@@ -71,6 +79,11 @@
                 <summary>
                   <span class="question">{{ entry.question }}</span>
                   <span class="outcome" [class]="entry.outcome">{{ labels[entry.outcome] }}</span>
+                  @if (entry.feedback) {
+                    <span class="outcome" [class.unknown]="entry.feedback === 'down'">
+                      {{ entry.feedback === 'up' ? 'Jugée utile' : 'Jugée inutile' }}
+                    </span>
+                  }
                   <time>{{ entry.created_at | parisDate }}</time>
                 </summary>
                 <p>{{ entry.answer }}</p>

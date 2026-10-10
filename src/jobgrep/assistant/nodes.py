@@ -1,5 +1,7 @@
 from collections.abc import Callable, Sequence
 
+from langgraph.config import get_stream_writer
+
 from jobgrep.assistant.passages import IndexedPassage, rank_passages
 from jobgrep.assistant.ports import AnswerModel, Embedder, Outcome
 from jobgrep.assistant.state import AssistantState
@@ -31,6 +33,7 @@ class AssistantNodes:
 
     def retrieve_passages(self, state: AssistantState) -> AssistantState:
         """Situe la question parmi les passages des textes du site, et garde les plus proches."""
+        get_stream_writer()({"step": "retrieve"})
         index = self.index()
         question = state["question"]
         # Une question qui renvoie à la précédente (« et pour un essai ? ») ne se situe qu'avec elle. Mais une
@@ -42,7 +45,14 @@ class AssistantNodes:
 
     def generate_answer(self, state: AssistantState) -> AssistantState:
         """Demande au modèle de répondre à partir des seuls passages retenus."""
-        draft, usage = self.answer_model.answer(state["question"], state["passages"], state.get("history", []))
+        write_progress = get_stream_writer()
+        write_progress({"step": "generate"})
+        draft, usage = self.answer_model.answer(
+            state["question"],
+            state["passages"],
+            state.get("history", []),
+            on_answer=lambda text: write_progress({"step": "generate", "answer": text}),
+        )
         return {"draft": draft, "usage": usage}
 
     def route_by_outcome(self, state: AssistantState) -> Outcome:

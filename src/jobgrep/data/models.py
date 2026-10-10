@@ -416,6 +416,10 @@ class AssistantMessage(Base):
     retrieved: Mapped[str | None] = mapped_column(Text)
     # « answered », « unknown » ou « off_topic » (AssistantOutcome de schemas.py)
     outcome: Mapped[str] = mapped_column(Text)
+    # Note de l'utilisateur, « up » ou « down » ; vide s'il n'a pas noté la réponse
+    feedback: Mapped[str | None] = mapped_column(Text)
+    # Vrai pour la première question d'une conversation : celles d'avant ne sont plus rappelées ni réaffichées
+    starts_conversation: Mapped[bool] = mapped_column(IntBool, server_default=text("0"))
     model: Mapped[str | None] = mapped_column(Text)
     prompt_version: Mapped[str | None] = mapped_column(Text)
     input_tokens: Mapped[int | None] = mapped_column(Integer)

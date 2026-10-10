@@ -536,8 +536,23 @@ export type AssistantOutcome = 'answered' | 'unknown' | 'off_topic';
 export interface AssistantSource {
   title: string;
   section: string | null;
-  /** null pour le guide d'utilisation, qui n'est pas une page du site */
+  /** Adresse de la section dans sa page ; null pour le guide d'utilisation, qui n'est pas une page du site */
   url: string | null;
+  /** Écran de l'application dont parle la section (« /profil ») ; null si elle ne parle d'aucun */
+  screen: string | null;
+}
+
+/** Note donnée par l'utilisateur à une réponse : utile, ou non. */
+export type AssistantFeedback = 'up' | 'down';
+
+/** Où en est l'assistant : il cherche les passages, puis il écrit sa réponse. */
+export type AssistantStep = 'retrieve' | 'generate';
+
+/** Avancement d'une réponse en cours. */
+export interface AssistantProgress {
+  step: AssistantStep;
+  /** Texte de la réponse écrit jusqu'ici, entier à chaque fois ; null tant que rien n'est écrit */
+  answer: string | null;
 }
 
 export interface AssistantMessage {
@@ -547,6 +562,8 @@ export interface AssistantMessage {
   answer: string;
   outcome: AssistantOutcome;
   sources: AssistantSource[];
+  /** null si l'utilisateur n'a pas noté la réponse */
+  feedback: AssistantFeedback | null;
 }
 
 /** Ce que l'assistant affiche à son ouverture. */
@@ -579,6 +596,9 @@ export interface AssistantOverview {
   /** Questions sur l'application restées sans réponse : ce qui manque aux textes du site */
   unknown: number;
   off_topic: number;
+  /** Réponses notées utiles, et pas utiles, par ceux qui les ont reçues */
+  helpful: number;
+  unhelpful: number;
   accounts: number;
   cost_usd: number | null;
   entries: AssistantJournalEntry[];

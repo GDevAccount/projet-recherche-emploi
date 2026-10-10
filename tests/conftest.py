@@ -121,11 +121,15 @@ class FakeAnswerModel:
         self.text = None
         self.usage = ModelUsage(input_tokens=2000, output_tokens=100, duration_ms=300)
 
-    def answer(self, question, passages, history):
+    def answer(self, question, passages, history, on_answer=None):
         self.asked.append((question, list(passages), list(history)))
         answer = f"Voir « {passages[0].heading} »." if self.outcome == "answered" else ""
         if self.text is not None:
             answer = self.text
+        # Comme le vrai modèle : la réponse s'écrit peu à peu, et seulement quand il répond
+        if on_answer and self.outcome == "answered" and answer:
+            on_answer(answer[: len(answer) // 2])
+            on_answer(answer)
         return DraftAnswer(outcome=self.outcome, answer=answer, passages=self.cited), self.usage
 
 
