@@ -73,6 +73,14 @@ class AccountReader(Protocol):
         """Renvoie les pages écartées pour ce compte : intitulé, site, motif du rejet et son explication."""
         ...
 
+    def describe_queries(self, user_id: int) -> str:
+        """Renvoie les postes recherchés de ce compte : le métier saisi, le contrat et le lieu de chacun."""
+        ...
+
+    def describe_cv(self, user_id: int) -> str:
+        """Renvoie le texte du CV de ce compte, sans ses coordonnées."""
+        ...
+
 
 class Embedder(Protocol):
     # Nom du modèle interrogé : deux modèles ne placent pas un texte au même endroit

@@ -20,7 +20,14 @@ from jobgrep.assistant.nodes import AssistantNodes
 from jobgrep.assistant.passages import IndexedPassage, Passage, split_text
 from jobgrep.assistant.ports import AccountReader, AnswerModel, Embedder, Exchange
 from jobgrep.assistant.prompts import prompt_version
-from jobgrep.assistant.tools import ACCOUNT_STATUS_TOOL, OFFERS_TOOL, REJECTIONS_TOOL, build_account_tools
+from jobgrep.assistant.tools import (
+    ACCOUNT_STATUS_TOOL,
+    CV_TOOL,
+    OFFERS_TOOL,
+    QUERIES_TOOL,
+    REJECTIONS_TOOL,
+    build_account_tools,
+)
 from jobgrep.config import (
     ASSISTANT_HISTORY_MINUTES,
     ASSISTANT_HISTORY_TURNS,
@@ -74,6 +81,8 @@ TOOL_LABELS = {
     ACCOUNT_STATUS_TOOL: "État de votre compte",
     OFFERS_TOOL: "Vos offres",
     REJECTIONS_TOOL: "Vos pages écartées",
+    QUERIES_TOOL: "Vos postes recherchés",
+    CV_TOOL: "Votre CV",
 }
 # Limites opposées à une question, telles que la rubrique Suivi les nomme
 LIMIT_LABELS = {

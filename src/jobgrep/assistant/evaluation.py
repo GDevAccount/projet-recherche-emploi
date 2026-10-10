@@ -42,6 +42,9 @@ class EvalCase:
     # Offres et pages écartées que les outils rendent pour cette question ; vide : aucune
     offers: str = ""
     rejections: str = ""
+    # Postes recherchés et CV du compte ; vide : aucun
+    queries: str = ""
+    cv: str = ""
     # Le modèle doit-il consulter le compte pour répondre ; None quand les deux se défendent
     consults: bool | None = None
     # Outils qu'il doit avoir appelés ; vide : n'importe lequel convient
@@ -110,6 +113,8 @@ def load_cases(fill: Callable[[str], str] = lambda text: text) -> list[EvalCase]
                 fill(row.get("account", "")),
                 row.get("offers", ""),
                 row.get("rejections", ""),
+                row.get("queries", ""),
+                row.get("cv", ""),
                 row.get("consults"),
                 tuple(row.get("tools", [])),
             )
@@ -134,6 +139,12 @@ class CaseAccounts:
 
     def describe_rejections(self, user_id: int) -> str:
         return self._cases[user_id].rejections or "Pages écartées : aucune."
+
+    def describe_queries(self, user_id: int) -> str:
+        return self._cases[user_id].queries or "Postes recherchés : aucun."
+
+    def describe_cv(self, user_id: int) -> str:
+        return self._cases[user_id].cv or "CV : aucun CV déposé."
 
 
 def evaluate_case(graph: CompiledStateGraph, judge: AnswerJudge, case: EvalCase, user_id: int = 0) -> CaseResult:

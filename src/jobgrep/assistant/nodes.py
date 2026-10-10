@@ -10,8 +10,8 @@ from jobgrep.assistant.state import AssistantState
 from jobgrep.config import ASSISTANT_PASSAGES, ASSISTANT_TOOL_ROUNDS
 
 OFF_TOPIC_ANSWER = (
-    "Je ne réponds qu'aux questions sur JobGrep : son fonctionnement, vos données et vos droits. "
-    "Pour le reste, je ne peux pas vous aider."
+    "Je ne réponds qu'aux questions sur JobGrep : son fonctionnement, votre compte, vos données et vos droits. "
+    "Je ne rédige ni CV ni lettre, et je ne donne pas mon avis sur une offre."
 )
 UNKNOWN_ANSWER = "Je n'ai pas trouvé la réponse dans les textes de JobGrep. Pour cette question, {contact}."
 NO_CONTACT = "adressez-vous à l'exploitant de l'application"
