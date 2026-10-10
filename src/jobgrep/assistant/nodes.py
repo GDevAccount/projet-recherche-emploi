@@ -32,10 +32,13 @@ class AssistantNodes:
     def retrieve_passages(self, state: AssistantState) -> AssistantState:
         """Situe la question parmi les passages des textes du site, et garde les plus proches."""
         index = self.index()
-        # Une question qui renvoie à la précédente (« et pour un essai ? ») ne se situe qu'avec elle
-        previous = [exchange.question for exchange in state.get("history", [])[-1:]]
-        [vector], tokens = self.embedder.embed(["\n".join([*previous, state["question"]])])
-        return {"passages": rank_passages(vector, index, ASSISTANT_PASSAGES), "embedding_tokens": tokens}
+        question = state["question"]
+        # Une question qui renvoie à la précédente (« et pour un essai ? ») ne se situe qu'avec elle. Mais une
+        # question qui change de sujet serait noyée dans la précédente : elle est donc située seule aussi, et
+        # les passages sont pris à tour de rôle, ceux de la question seule d'abord
+        texts = [question, *(f"{exchange.question}\n{question}" for exchange in state.get("history", [])[-1:])]
+        vectors, tokens = self.embedder.embed(texts)
+        return {"passages": rank_passages(vectors, index, ASSISTANT_PASSAGES), "embedding_tokens": tokens}
 
     def generate_answer(self, state: AssistantState) -> AssistantState:
         """Demande au modèle de répondre à partir des seuls passages retenus."""

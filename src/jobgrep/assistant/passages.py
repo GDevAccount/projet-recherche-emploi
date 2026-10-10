@@ -80,8 +80,18 @@ def similarity(first: Sequence[float], second: Sequence[float]) -> float:
 
 
 def rank_passages(
-    question: Sequence[float], indexed: Sequence[IndexedPassage], count: int
+    questions: Sequence[Sequence[float]], indexed: Sequence[IndexedPassage], count: int
 ) -> list[Passage]:
-    """Renvoie les passages les plus proches de la question, le plus proche en premier."""
-    ranked = sorted(indexed, key=lambda item: similarity(question, item[1]), reverse=True)
-    return [passage for passage, _ in ranked[:count]]
+    """Renvoie les passages les plus proches de ces questions, à tour de rôle : le meilleur de la première,
+    le meilleur de la deuxième, le suivant de la première, et ainsi de suite, sans doublon.
+
+    Chaque question garde ainsi sa part des passages retenus, quelle que soit la longueur de son texte : les
+    proximités de deux questions ne se comparent pas entre elles.
+    """
+    rankings = [
+        sorted(indexed, key=lambda item, question=question: similarity(question, item[1]), reverse=True)
+        for question in questions
+    ]
+    # Un dictionnaire garde l'ordre d'arrivée et écarte un passage déjà pris par une autre question
+    passages = dict.fromkeys(passage for turn in zip(*rankings, strict=True) for passage, _ in turn)
+    return list(passages)[:count]

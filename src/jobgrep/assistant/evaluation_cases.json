@@ -344,6 +344,19 @@
     "reference": "Non : la suppression est immédiate et sans retour possible."
   },
   {
+    "id": "changement-de-sujet",
+    "history": [
+      {
+        "question": "Qui est le créateur de JobGrep ?",
+        "answer": "JobGrep a été créé par Guillaume Legall."
+      }
+    ],
+    "question": "Combien de temps est conservé mon CV ?",
+    "outcome": "answered",
+    "sections": [["aide", "Combien de temps le CV est conservé"], ["confidentialite", "Durée de conservation"]],
+    "reference": "Tant que le compte existe. Le CV est effacé dès que l'utilisateur supprime son compte, ou automatiquement quand le compte reste {inactive_months} mois sans utilisation."
+  },
+  {
     "id": "inconnu-mobile",
     "question": "JobGrep a-t-il une application mobile à installer ?",
     "outcome": "unknown"
