@@ -29,9 +29,7 @@ def tiny_graph(embedder, answer_model):
 
 def test_reference_questions_point_to_sections_that_exist():
     cases = load_cases(fill_fields)
-    sections = {
-        (name, passage.section) for name in SITE_TEXTS for passage in split_text(name, read_site_text(name))
-    }
+    sections = {(name, passage.section) for name in SITE_TEXTS for passage in split_text(name, read_site_text(name))}
 
     assert len({case.id for case in cases}) == len(cases) >= 40
     for case in cases:
@@ -41,10 +39,14 @@ def test_reference_questions_point_to_sections_that_exist():
         # Seule une réponse se compare à une référence, et il faut savoir d'où elle devait venir : d'une
         # section des textes, ou du compte
         if case.reference:
-            assert case.outcome == "answered" and (case.sections or case.account), case.id
+            assert case.outcome == "answered" and (case.sections or case.account or case.tools), case.id
         # Une question dont la réponse est dans le compte doit le consulter
-        if case.account:
+        if case.account or case.tools:
             assert case.consults is True, case.id
+        # Un outil attendu existe, et le compte fictif a de quoi lui répondre
+        assert set(case.tools) <= {"etat_du_compte", "mes_offres", "mes_pages_ecartees"}, case.id
+        assert "mes_offres" not in case.tools or case.offers, case.id
+        assert "mes_pages_ecartees" not in case.tools or case.rejections, case.id
     assert {case.outcome for case in cases} == {"answered", "unknown", "off_topic"}
     assert any(case.history for case in cases)
 
@@ -163,7 +165,8 @@ def test_a_question_about_the_account_must_consult_it(embedder, answer_model, ju
     answer_model.consults = True
     consulted = evaluate_case(graph, judge, asks, 0)
     assert (consulted.consulted, consulted.consult_expected, consulted.passed) == (True, True, True)
-    assert consulted.answer == status and judge.accounts == [status]
+    assert consulted.answer == status and judge.accounts == ["etat_du_compte :\n" + status]
+    assert (consulted.tools, consulted.consulted_well) == (["etat_du_compte"], True)
     # Deux appels au modèle pour cette question
     assert consulted.input_tokens == 4000
     # Consulter le compte pour une salutation est une faute ; pour une question du guide, ce n'est pas jugé
@@ -176,6 +179,46 @@ def test_a_question_about_the_account_must_consult_it(embedder, answer_model, ju
     skipped = evaluate_case(graph, judge, asks, 0)
     assert (skipped.consulted, skipped.correct, skipped.passed) == (False, True, False)
     assert judge.accounts[-1] == ""
+
+    # Le compte est consulté, mais pas par l'outil que la question demandait
+    listing = EvalCase(
+        "offres", "Lesquelles ?", "answered", offers="Offres retenues : 1.", consults=True, tools=("mes_offres",)
+    )
+    answer_model.consults = True
+    wrong_tool = evaluate_case(
+        build_graph(
+            AssistantNodes(
+                embedder,
+                answer_model,
+                lambda: [(THEME, [1.0, 0.0])],
+                tools=build_account_tools(CaseAccounts([listing])),
+            )
+        ),
+        judge,
+        listing,
+        0,
+    )
+    assert (wrong_tool.consulted, wrong_tool.tools, wrong_tool.consulted_well, wrong_tool.passed) == (
+        True,
+        ["etat_du_compte"],
+        False,
+        False,
+    )
+    answer_model.tool = "mes_offres"
+    right_tool = evaluate_case(
+        build_graph(
+            AssistantNodes(
+                embedder,
+                answer_model,
+                lambda: [(THEME, [1.0, 0.0])],
+                tools=build_account_tools(CaseAccounts([listing])),
+            )
+        ),
+        judge,
+        listing,
+        0,
+    )
+    assert (right_tool.answer, right_tool.consulted_well, right_tool.passed) == ("Offres retenues : 1.", True, True)
 
     counts = summarize([asks, forbidden, general], [consulted, wasted, evaluate_case(graph, judge, general, 1)])
     assert (counts["consult_cases"], counts["consult_hits"], counts["passed"]) == (2, 1, 2)

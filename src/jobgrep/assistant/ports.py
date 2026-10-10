@@ -65,6 +65,14 @@ class AccountReader(Protocol):
         """Renvoie la situation de ce compte, telle que le modèle peut la lire : des nombres et des dates."""
         ...
 
+    def describe_offers(self, user_id: int) -> str:
+        """Renvoie les offres retenues pour ce compte : intitulé, site, contrat, lieu, étape, raison."""
+        ...
+
+    def describe_rejections(self, user_id: int) -> str:
+        """Renvoie les pages écartées pour ce compte : intitulé, site, motif du rejet et son explication."""
+        ...
+
 
 class Embedder(Protocol):
     # Nom du modèle interrogé : deux modèles ne placent pas un texte au même endroit

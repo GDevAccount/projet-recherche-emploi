@@ -124,10 +124,13 @@ export class EvaluationCardComponent {
     if (result.rank === null && result.cited !== null) {
       return "La section attendue n'est pas parmi les passages retrouvés.";
     }
-    if (result.consult_expected !== null && result.consulted !== result.consult_expected) {
-      return result.consult_expected
-        ? "Le compte devait être consulté, et ne l'a pas été."
-        : 'Le compte a été consulté sans raison.';
+    if (result.consulted_well === false) {
+      if (result.consulted !== result.consult_expected) {
+        return result.consult_expected
+          ? "Le compte devait être consulté, et ne l'a pas été."
+          : 'Le compte a été consulté sans raison.';
+      }
+      return `Mauvais outil : ${result.tools.join(', ')} au lieu de ${result.expected_tools.join(', ')}.`;
     }
     if (result.outcome !== result.expected_outcome) {
       return `Attendu : ${OUTCOME_LABELS[result.expected_outcome]}. Obtenu : ${OUTCOME_LABELS[result.outcome]}.`;

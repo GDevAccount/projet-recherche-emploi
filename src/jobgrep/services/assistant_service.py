@@ -20,7 +20,7 @@ from jobgrep.assistant.nodes import AssistantNodes
 from jobgrep.assistant.passages import IndexedPassage, Passage, split_text
 from jobgrep.assistant.ports import AccountReader, AnswerModel, Embedder, Exchange
 from jobgrep.assistant.prompts import prompt_version
-from jobgrep.assistant.tools import ACCOUNT_STATUS_TOOL, build_account_tools
+from jobgrep.assistant.tools import ACCOUNT_STATUS_TOOL, OFFERS_TOOL, REJECTIONS_TOOL, build_account_tools
 from jobgrep.config import (
     ASSISTANT_HISTORY_MINUTES,
     ASSISTANT_HISTORY_TURNS,
@@ -70,7 +70,11 @@ logger = logging.getLogger(__name__)
 UNAVAILABLE_MESSAGE = "L'assistant ne répond pas pour l'instant. Réessayez dans un moment."
 DAILY_LIMIT_MESSAGE = "Vous avez atteint votre limite de questions pour aujourd'hui : revenez demain."
 # Ce que l'assistant a consulté du compte, tel qu'il est dit à l'utilisateur
-TOOL_LABELS = {ACCOUNT_STATUS_TOOL: "État de votre compte"}
+TOOL_LABELS = {
+    ACCOUNT_STATUS_TOOL: "État de votre compte",
+    OFFERS_TOOL: "Vos offres",
+    REJECTIONS_TOOL: "Vos pages écartées",
+}
 # Limites opposées à une question, telles que la rubrique Suivi les nomme
 LIMIT_LABELS = {
     AssistantDailyLimitError.__name__: "Questions du jour épuisées",

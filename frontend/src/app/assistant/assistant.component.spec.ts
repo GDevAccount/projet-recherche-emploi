@@ -218,7 +218,7 @@ describe('AssistantComponent', () => {
     expect(text()).toContain('Consulté : État de votre compte');
     // L'avertissement dit ce que l'assistant peut voir, et ce qu'il ne voit jamais
     expect(text()).toContain(
-      "Il peut consulter l'état de votre compte, jamais votre CV ni vos offres",
+      "Il peut consulter l'état de votre compte, vos offres et vos pages écartées, jamais votre CV",
     );
   });
 
