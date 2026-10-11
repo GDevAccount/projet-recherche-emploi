@@ -39,9 +39,11 @@ def test_public_page_is_plain_html_readable_without_javascript(path, title):
     assert '<meta name="description" content="' in response.text
     # Un seul script, celui du thème, servi par le site : la politique de contenu refuse tout script écrit ici
     assert response.text.count("<script") == 1 and '<script src="/theme-init.js"></script>' in response.text
-    # Sombre comme l'application, y compris sans JavaScript ; le clair ne vient que du choix fait dans le site
-    assert "color-scheme: dark" in response.text.split(":root.app-light")[0]
-    assert "prefers-color-scheme" not in response.text
+    # Le thème du système, y compris sans JavaScript, et sombre s'il n'en dit rien ; le choix fait dans le site
+    # l'emporte dans les deux sens
+    assert "color-scheme: dark" in response.text.split("@media (prefers-color-scheme: light)")[0]
+    assert ":root:not(.app-dark)" in response.text.split(":root.app-light")[0]
+    assert response.text.count("--link: #3f6212") == 2
     assert 'class="brand" href="/"' in response.text
     # Aucun champ de remplacement oublié dans le texte
     assert "{contact}" not in response.text and "{max_searches}" not in response.text

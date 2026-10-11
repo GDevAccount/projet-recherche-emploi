@@ -413,7 +413,7 @@ describe('ShellComponent', () => {
 
   it('should start in the dark theme, then switch and remember the choice', async () => {
     await openSession(GUEST);
-    // Sombre d'office, sans choix enregistré et quel que soit le système
+    // Sombre sans choix enregistré, quand le système n'annonce aucun thème
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
     expect(localStorage.getItem('theme')).toBeNull();
 
@@ -425,6 +425,48 @@ describe('ShellComponent', () => {
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(false);
     expect(localStorage.getItem('theme')).toBe('light');
     expect(element().querySelector('button[aria-label="Passer au thème sombre"]')).toBeTruthy();
+  });
+
+  it('should follow the system theme until a choice is made here', async () => {
+    const listeners: ((event: { matches: boolean }) => void)[] = [];
+    vi.stubGlobal('matchMedia', () => ({
+      matches: true,
+      addEventListener: (_: string, listener: (event: { matches: boolean }) => void) =>
+        listeners.push(listener),
+    }));
+    try {
+      await openSession(GUEST);
+      // Le système est clair, rien n'est choisi : clair, sans rien enregistrer
+      expect(document.documentElement.classList.contains(LIGHT_CLASS)).toBe(true);
+      expect(localStorage.getItem('theme')).toBeNull();
+
+      // Le système passe au sombre pendant la visite
+      listeners.forEach((listener) => listener({ matches: false }));
+      await fixture.whenStable();
+      expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
+
+      element().querySelector<HTMLButtonElement>('button[aria-label="Passer au thème clair"]')!.click();
+      await fixture.whenStable();
+      expect(localStorage.getItem('theme')).toBe('light');
+
+      // Une fois le choix fait, le système n'y change plus rien
+      listeners.forEach((listener) => listener({ matches: false }));
+      await fixture.whenStable();
+      expect(document.documentElement.classList.contains(LIGHT_CLASS)).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('should keep the dark theme once chosen, whatever the system says', async () => {
+    localStorage.setItem('theme', 'dark');
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: () => undefined }));
+    try {
+      await openSession(GUEST);
+      expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('should keep the light theme once chosen', async () => {

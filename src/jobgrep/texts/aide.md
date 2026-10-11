@@ -68,7 +68,7 @@ Si la recherche ramène peu d'annonces, regardez les compétences de vos postes 
 
 ## Changer de thème
 
-Le bouton en forme de soleil ou de lune, en haut à droite, passe du thème sombre au thème clair et inversement. Ce choix est gardé dans votre navigateur.
+Le bouton en forme de soleil ou de lune, en haut à droite, passe du thème sombre au thème clair et inversement. Tant que vous n'avez pas choisi, le site prend le thème de votre appareil, clair ou sombre. Une fois fait, votre choix est gardé dans votre navigateur.
 
 ## Revoir la présentation de l'application
 
