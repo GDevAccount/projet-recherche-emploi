@@ -18,9 +18,10 @@ ALLOWED = {
     "site_texts": {"config"},
     "data": {"config", "errors"},
     "agent": {"data", "config", "errors"},
+    "cv_agent": {"config"},
     "assistant": {"config"},
-    "services": {"assistant", "site_texts", "data", "schemas", "config", "errors"},
-    "container": {"services", "agent", "assistant", "data", "config"},
+    "services": {"assistant", "cv_agent", "site_texts", "data", "schemas", "config", "errors"},
+    "container": {"services", "agent", "cv_agent", "assistant", "data", "config"},
     "api": {"container", "services", "site_texts", "schemas", "config", "errors"},
     "cli": {"container", "schemas", "config", "errors"},
 }

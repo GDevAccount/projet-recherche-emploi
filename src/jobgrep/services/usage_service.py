@@ -374,9 +374,9 @@ class UsageService:
 
 
 def _consumption(session, since: datetime | None) -> list:
-    """Renvoie ce que chaque compte a consommé, par modèle : ses recherches, puis ses questions à l'assistant."""
+    """Renvoie ce que chaque compte a consommé, par modèle : recherches, questions à l'assistant, lectures de CV."""
     usage = UsageRepository(session)
-    return usage.summarize_runs(since) + usage.summarize_assistant(since)
+    return usage.summarize_runs(since) + usage.summarize_assistant(since) + usage.summarize_cv_extractions(since)
 
 
 def _count_steps(accounts: list[AccountJourney]) -> list[JourneyStep]:

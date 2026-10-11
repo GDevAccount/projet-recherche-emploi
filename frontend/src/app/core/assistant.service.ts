@@ -10,7 +10,7 @@ import {
   AssistantReply,
 } from './api.models';
 import { FETCH } from './search-run.service';
-import { readServerSentEvents } from './sse';
+import { detailOf, readDetail, readServerSentEvents } from './sse';
 
 const UNREACHABLE = 'Le serveur ne répond pas. Réessayez dans un instant.';
 const INTERRUPTED =
@@ -51,7 +51,7 @@ export class AssistantService {
       throw new Error(UNREACHABLE);
     }
     if (!response.ok || !response.body) {
-      throw new Error(await detailOf(response));
+      throw new Error(await detailOf(response, UNREACHABLE));
     }
 
     let reply: AssistantReply | undefined;
@@ -79,19 +79,5 @@ export class AssistantService {
   /** Note une réponse, utile ou non ; `null` retire la note. */
   setFeedback(messageId: number, feedback: AssistantFeedback | null): Observable<void> {
     return this.http.put<void>(`${this.url}/messages/${messageId}/feedback`, { feedback });
-  }
-}
-
-function readDetail(payload: unknown): string | null {
-  const detail = (payload as { detail?: unknown } | null)?.detail;
-  return typeof detail === 'string' && detail ? detail : null;
-}
-
-/** Message d'un refus de l'API, qui les rédige en français dans « detail ». */
-async function detailOf(response: Response): Promise<string> {
-  try {
-    return readDetail(await response.json()) ?? UNREACHABLE;
-  } catch {
-    return UNREACHABLE;
   }
 }

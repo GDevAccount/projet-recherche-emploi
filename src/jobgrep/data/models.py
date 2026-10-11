@@ -195,6 +195,29 @@ class CvText(Base):
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
 
 
+class CvExtraction(Base):
+    """Lecture d'un CV par le modèle, pour en tirer les postes à rechercher : comptée par jour, et dans le budget.
+
+    Ni le CV ni les postes proposés n'y sont : seulement leur nombre et ce que l'appel a coûté.
+    """
+
+    __tablename__ = "cv_extractions"
+    __table_args__ = (Index("ix_cv_extractions_user", "user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer)
+    # Postes recherchés créés à partir de cette lecture ; 0 si le CV n'en a donné aucun
+    queries_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    model: Mapped[str | None] = mapped_column(Text)
+    prompt_version: Mapped[str | None] = mapped_column(Text)
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    cache_read_tokens: Mapped[int | None] = mapped_column(Integer)
+    cache_write_tokens: Mapped[int | None] = mapped_column(Integer)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+
 class SearchRun(Base):
     """Lancement d'une recherche : compté par le quota journalier, puis complété par son bilan.
 

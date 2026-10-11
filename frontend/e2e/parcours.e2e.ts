@@ -102,9 +102,14 @@ test('le profil se complète : un CV, puis un poste recherché', async () => {
   await expect(page).toHaveURL(/\/profil$/);
 
   await page.locator('input[type=file]').setInputFiles(CV_PATH);
+  // Des postes sont déjà là : rien ne part tant que l'utilisateur n'a pas dit s'il les garde
+  await expect(page.getByText('Vous avez déjà 4 postes recherchés')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Enregistrer ce CV' })).toBeDisabled();
+  await page.getByRole('radio', { name: 'Garder mes postes' }).click();
   await page.getByRole('button', { name: 'Enregistrer ce CV' }).click();
-  await expect(page.getByText('CV enregistré.')).toBeVisible();
+  await expect(page.getByText("CV enregistré. Vos postes recherchés n'ont pas changé.")).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Votre CV est en place' })).toBeVisible();
+  await expect(page.locator('app-queries-card .count')).toHaveText('4');
 
   await page.getByLabel('Métier').fill(QUERY);
   // Une compétence se choisit dans le référentiel ; celle qui n'y est pas s'ajoute telle quelle
@@ -427,10 +432,13 @@ test("un visiteur essaie sans compte : une seule recherche, puis l'essai est ép
   await expect(page.getByRole('link', { name: 'Suivi', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'Compléter mon profil' }).click();
   await page.locator('input[type=file]').setInputFiles(CV_PATH);
+  // Sans poste recherché, aucune question : ils sont tirés du CV, compétences et lieu compris
+  await expect(page.getByText('Vos postes recherchés seront préparés à partir de ce CV')).toBeVisible();
   await page.getByRole('button', { name: 'Enregistrer ce CV' }).click();
-  await expect(page.getByText('CV enregistré.')).toBeVisible();
-  await page.getByLabel('Métier').fill(QUERY);
-  await page.getByRole('button', { name: 'Ajouter ce poste' }).click();
+  await expect(page.getByText('Vos postes recherchés ont été préparés à partir de lui')).toBeVisible();
+  const drawn = page.getByRole('listitem').filter({ hasText: QUERY });
+  await expect(drawn).toContainText('Rhône');
+  await expect(drawn.locator('.tag')).toHaveText(['Comptabilité fournisseurs', 'Licornes']);
 
   await page.getByRole('button', { name: 'Lancer une recherche' }).click();
   await expect(page.locator('app-run-panel').getByRole('status')).toHaveText('Recherche terminée', {

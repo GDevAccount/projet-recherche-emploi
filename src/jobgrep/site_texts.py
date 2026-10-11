@@ -16,6 +16,8 @@ from jobgrep.config import (
     MAX_ASSISTANT_ACCOUNT_QUESTIONS_PER_DAY,
     MAX_ASSISTANT_QUESTIONS_PER_DAY,
     MAX_ASSISTANT_QUESTIONS_PER_MINUTE,
+    MAX_CV_EXTRACTIONS_PER_DAY,
+    MAX_PROFILE_JOBS,
     MAX_SEARCHES_PER_DAY,
     MAX_SKILLS_PER_QUERY,
     MAX_TRIAL_SEARCHES,
@@ -56,6 +58,7 @@ SITE_TEXTS = {
 # Les chemins sont ceux du front (frontend/src/app/core/paths.ts)
 GUIDE_SCREENS = {
     "Déposer ou remplacer son CV": "/profil",
+    "Postes recherchés préparés à partir du CV": "/profil",
     "Ajouter ou supprimer un poste recherché": "/profil",
     "Suivre ses candidatures": "/offres",
     "Supprimer une offre": "/offres",
@@ -86,6 +89,8 @@ def fill_fields(text: str, contact_email: str = "") -> str:
         "contact": contact_email or "adressez-vous à l'exploitant de l'application",
         "max_searches": MAX_SEARCHES_PER_DAY,
         "max_skills": MAX_SKILLS_PER_QUERY,
+        "max_profile_jobs": MAX_PROFILE_JOBS,
+        "max_cv_extractions": MAX_CV_EXTRACTIONS_PER_DAY,
         "job_sites": ", ".join(JOB_SITES),
         "inactive_months": INACTIVE_ACCOUNT_DAYS // 30,
         "server_error_days": SERVER_ERROR_DAYS,

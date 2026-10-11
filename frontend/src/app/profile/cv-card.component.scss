@@ -124,6 +124,104 @@ header {
   color: var(--app-muted);
 }
 
+.question {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--app-accent-strong), transparent 45%);
+  border-radius: var(--app-radius-sm);
+  background: color-mix(in srgb, var(--app-accent), transparent 90%);
+
+  p {
+    margin: 0 0 0.7rem;
+    font-size: 0.875rem;
+    font-weight: 550;
+  }
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+
+  button {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: var(--app-surface);
+    color: var(--app-muted);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 550;
+    cursor: pointer;
+    transition:
+      color 0.15s,
+      border-color 0.15s,
+      background-color 0.15s;
+
+    &:hover:not(:disabled) {
+      color: var(--app-text);
+      border-color: var(--app-muted);
+    }
+
+    &.on {
+      border-color: var(--app-accent-strong);
+      background: var(--app-accent);
+      color: var(--app-accent-ink);
+    }
+
+    &:disabled {
+      cursor: default;
+    }
+  }
+}
+
+.steps {
+  display: grid;
+  gap: 0.3rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+  color: var(--app-muted);
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+
+    // Une étape franchie est cochée, celle en cours bat
+    &::before {
+      content: '';
+      flex: none;
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background: var(--app-accent-strong);
+    }
+
+    &.current {
+      color: var(--app-text);
+      font-weight: 550;
+
+      &::before {
+        animation: pulse 1s ease-in-out infinite;
+      }
+    }
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .steps li.current::before {
+    animation: none;
+  }
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

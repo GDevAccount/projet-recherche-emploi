@@ -8,9 +8,11 @@ C'est un projet personnel, mis à disposition gratuitement. [Ouvrir JobGrep](/)
 
 Vous déposez votre CV en PDF. Vos coordonnées en sont retirées avant toute comparaison : adresse e-mail, téléphone, liens, adresse postale, date de naissance et, quand il est connu, votre nom. Le fichier lui-même n'est pas conservé : seul son texte, sans ces coordonnées, est enregistré.
 
-## 2. Vous décrivez les postes que vous cherchez
+## 2. Vos postes recherchés sont préparés pour vous
 
-Pour chaque poste, vous indiquez le métier, les compétences qui le précisent si vous le souhaitez, le type de contrat (CDI, freelance, CDD, alternance ou stage) et le lieu : une ville, toute la France, ou le télétravail complet. Vous pouvez en décrire plusieurs.
+Un modèle d'intelligence artificielle lit votre CV, sans vos coordonnées, et en tire jusqu'à {max_profile_jobs} postes à rechercher, avec leurs compétences, leur contrat et le département ou la région où vous vivez. Vous les retrouvez dans votre profil, où vous pouvez les corriger, les supprimer ou en ajouter à la main.
+
+Pour chaque poste ajouté à la main, vous indiquez le métier, les compétences qui le précisent si vous le souhaitez, le type de contrat (CDI, freelance, CDD, alternance ou stage) et le lieu : une ville, toute la France, ou le télétravail complet. Vous pouvez en décrire plusieurs.
 
 ## 3. Vous lancez une recherche
 

@@ -5,6 +5,7 @@ from helpers import job, rejected_job
 from jobgrep.config import DEFAULT_QUERIES
 from jobgrep.data.repositories.activity_repository import ActivityRepository
 from jobgrep.data.repositories.correction_repository import CorrectionRepository
+from jobgrep.data.repositories.cv_extraction_repository import CvExtractionRepository
 from jobgrep.data.repositories.cv_text_repository import CvTextRepository
 from jobgrep.data.repositories.engine_call_repository import EngineCallRepository
 from jobgrep.data.repositories.health_repository import HealthRepository
@@ -267,6 +268,18 @@ def test_forgetting_the_errors_of_a_user_leaves_those_of_the_others(session):
         ("InvalidInputError", 1, 1),
         ("KeyError", 1, 0),
     ]
+
+
+def test_cv_extractions_are_counted_and_updated_per_user(session):
+    alice, bob = CvExtractionRepository(session, ALICE), CvExtractionRepository(session, BOB)
+    extraction_id = alice.insert_extraction({"model": "m", "input_tokens": 10})
+    long_ago = datetime(2000, 1, 1, tzinfo=UTC)
+
+    assert (alice.count_since(long_ago), bob.count_since(long_ago)) == (1, 0)
+    assert bob.set_queries_count(extraction_id, 3) is False
+    assert alice.set_queries_count(extraction_id, 2) is True
+    assert bob.delete_all() == 0 and alice.count_since(long_ago) == 1
+    assert alice.delete_all() == 1
 
 
 def test_looking_up_a_page_stays_within_its_user(session):

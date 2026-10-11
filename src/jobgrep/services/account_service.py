@@ -18,6 +18,7 @@ from jobgrep.data.repositories.assistant_message_repository import (
     AssistantMessageRepository,
 )
 from jobgrep.data.repositories.correction_repository import CorrectionRepository
+from jobgrep.data.repositories.cv_extraction_repository import CvExtractionRepository
 from jobgrep.data.repositories.cv_text_repository import CvTextRepository
 from jobgrep.data.repositories.engine_call_repository import EngineCallRepository
 from jobgrep.data.repositories.health_repository import HealthRepository
@@ -66,6 +67,7 @@ class AccountService:
             UsageRepository(session).archive_assistant(user_id, plan, deleted_at)
             SearchRunRepository(session, user_id).delete_all()
             AssistantMessageRepository(session, user_id).delete_all()
+            CvExtractionRepository(session, user_id).delete_all()
             PageEvaluationRepository(session, user_id).delete_all()
             CorrectionRepository(session, user_id).delete_all()
             EngineCallRepository(session, user_id).delete_all()

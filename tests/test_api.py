@@ -26,6 +26,7 @@ from jobgrep.config import (
     Settings,
 )
 from jobgrep.container import build_container
+from jobgrep.cv_agent.ports import DraftedJob, DraftedProfile
 from jobgrep.data.cv_ingestion.pdf_reader import CvPdfReader
 from jobgrep.data.models import TrialStart
 from jobgrep.data.repositories.job_repository import JobRepository
@@ -160,6 +161,7 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/skills"),
         ("GET", "/api/cv"),
         ("PUT", "/api/cv"),
+        ("POST", "/api/cv/stream"),
         ("POST", "/api/searches"),
         ("GET", "/api/searches"),
         ("GET", "/api/searches/stats"),
@@ -312,6 +314,47 @@ def test_cv_upload(client, valid_pdf):
     assert client.get("/api/cv", headers=BOB).json() == {"updated_at": None}
 
 
+def test_cv_upload_fills_the_searched_jobs_and_is_followed_step_by_step(client, valid_pdf, profile_extractor):
+    profile_extractor.profile = DraftedProfile(
+        jobs=[DraftedJob(title="comptable", contract_type="CDI", skills=["sap"])], location="Rhône", remote=False
+    )
+    pdf = {"file": ("cv.pdf", valid_pdf, "application/pdf")}
+
+    response = client.post("/api/cv/stream", headers=ALICE, files=pdf)
+
+    assert response.status_code == 200 and response.headers["content-type"].startswith("text/event-stream")
+    assert "content-encoding" not in response.headers
+    *progress, (last_name, deposit) = server_sent_events(response.text)
+    assert progress == [
+        ("progress", {"step": step}) for step in ("read", "anonymize", "save", "extract", "queries")
+    ]
+    assert last_name == "result" and deposit["queries_outcome"] == "created" and deposit["updated_at"]
+    [created] = deposit["queries"]
+    assert (created["query"], created["location"], created["skills"]) == ("Comptable", "Rhône", ["SAP"])
+    assert client.get("/api/queries", headers=ALICE).json() == [created]
+    assert client.get("/api/queries", headers=BOB).json() == []
+
+    # Des postes en place ne sont remplacés que si le formulaire le demande
+    profile_extractor.profile.jobs[0].title = "auditeur"
+    kept = client.put("/api/cv", headers=ALICE, files=pdf).json()
+    assert kept["queries_outcome"] == "kept" and kept["queries"] == [] and "pas changé" in kept["message"]
+    replaced = client.put("/api/cv", headers=ALICE, files=pdf, data={"replace_queries": "true"}).json()
+    assert replaced["queries_outcome"] == "created"
+    assert [query["query"] for query in client.get("/api/queries", headers=ALICE).json()] == ["Auditeur"]
+
+
+def test_refused_cv_ends_the_stream_with_its_reason_and_is_not_an_incident(client, valid_pdf):
+    response = client.post("/api/cv/stream", headers=ALICE, files={"file": ("cv.pdf", blank_pdf(), "application/pdf")})
+
+    assert response.status_code == 200
+    *_, (name, error) = server_sent_events(response.text)
+    assert name == "error" and "PDF" in error["detail"]
+    assert client.get("/api/cv", headers=ALICE).json() == {"updated_at": None}
+    health = client.get("/api/admin/health", headers=OWNER).json()
+    # Un fichier refusé est une demande refusée, pas une panne
+    assert health["healthy"] is True
+
+
 def test_search_is_streamed_then_counted(client, valid_pdf):
     refused = client.post("/api/searches", headers=ALICE)
     assert refused.status_code == 422
@@ -398,9 +441,10 @@ def test_administrator_sees_what_each_account_spends_and_nothing_else_of_them(tm
     )
     bob = client.get("/api/me", headers=BOB).json()
     assert (bob["is_admin"], bob["is_owner"], bob["remaining_searches"]) == (True, False, MAX_SEARCHES_PER_DAY)
+    # Le poste d'abord : déposé sans poste recherché, le CV serait lu par le modèle pour en proposer
+    client.post("/api/queries", headers=ALICE, json=QUERY)
     for headers in (OWNER, ALICE):
         client.put("/api/cv", headers=headers, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
-    client.post("/api/queries", headers=ALICE, json=QUERY)
     client.post("/api/searches", headers=OWNER)
     for _ in range(2):
         client.post("/api/searches", headers=ALICE)

@@ -46,6 +46,24 @@ export interface CvStatus {
   updated_at: string | null;
 }
 
+/** Étapes du dépôt d'un CV, dans l'ordre où le serveur les franchit. */
+export type CvStep = 'read' | 'anonymize' | 'save' | 'extract' | 'queries';
+
+export interface CvProgress {
+  step: CvStep;
+}
+
+/** Ce qu'il advient des postes recherchés au dépôt d'un CV ; seul « created » les change. */
+export type CvQueriesOutcome = 'created' | 'kept' | 'limit' | 'budget' | 'empty' | 'failed';
+
+export interface CvDeposit extends CvStatus {
+  queries_outcome: CvQueriesOutcome;
+  /** Ce que l'API dit du dépôt, à afficher tel quel */
+  message: string;
+  /** Les postes créés à partir du CV ; vide s'il n'y en a pas eu */
+  queries: SearchQuery[];
+}
+
 export interface SearchQuery {
   id: number;
   contract_type: string;

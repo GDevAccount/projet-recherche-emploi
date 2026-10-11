@@ -126,6 +126,19 @@ REMOTE_JOB_SITES = [
 FILTER_MODEL = "gpt-6-luna"
 MAX_PAGE_CHARS = 8000
 
+# Dépôt d'un CV : un modèle en tire les postes à rechercher, à la place de l'utilisateur
+PROFILE_MODEL = FILTER_MODEL
+# Postes tirés d'un CV, au plus : chacun est une recherche payée de plus à chaque lancement
+MAX_PROFILE_JOBS = 3
+# Extractions par jour et par compte (le propriétaire n'est pas limité) : au-delà, le CV est enregistré sans elle
+MAX_CV_EXTRACTIONS_PER_DAY = 3
+# Longueur du CV donnée au modèle : au-delà, la suite n'apprend plus rien sur le métier
+PROFILE_CV_CHARS = 15_000
+PROFILE_TIMEOUT_SECONDS = 45
+PROFILE_RETRIES = 1
+# Longueur d'un intitulé de métier proposé par le modèle : au-delà, ce n'en est pas un
+MAX_DRAFTED_TITLE_CHARS = 80
+
 # Assistant : il répond aux questions sur l'application à partir des textes du site (texts/)
 ASSISTANT_MODEL = "gpt-6-luna"
 # Modèle qui note les réponses de l'assistant pendant une évaluation (commande « jobgrep evaluate »). Plus fort

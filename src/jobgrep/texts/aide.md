@@ -10,9 +10,17 @@ Le fichier doit être un PDF dont le texte peut être sélectionné. Un CV scann
 
 Pour remplacer votre CV, déposez-en un nouveau au même endroit. Il prend la place de l'ancien, et les pages déjà écartées seront réévaluées avec lui à la recherche suivante.
 
+## Postes recherchés préparés à partir du CV
+
+Quand vous déposez votre CV, JobGrep prépare vos postes recherchés à votre place : un modèle d'intelligence artificielle lit votre CV, sans vos coordonnées, et en tire jusqu'à {max_profile_jobs} postes, avec pour chacun le métier, les compétences du CV qui le servent, le contrat le plus probable et le département ou la région où vous vivez. Ils apparaissent aussitôt dans la carte « Postes recherchés », où vous pouvez les supprimer ou en ajouter d'autres. L'écran montre les étapes du dépôt à mesure qu'elles se font.
+
+Si vous avez déjà des postes recherchés, JobGrep vous demande d'abord quoi en faire : « Remplacer mes postes » les efface et met à leur place ceux tirés du nouveau CV, « Garder mes postes » les laisse tels quels. Dans les deux cas, le CV est enregistré.
+
+Vos postes peuvent être préparés ainsi {max_cv_extractions} fois par jour. Au-delà, si le budget du jour de l'application est atteint, ou si le modèle ne répond pas, votre CV est enregistré quand même et un message vous dit d'ajouter vos postes à la main.
+
 ## Ajouter ou supprimer un poste recherché
 
-Dans la rubrique Profil, allez à la carte « Postes recherchés » et remplissez le formulaire « Ajouter un poste » : écrivez le métier visé dans le champ « Métier », par exemple « comptable », ajoutez si vous le voulez des compétences dans le champ « Compétences » : commencez à taper, une liste propose les compétences connues de JobGrep, par exemple « Comptabilité fournisseurs » ou « SAP », et un clic sur l'une d'elles la retient. Si la vôtre n'y est pas, ajoutez-la telle quelle avec la ligne « Ajouter », marquée d'un +, ou avec la touche Entrée. Choisissez ensuite le contrat et le lieu : une ville ou une région, toute la France, ou le télétravail complet. Il est inutile d'écrire le contrat ou le lieu dans le métier.
+Vos postes recherchés sont préparés à partir de votre CV quand vous le déposez. Vous pouvez aussi en ajouter à la main : dans la rubrique Profil, allez à la carte « Postes recherchés » et remplissez le formulaire « Ajouter un poste » : écrivez le métier visé dans le champ « Métier », par exemple « comptable », ajoutez si vous le voulez des compétences dans le champ « Compétences » : commencez à taper, une liste propose les compétences connues de JobGrep, par exemple « Comptabilité fournisseurs » ou « SAP », et un clic sur l'une d'elles la retient. Si la vôtre n'y est pas, ajoutez-la telle quelle avec la ligne « Ajouter », marquée d'un +, ou avec la touche Entrée. Choisissez ensuite le contrat et le lieu : une ville ou une région, toute la France, ou le télétravail complet. Il est inutile d'écrire le contrat ou le lieu dans le métier.
 
 Seules les offres de ce métier sont retenues. Les compétences s'affichent en étiquettes, chacune avec une croix pour la retirer avant d'ajouter le poste. Elles précisent ce qui est demandé aux sites d'emploi, sans écarter d'offre : une annonce du bon métier qui ne les cite pas reste retenue si elle correspond à votre CV. Un poste en accepte {max_skills} au plus. Pour changer les compétences d'un poste déjà enregistré, supprimez-le et ajoutez-le de nouveau. Vous pouvez ajouter plusieurs postes. Pour en retirer un, cliquez sur la croix au bout de sa ligne.
 

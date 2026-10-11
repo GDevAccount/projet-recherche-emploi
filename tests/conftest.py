@@ -10,6 +10,7 @@ from jobgrep.agent.ports import EvaluationUsage, JobEvaluation
 from jobgrep.assistant.ports import DraftAnswer, ModelTurn, ModelUsage, Verdict
 from jobgrep.config import MODEL_PRICES_USD, ModelPrice, Settings
 from jobgrep.container import build_container
+from jobgrep.cv_agent.ports import DraftedProfile, ExtractionUsage
 from jobgrep.data.database import Database
 
 
@@ -33,6 +34,24 @@ class FakeSearchEngine:
             }
             for index in range(2)
         ]
+
+
+class FakeProfileExtractor:
+    """Rend le profil qu'on lui donne, sans appeler OpenAI, et garde les CV reçus. Sans profil, aucun poste."""
+
+    model_name = "faux-modèle"
+
+    def __init__(self, profile=None):
+        self.profile = profile or DraftedProfile(jobs=[], location="", remote=False)
+        self.cvs = []
+        # Erreur à lever à la place de la réponse, pour simuler une panne du modèle
+        self.error = None
+
+    def extract(self, cv):
+        self.cvs.append(cv)
+        if self.error:
+            raise self.error
+        return self.profile, ExtractionUsage(input_tokens=1000, output_tokens=100, duration_ms=5)
 
 
 class FakeEvaluator:
@@ -189,6 +208,14 @@ def clean_environment(monkeypatch):
     # Les réglages de la machine (ou d'un .env déjà chargé) ne doivent pas fuir dans les tests
     for name in Settings.model_fields:
         monkeypatch.delenv(name.upper(), raising=False)
+
+
+@pytest.fixture(autouse=True)
+def profile_extractor(monkeypatch):
+    """Le faux modèle qui lit les CV, branché d'office : aucun test ne doit appeler OpenAI en déposant un CV."""
+    extractor = FakeProfileExtractor()
+    monkeypatch.setattr("jobgrep.container.OpenAIProfileExtractor", lambda: extractor)
+    return extractor
 
 
 @pytest.fixture

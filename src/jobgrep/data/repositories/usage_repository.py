@@ -8,6 +8,7 @@ from jobgrep.data.models import (
     ArchivedUsage,
     AssistantMessage,
     Correction,
+    CvExtraction,
     CvText,
     Job,
     SearchQuery,
@@ -86,36 +87,49 @@ class UsageRepository:
         Les lignes ont la forme de celles de summarize_runs, sans lancement : celles du modèle qui répond,
         puis celles du modèle qui situe la question, chacun ayant son tarif.
         """
-        answers = self._assistant_totals(
+        answers = self._token_totals(
+            AssistantMessage,
             AssistantMessage.model,
             {column: func.sum(getattr(AssistantMessage, column)) for column in ASSISTANT_TOKEN_COLUMNS},
             since,
         )
-        embeddings = self._assistant_totals(
-            AssistantMessage.embedding_model, {"input_tokens": func.sum(AssistantMessage.embedding_tokens)}, since
+        embeddings = self._token_totals(
+            AssistantMessage,
+            AssistantMessage.embedding_model,
+            {"input_tokens": func.sum(AssistantMessage.embedding_tokens)},
+            since,
         )
         return answers + embeddings
 
-    def _assistant_totals(self, model, token_sums: dict, since: datetime | None) -> list[Row]:
+    def summarize_cv_extractions(self, since: datetime | None = None) -> list[Row]:
+        """Renvoie, par compte et par modèle, ce qu'ont consommé les lectures de CV qui en tirent des postes.
+
+        Les lignes ont la forme de celles de summarize_runs, sans lancement, comme celles de l'assistant.
+        """
+        token_sums = {column: func.sum(getattr(CvExtraction, column)) for column in ASSISTANT_TOKEN_COLUMNS}
+        return self._token_totals(CvExtraction, CvExtraction.model, token_sums, since)
+
+    def _token_totals(self, table, model, token_sums: dict, since: datetime | None) -> list[Row]:
         counters = [token_sums.get(column, literal(0)).label(column) for column in SUMMED_COLUMNS]
         statement = (
             select(
-                AssistantMessage.user_id,
+                table.user_id,
                 model.label("model"),
                 literal(0).label("runs"),
                 null().label("last_search_at"),
                 *counters,
             )
             .where(model.is_not(None))
-            .group_by(AssistantMessage.user_id, model)
-            .order_by(AssistantMessage.user_id)
+            .group_by(table.user_id, model)
+            .order_by(table.user_id)
         )
         if since is not None:
-            statement = statement.where(AssistantMessage.created_at >= since)
+            statement = statement.where(table.created_at >= since)
         return list(self.session.execute(statement))
 
     def archive_assistant(self, user_id: int, plan: str, deleted_at: datetime) -> int:
-        """Additionne par mois ce qu'ont consommé les questions d'un compte à l'assistant, avant leur effacement.
+        """Additionne par mois ce qu'ont consommé les questions d'un compte à l'assistant et les lectures de son CV,
+        avant leur effacement.
 
         Renvoie le nombre de lignes écrites : des jetons par modèle, sans lancement, ni texte, ni date de question.
         """
@@ -132,6 +146,10 @@ class UsageRepository:
             month = message.created_at.strftime(MONTH_FORMAT)
             add(month, message.model, {column: getattr(message, column) for column in ASSISTANT_TOKEN_COLUMNS})
             add(month, message.embedding_model, {"input_tokens": message.embedding_tokens})
+        # Les lectures de CV s'archivent avec elles : des jetons par modèle, de la même forme
+        for extraction in self.session.scalars(select(CvExtraction).where(CvExtraction.user_id == user_id)):
+            month = extraction.created_at.strftime(MONTH_FORMAT)
+            add(month, extraction.model, {column: getattr(extraction, column) for column in ASSISTANT_TOKEN_COLUMNS})
 
         counters = dict.fromkeys(("runs", "found_count", "kept_count", "search_calls"), 0)
         rows = [

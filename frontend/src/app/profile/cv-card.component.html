@@ -28,8 +28,50 @@
     @if (current?.updated_at) {
       <p class="note">Ce fichier remplacera votre CV actuel. Les pages déjà rejetées seront réévaluées avec lui.</p>
     }
+    @if (queryCount(); as count) {
+      <div class="question">
+        <p id="replace-label">
+          Vous avez déjà {{ count }} {{ count > 1 ? 'postes recherchés' : 'poste recherché' }}. Faut-il les
+          remplacer par ceux que ce CV permet de viser ?
+        </p>
+        <div class="pills" role="radiogroup" aria-labelledby="replace-label">
+          <button
+            type="button"
+            role="radio"
+            [attr.aria-checked]="replaceQueries() === true"
+            [class.on]="replaceQueries() === true"
+            [disabled]="saving()"
+            (click)="replaceQueries.set(true)"
+          >
+            Remplacer mes postes
+          </button>
+          <button
+            type="button"
+            role="radio"
+            [attr.aria-checked]="replaceQueries() === false"
+            [class.on]="replaceQueries() === false"
+            [disabled]="saving()"
+            (click)="replaceQueries.set(false)"
+          >
+            Garder mes postes
+          </button>
+        </div>
+      </div>
+    } @else {
+      <p class="note">
+        Vos postes recherchés seront préparés à partir de ce CV : métier, compétences, contrat et lieu. Vous pourrez
+        les corriger ensuite.
+      </p>
+    }
+    @if (saving() && steps().length) {
+      <ol class="steps" role="status">
+        @for (step of steps(); track step; let last = $last) {
+          <li [class.current]="last">{{ stepLabels[step] }}{{ last ? '…' : '' }}</li>
+        }
+      </ol>
+    }
     <div class="actions">
-      <p-button label="Enregistrer ce CV" [loading]="saving()" (onClick)="save()" />
+      <p-button label="Enregistrer ce CV" [loading]="saving()" [disabled]="undecided()" (onClick)="save()" />
       <p-button label="Annuler" severity="secondary" [text]="true" [disabled]="saving()" (onClick)="cancel()" />
     </div>
   } @else {
@@ -52,13 +94,15 @@
   }
 
   <p class="notice">
-    Le texte de votre CV est envoyé à OpenAI à chaque recherche, pour le comparer aux annonces. Vos coordonnées
-    (e-mail, téléphone, adresse, liens) en sont retirées avant, et le fichier lui-même n'est pas conservé.
+    Le texte de votre CV est envoyé à OpenAI à son dépôt, pour préparer vos postes recherchés, puis à chaque
+    recherche, pour le comparer aux annonces. Vos coordonnées (e-mail, téléphone, adresse, liens) en sont retirées
+    avant, et le fichier lui-même n'est pas conservé.
     <a href="/confidentialite">Règles de confidentialité</a>
   </p>
 
-  @if (saved()) {
-    <p-message severity="success" class="feedback">CV enregistré.</p-message>
+  @if (deposit(); as done) {
+    @let fine = done.queries_outcome === 'created' || done.queries_outcome === 'kept';
+    <p-message [severity]="fine ? 'success' : 'warn'" class="feedback">{{ done.message }}</p-message>
   }
   @if (error()) {
     <p-message severity="error" class="feedback">{{ error() }}</p-message>
