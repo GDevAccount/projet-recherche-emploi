@@ -11,6 +11,8 @@ export interface AppConfig {
   /** Essai sans compte ; null si l'instance n'en propose pas */
   trial: TrialStatus | null;
   contract_types: string[];
+  /** Nombre de compétences qu'un poste recherché accepte */
+  max_skills_per_query: number;
   /** Motifs proposés à la suppression d'une offre, dans l'ordre où les présenter */
   delete_reasons: DeleteReasonOption[];
 }
@@ -47,7 +49,10 @@ export interface CvStatus {
 export interface SearchQuery {
   id: number;
   contract_type: string;
+  /** Le métier visé */
   query: string;
+  /** Compétences qui précisent la recherche, sans écarter d'offre */
+  skills: string[];
   /** Vide : toute la France */
   location: string;
   /** Télétravail complet, sans condition de lieu */
@@ -58,6 +63,7 @@ export interface SearchQuery {
 export interface SearchQueryCreate {
   contract_type: string;
   query: string;
+  skills: string[];
   location: string;
   remote: boolean;
 }

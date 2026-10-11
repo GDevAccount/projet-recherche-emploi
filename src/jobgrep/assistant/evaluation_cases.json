@@ -91,7 +91,7 @@
         "Ajouter ou supprimer un poste recherché"
       ]
     ],
-    "reference": "Dans la rubrique Profil, carte « Postes recherchés », formulaire « Ajouter un poste » : écrire le métier et ses spécialités, puis choisir le contrat et le lieu."
+    "reference": "Dans la rubrique Profil, carte « Postes recherchés », formulaire « Ajouter un poste » : écrire le métier, ajouter si on le veut des compétences, puis choisir le contrat et le lieu."
   },
   {
     "id": "poste-contrats",
@@ -355,7 +355,7 @@
         "À qui elles sont transmises"
       ]
     ],
-    "reference": "Non : seules les phrases de recherche, avec leur type de contrat et leur lieu, lui sont envoyées."
+    "reference": "Non : seuls les métiers recherchés, avec leurs compétences, leur type de contrat et leur lieu, lui sont envoyés."
   },
   {
     "id": "donnees-publicite",

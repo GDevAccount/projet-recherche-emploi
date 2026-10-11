@@ -1,0 +1,1401 @@
+# Référentiel des compétences proposées à la saisie d'un poste recherché.
+# Une compétence par ligne, telle qu'elle s'affiche ; une ligne qui commence par « # » est un commentaire.
+# Une migration recopie ce fichier dans la table skills : en ajouter demande une nouvelle migration (voir 0022).
+
+# Développement logiciel
+Python
+Java
+JavaScript
+TypeScript
+C
+C++
+C#
+Go
+Rust
+PHP
+Ruby
+Kotlin
+Swift
+Scala
+R
+Dart
+Perl
+Bash
+PowerShell
+VBA
+COBOL
+ABAP
+PL/SQL
+T-SQL
+SQL
+NoSQL
+HTML
+CSS
+Sass
+Angular
+React
+Vue.js
+Svelte
+Next.js
+Nuxt
+Node.js
+Express
+NestJS
+Django
+Flask
+FastAPI
+Spring Boot
+Spring
+Hibernate
+.NET
+ASP.NET
+Laravel
+Symfony
+Ruby on Rails
+jQuery
+Tailwind CSS
+Bootstrap
+React Native
+Flutter
+Android
+iOS
+Xamarin
+Ionic
+Electron
+Qt
+Unity
+Unreal Engine
+GraphQL
+API REST
+gRPC
+WebSocket
+Microservices
+Architecture logicielle
+Architecture hexagonale
+Domain-Driven Design
+Programmation orientée objet
+Programmation fonctionnelle
+Design patterns
+Clean code
+Revue de code
+Tests unitaires
+Tests d'intégration
+Tests de bout en bout
+TDD
+BDD
+JUnit
+pytest
+Jest
+Cypress
+Playwright
+Selenium
+Postman
+Git
+GitHub
+GitLab
+Bitbucket
+SVN
+Maven
+Gradle
+npm
+Webpack
+Vite
+WordPress
+Drupal
+Magento
+Shopify
+PrestaShop
+Salesforce
+ServiceNow
+SharePoint
+Power Apps
+Power Automate
+Low-code
+Développement embarqué
+Temps réel
+Linux embarqué
+RTOS
+FPGA
+VHDL
+Systèmes distribués
+Accessibilité numérique
+SEO technique
+Performance web
+
+# Données et intelligence artificielle
+Analyse de données
+Data engineering
+Data science
+Machine learning
+Deep learning
+Traitement du langage naturel
+Vision par ordinateur
+IA générative
+LLM
+RAG
+Prompt engineering
+Agents IA
+LangChain
+LangGraph
+LlamaIndex
+Hugging Face
+PyTorch
+TensorFlow
+Keras
+scikit-learn
+XGBoost
+pandas
+NumPy
+Spark
+PySpark
+Hadoop
+Kafka
+Airflow
+dbt
+Databricks
+Snowflake
+BigQuery
+Redshift
+PostgreSQL
+MySQL
+MariaDB
+Oracle Database
+SQL Server
+MongoDB
+Redis
+Elasticsearch
+Cassandra
+Neo4j
+Bases vectorielles
+Modélisation de données
+Entrepôt de données
+Data lake
+ETL
+Talend
+Informatica
+Power BI
+Tableau
+Qlik Sense
+Looker
+Metabase
+DAX
+Excel avancé
+SAS
+SPSS
+Stata
+MATLAB
+Statistiques
+Économétrie
+Séries temporelles
+Tests A/B
+Data visualisation
+Gouvernance des données
+Qualité des données
+MLOps
+MLflow
+Fine-tuning
+Évaluation de modèles
+Recherche opérationnelle
+Optimisation
+Web scraping
+
+# Cloud, DevOps et infrastructure
+AWS
+Azure
+Google Cloud
+OVHcloud
+Docker
+Kubernetes
+Helm
+Terraform
+Ansible
+Puppet
+Chef
+Jenkins
+GitLab CI
+GitHub Actions
+Argo CD
+CI/CD
+Infrastructure as Code
+Linux
+Red Hat
+Debian
+Ubuntu
+Windows Server
+Active Directory
+Microsoft 365
+Exchange
+VMware
+Hyper-V
+Virtualisation
+Stockage
+Sauvegarde
+Supervision
+Prometheus
+Grafana
+Datadog
+ELK
+Splunk
+Nagios
+Zabbix
+Nginx
+Apache
+Tomcat
+Administration système
+Administration de bases de données
+SRE
+Observabilité
+FinOps
+Haute disponibilité
+Plan de reprise d'activité
+ITIL
+Support utilisateurs
+Helpdesk
+Gestion de parc informatique
+Intune
+SCCM
+Scripting
+Serverless
+
+# Réseaux et télécommunications
+Réseaux
+TCP/IP
+Routage
+Commutation
+Cisco
+Juniper
+Fortinet
+Palo Alto
+Pare-feu
+VPN
+Wi-Fi
+SD-WAN
+MPLS
+DNS
+DHCP
+VoIP
+Téléphonie IP
+Fibre optique
+Câblage réseau
+5G
+Radiofréquences
+
+# Cybersécurité
+Cybersécurité
+Sécurité des systèmes d'information
+Tests d'intrusion
+Analyse de vulnérabilités
+SOC
+SIEM
+Réponse à incident
+Forensique
+Gestion des identités
+IAM
+Cryptographie
+ISO 27001
+EBIOS
+Analyse de risques
+Sécurité applicative
+OWASP
+DevSecOps
+Sécurité du cloud
+Sensibilisation à la sécurité
+RGPD
+Conformité
+Plan de continuité d'activité
+EDR
+PKI
+
+# Gestion de projet et produit
+Gestion de projet
+Pilotage de projet
+Agile
+Scrum
+Kanban
+SAFe
+Cycle en V
+PRINCE2
+PMP
+Planification
+Gestion des risques
+Gestion de budget
+Gestion de portefeuille de projets
+PMO
+Product management
+Product ownership
+Feuille de route produit
+Rédaction de spécifications
+Recueil des besoins
+Analyse fonctionnelle
+Cahier des charges
+Recette fonctionnelle
+Conduite du changement
+Animation d'ateliers
+Jira
+Confluence
+Trello
+Asana
+MS Project
+Notion
+Gestion des parties prenantes
+Reporting
+Tableaux de bord
+Indicateurs de performance
+OKR
+Lean
+Six Sigma
+Amélioration continue
+Business analysis
+Modélisation de processus
+BPMN
+UML
+Assistance à maîtrise d'ouvrage
+Maîtrise d'œuvre
+
+# Design et création
+UX design
+UI design
+Recherche utilisateur
+Tests utilisateurs
+Prototypage
+Wireframes
+Design system
+Figma
+Sketch
+Adobe XD
+Photoshop
+Illustrator
+InDesign
+After Effects
+Premiere Pro
+Final Cut Pro
+DaVinci Resolve
+Lightroom
+Canva
+Blender
+3ds Max
+Maya
+Cinema 4D
+Design graphique
+Identité visuelle
+Direction artistique
+Mise en page
+Typographie
+Illustration
+Motion design
+Montage vidéo
+Photographie
+Retouche photo
+Modélisation 3D
+Animation 3D
+Design d'interaction
+Design de service
+Packaging
+Webdesign
+Infographie
+
+# Marketing et communication
+Marketing digital
+Stratégie marketing
+Marketing produit
+Marketing B2B
+Marketing B2C
+Marketing de contenu
+Marketing automation
+Inbound marketing
+Emailing
+CRM
+HubSpot
+Marketo
+Mailchimp
+Brevo
+SEO
+SEA
+Google Ads
+Google Analytics
+Meta Ads
+LinkedIn Ads
+Réseaux sociaux
+Community management
+Social media management
+Marketing d'influence
+Affiliation
+Growth hacking
+Acquisition
+Rétention
+Études de marché
+Veille concurrentielle
+Positionnement de marque
+Stratégie de marque
+Rédaction web
+Copywriting
+Storytelling
+Stratégie éditoriale
+Relations presse
+Relations publiques
+Communication interne
+Communication externe
+Communication de crise
+Communication institutionnelle
+Événementiel
+Organisation de salons
+Trade marketing
+Merchandising
+E-commerce
+Gestion de catalogue
+Marketplace
+Amazon Seller
+Tarification
+Analyse de campagnes
+Tunnel de conversion
+CRO
+Newsletter
+Podcast
+Brand content
+
+# Vente et relation client
+Prospection commerciale
+Prospection téléphonique
+Négociation commerciale
+Vente B2B
+Vente B2C
+Vente en magasin
+Vente à distance
+Vente de solutions
+Vente complexe
+Grands comptes
+Gestion de portefeuille clients
+Développement commercial
+Avant-vente
+Réponse aux appels d'offres
+Closing
+Fidélisation client
+Relation client
+Service client
+Service après-vente
+Gestion des réclamations
+Centre d'appels
+Télévente
+Customer success
+Account management
+Upsell
+Salesforce CRM
+Pipedrive
+Zendesk
+Animation de réseau
+Gestion de point de vente
+Encaissement
+Conseil client
+Mise en rayon
+Gestion des stocks en magasin
+Franchise
+Export
+Commerce international
+Incoterms
+Administration des ventes
+Devis
+Facturation
+Prévisions de ventes
+Management commercial
+
+# Comptabilité, finance et gestion
+Comptabilité générale
+Comptabilité fournisseurs
+Comptabilité clients
+Comptabilité analytique
+Comptabilité bancaire
+Rapprochement bancaire
+Clôture comptable
+Bilan
+Liasse fiscale
+Déclarations de TVA
+Fiscalité
+Fiscalité internationale
+Consolidation
+Normes IFRS
+Normes françaises
+Audit financier
+Audit interne
+Contrôle interne
+Contrôle de gestion
+Contrôle de gestion industriel
+Budget
+Prévisions financières
+Analyse financière
+Modélisation financière
+Trésorerie
+Gestion du cash
+Recouvrement
+Crédit client
+Paie
+Déclarations sociales
+DSN
+Immobilisations
+Notes de frais
+Facturation électronique
+Reporting financier
+Business plan
+Levée de fonds
+Fusions-acquisitions
+Évaluation d'entreprise
+Due diligence
+Capital-investissement
+Financement de projet
+Gestion d'actifs
+Analyse crédit
+Gestion des risques financiers
+Risque de marché
+Risque de crédit
+Conformité bancaire
+Lutte contre le blanchiment
+KYC
+Bâle III
+Solvabilité II
+Actuariat
+Souscription
+Gestion de sinistres
+Assurance vie
+Assurance dommages
+Courtage
+Conseil en gestion de patrimoine
+Crédit immobilier
+Marchés financiers
+Produits dérivés
+Back office
+Middle office
+SAP
+SAP FI
+SAP CO
+SAP MM
+SAP SD
+SAP S/4HANA
+Oracle ERP
+Sage
+Cegid
+EBP
+Quadra
+Microsoft Dynamics
+Odoo
+NetSuite
+Excel
+Tableaux croisés dynamiques
+Macros Excel
+
+# Ressources humaines
+Recrutement
+Sourcing
+Chasse de têtes
+Entretiens de recrutement
+Marque employeur
+Intégration des salariés
+Administration du personnel
+Gestion de la paie
+Droit social
+Relations sociales
+Dialogue social
+CSE
+Négociation collective
+Gestion des carrières
+GPEC
+Formation professionnelle
+Plan de développement des compétences
+Ingénierie de formation
+Évaluation des performances
+Rémunération et avantages sociaux
+SIRH
+Workday
+SAP SuccessFactors
+ADP
+Silae
+PayFit
+Qualité de vie au travail
+Santé et sécurité au travail
+Prévention des risques professionnels
+Gestion des temps
+Gestion de l'absentéisme
+Mobilité internationale
+Diversité et inclusion
+Coaching
+Bilan de compétences
+Contrats de travail
+Procédures disciplinaires
+Travail temporaire
+
+# Juridique
+Droit des affaires
+Droit des sociétés
+Droit des contrats
+Droit du travail
+Droit fiscal
+Droit commercial
+Droit de la concurrence
+Droit de la consommation
+Droit immobilier
+Droit de la construction
+Droit public
+Droit des marchés publics
+Droit bancaire
+Droit des assurances
+Droit pénal
+Droit de la famille
+Droit de la propriété intellectuelle
+Droit du numérique
+Droit des données personnelles
+Droit de l'environnement
+Droit international
+Rédaction de contrats
+Négociation de contrats
+Contentieux
+Précontentieux
+Veille juridique
+Secrétariat juridique
+Formalités juridiques
+Rédaction d'actes
+Conformité réglementaire
+Protection des données
+Marques et brevets
+Médiation
+Arbitrage
+
+# Administratif et secrétariat
+Secrétariat
+Assistanat de direction
+Gestion d'agenda
+Accueil physique
+Accueil téléphonique
+Standard téléphonique
+Gestion du courrier
+Classement et archivage
+Saisie de données
+Rédaction de comptes rendus
+Prise de notes
+Organisation de déplacements
+Organisation de réunions
+Gestion administrative
+Suivi de dossiers
+Rédaction administrative
+Word
+PowerPoint
+Outlook
+Google Workspace
+Teams
+Bureautique
+Dactylographie
+Gestion des fournitures
+Services généraux
+Secrétariat médical
+Secrétariat juridique et notarial
+Transcription
+Publipostage
+
+# Achats et logistique
+Achats
+Achats directs
+Achats indirects
+Achats publics
+Sourcing fournisseurs
+Négociation fournisseurs
+Gestion des fournisseurs
+Appels d'offres
+Gestion des contrats
+Approvisionnement
+Gestion des stocks
+Inventaire
+Supply chain
+Planification de la demande
+S&OP
+MRP
+Ordonnancement
+Logistique
+Logistique internationale
+Transport routier
+Transport maritime
+Transport aérien
+Affrètement
+Douane
+Déclarations en douane
+Gestion d'entrepôt
+WMS
+TMS
+Préparation de commandes
+Réception de marchandises
+Expédition
+Emballage
+Conduite de chariot élévateur
+CACES 1
+CACES 3
+CACES 5
+Manutention
+Gestion des flux
+Optimisation des tournées
+Dernier kilomètre
+Logistique inverse
+Chaîne du froid
+Exploitation transport
+Gestion de flotte
+Permis B
+Permis C
+Permis CE
+Permis D
+FIMO
+FCO
+Transport de matières dangereuses
+ADR
+Conduite de poids lourd
+Conduite d'engins
+Livraison
+
+# Industrie, production et maintenance
+Gestion de production
+Conduite de ligne
+Conduite de machines
+Réglage de machines
+Usinage
+Tournage
+Fraisage
+Commande numérique
+Programmation CNC
+Soudage
+Soudage TIG
+Soudage MIG/MAG
+Soudage à l'arc
+Chaudronnerie
+Tuyauterie
+Tôlerie
+Métallurgie
+Fonderie
+Plasturgie
+Injection plastique
+Extrusion
+Montage mécanique
+Assemblage
+Câblage électrique
+Ajustage
+Lecture de plans
+Dessin industriel
+CAO
+DAO
+AutoCAD
+SolidWorks
+CATIA
+Creo
+Inventor
+Siemens NX
+Fusion 360
+Conception mécanique
+Calcul de structures
+Éléments finis
+ANSYS
+Abaqus
+Mécanique des fluides
+Thermique
+Résistance des matériaux
+Science des matériaux
+Maintenance industrielle
+Maintenance préventive
+Maintenance corrective
+Maintenance prédictive
+GMAO
+Électromécanique
+Mécanique
+Hydraulique
+Pneumatique
+Automatisme
+Automates programmables
+Siemens TIA Portal
+Schneider Electric
+Rockwell
+SCADA
+Supervision industrielle
+Robotique
+Robotique industrielle
+Instrumentation
+Régulation
+Métrologie
+Contrôle qualité
+Contrôle non destructif
+Assurance qualité
+Management de la qualité
+ISO 9001
+ISO 14001
+ISO 45001
+IATF 16949
+EN 9100
+Bonnes pratiques de fabrication
+HACCP
+AMDEC
+Résolution de problèmes
+5S
+Kaizen
+TPM
+SMED
+Lean manufacturing
+Industrialisation
+Méthodes industrielles
+Gestion des temps de production
+Qualité fournisseurs
+Audit qualité
+Validation de procédés
+Qualification d'équipements
+Salle blanche
+Génie des procédés
+Chimie
+Chimie analytique
+Formulation
+Pétrochimie
+Agroalimentaire
+Conditionnement
+Traçabilité
+HSE
+Sécurité industrielle
+Habilitations électriques
+Travail en hauteur
+ATEX
+Radioprotection
+Nucléaire
+Aéronautique
+Automobile
+Ferroviaire
+Naval
+Électronique
+Électronique de puissance
+Conception de cartes électroniques
+Systèmes embarqués
+Microcontrôleurs
+Traitement du signal
+Tests et validation
+Impression 3D
+Textile
+Couture industrielle
+
+# Bâtiment et travaux publics
+Conduite de travaux
+Direction de travaux
+Suivi de chantier
+Coordination de chantier
+OPC
+Économie de la construction
+Métrés
+Chiffrage
+Études de prix
+Appels d'offres travaux
+Gros œuvre
+Second œuvre
+Maçonnerie
+Coffrage
+Ferraillage
+Béton armé
+Charpente
+Charpente métallique
+Couverture
+Zinguerie
+Étanchéité
+Menuiserie
+Menuiserie aluminium
+Ébénisterie
+Agencement
+Plâtrerie
+Plaquisterie
+Isolation
+Peinture en bâtiment
+Revêtements de sols
+Carrelage
+Plomberie
+Chauffage
+Climatisation
+Ventilation
+CVC
+Génie climatique
+Froid industriel
+Électricité du bâtiment
+Courants forts
+Courants faibles
+Domotique
+Photovoltaïque
+Pompes à chaleur
+Rénovation énergétique
+Performance énergétique
+Audit énergétique
+Serrurerie
+Métallerie
+Vitrerie
+Façade
+Échafaudage
+Démolition
+Désamiantage
+Terrassement
+VRD
+Travaux publics
+Génie civil
+Ouvrages d'art
+Routes
+Réseaux humides
+Réseaux secs
+Topographie
+Géotechnique
+Structure
+BIM
+Revit
+ArchiCAD
+SketchUp
+Architecture
+Architecture d'intérieur
+Urbanisme
+Permis de construire
+Maîtrise d'œuvre d'exécution
+Bureau d'études
+Sécurité de chantier
+Coordination SPS
+Conduite de grue
+Conduite de pelle
+CACES R482
+Paysagisme
+Espaces verts
+Élagage
+Maintenance de bâtiment
+Gestion technique de patrimoine
+Ascenseurs
+
+# Immobilier
+Transaction immobilière
+Location immobilière
+Gestion locative
+Syndic de copropriété
+Gestion de copropriété
+Estimation immobilière
+Prospection immobilière
+Négociation immobilière
+Promotion immobilière
+Montage d'opérations immobilières
+Asset management immobilier
+Property management
+Baux commerciaux
+États des lieux
+Diagnostic immobilier
+Expertise immobilière
+Immobilier d'entreprise
+Logement social
+
+# Énergie et environnement
+Énergies renouvelables
+Éolien
+Solaire
+Hydroélectricité
+Biomasse
+Méthanisation
+Hydrogène
+Réseaux électriques
+Haute tension
+Basse tension
+Efficacité énergétique
+Bilan carbone
+Analyse du cycle de vie
+RSE
+Développement durable
+Reporting extra-financier
+CSRD
+Économie circulaire
+Gestion des déchets
+Traitement de l'eau
+Assainissement
+Dépollution
+Études d'impact
+Écologie
+Biodiversité
+Réglementation environnementale
+ICPE
+Qualité de l'air
+Acoustique
+Hydrologie
+Géologie
+Cartographie
+SIG
+QGIS
+ArcGIS
+Télédétection
+
+# Santé et soin
+Soins infirmiers
+Soins d'urgence
+Soins intensifs
+Réanimation
+Bloc opératoire
+Anesthésie
+Pédiatrie
+Gériatrie
+Psychiatrie
+Oncologie
+Cardiologie
+Soins palliatifs
+Soins à domicile
+Prélèvements sanguins
+Pansements
+Administration de médicaments
+Surveillance des patients
+Hygiène hospitalière
+Stérilisation
+Aide à la toilette
+Aide aux repas
+Aide à la mobilité
+Accompagnement de fin de vie
+Gestes de premiers secours
+AFGSU
+Puériculture
+Kinésithérapie
+Rééducation
+Ergothérapie
+Orthophonie
+Psychomotricité
+Psychologie clinique
+Diététique
+Nutrition
+Radiologie
+Imagerie médicale
+Analyses de biologie médicale
+Pharmacie
+Préparation en pharmacie
+Délivrance d'ordonnances
+Optique
+Audioprothèse
+Prothèse dentaire
+Assistance dentaire
+Ambulance
+Régulation médicale
+Dossier patient informatisé
+Codage PMSI
+Éducation thérapeutique
+Coordination de soins
+Encadrement d'équipe soignante
+Recherche clinique
+Essais cliniques
+Pharmacovigilance
+Affaires réglementaires
+Dispositifs médicaux
+Visite médicale
+Biologie
+Biologie moléculaire
+Microbiologie
+Biochimie
+Culture cellulaire
+PCR
+Bonnes pratiques de laboratoire
+Soins vétérinaires
+Santé publique
+Épidémiologie
+Santé au travail
+
+# Social, éducation et services à la personne
+Accompagnement social
+Accompagnement éducatif
+Protection de l'enfance
+Insertion professionnelle
+Accompagnement vers l'emploi
+Handicap
+Autisme
+Accompagnement des personnes âgées
+Aide à domicile
+Entretien du logement
+Garde d'enfants
+Petite enfance
+Animation socioculturelle
+Animation périscolaire
+BAFA
+Médiation sociale
+Écoute active
+Entretien individuel
+Montage de dossiers sociaux
+Accès aux droits
+Travail en réseau
+Enseignement
+Pédagogie
+Pédagogie différenciée
+Conception pédagogique
+Animation de formation
+Formation d'adultes
+E-learning
+Digital learning
+Moodle
+Soutien scolaire
+Français langue étrangère
+Enseignement des mathématiques
+Enseignement des langues
+Éducation spécialisée
+Orientation scolaire
+Gestion de classe
+Évaluation des apprentissages
+Direction d'établissement
+Vie scolaire
+Documentation
+Bibliothéconomie
+Recherche scientifique
+Rédaction scientifique
+Sport
+Coaching sportif
+Encadrement sportif
+Natation
+Surveillance de baignade
+
+# Hôtellerie, restauration et tourisme
+Cuisine
+Cuisine traditionnelle
+Cuisine gastronomique
+Cuisine collective
+Pâtisserie
+Boulangerie
+Viennoiserie
+Chocolaterie
+Boucherie
+Charcuterie
+Poissonnerie
+Fromagerie
+Traiteur
+Pizzaïolo
+Dressage des assiettes
+Gestion des commandes en cuisine
+Hygiène alimentaire
+Plonge
+Service en salle
+Service au bar
+Sommellerie
+Barista
+Mixologie
+Prise de commande
+Réception hôtelière
+Réservations
+Conciergerie
+Gouvernance hôtelière
+Entretien des chambres
+Yield management
+Revenue management
+Gestion d'établissement
+Restauration rapide
+Gestion des coûts matière
+Conception de cartes
+Accueil touristique
+Guide touristique
+Conception de voyages
+Billetterie
+Amadeus
+Agence de voyages
+Animation touristique
+Organisation d'événements
+Gestion de séminaires
+
+# Agriculture et métiers du vivant
+Agriculture
+Agronomie
+Grandes cultures
+Maraîchage
+Arboriculture
+Viticulture
+Œnologie
+Élevage
+Élevage bovin
+Élevage laitier
+Élevage porcin
+Aviculture
+Apiculture
+Horticulture
+Pépinière
+Conduite de tracteur
+Conduite d'engins agricoles
+Traite
+Soins aux animaux
+Agriculture biologique
+Irrigation
+Phytosanitaire
+Certiphyto
+Sylviculture
+Bûcheronnage
+Aquaculture
+Pêche
+Jardinage
+Fleuristerie
+Toilettage
+Équitation
+Dressage
+
+# Artisanat, beauté et services
+Coiffure
+Coloration
+Barbier
+Esthétique
+Soins du visage
+Épilation
+Manucure
+Maquillage
+Massage
+Prothésie ongulaire
+Spa
+Conseil en image
+Couture
+Retouche
+Maroquinerie
+Bijouterie
+Horlogerie
+Cordonnerie
+Tapisserie
+Céramique
+Verrerie
+Imprimerie
+Reliure
+Nettoyage
+Entretien des locaux
+Nettoyage industriel
+Bionettoyage
+Repassage
+Blanchisserie
+Mécanique automobile
+Carrosserie
+Peinture automobile
+Diagnostic automobile
+Électricité automobile
+Mécanique poids lourds
+Mécanique moto
+Mécanique cycles
+Mécanique agricole
+Contrôle technique
+Pneumatiques
+Dépannage
+Réparation d'électroménager
+Réparation de smartphones
+Installation de cuisines
+Déménagement
+Pompes funèbres
+
+# Sécurité et défense
+Sécurité privée
+Surveillance
+Gardiennage
+Sécurité incendie
+SSIAP 1
+SSIAP 2
+SSIAP 3
+Agent cynophile
+Vidéosurveillance
+Télésurveillance
+Contrôle d'accès
+Protection rapprochée
+Sûreté aéroportuaire
+Rondes de surveillance
+CQP APS
+Carte professionnelle
+Secourisme
+SST
+Prévention des incendies
+Gestion de crise
+Sûreté
+Maintien de l'ordre
+Enquête
+Renseignement
+
+# Médias, culture et audiovisuel
+Journalisme
+Rédaction
+Rédaction d'articles
+Secrétariat de rédaction
+Correction
+Relecture
+Édition
+Traduction
+Interprétation
+Sous-titrage
+Localisation
+Rédaction technique
+Réalisation
+Production audiovisuelle
+Prise de vue
+Cadrage
+Prise de son
+Mixage
+Mastering
+Régie
+Éclairage
+Scénographie
+Écriture de scénario
+Animation radio
+Animation d'antenne
+Production musicale
+Composition
+Médiation culturelle
+Programmation culturelle
+Régie d'œuvres
+Conservation
+Archivage
+Game design
+Level design
+Streaming
+
+# Langues
+Anglais
+Anglais professionnel
+Anglais technique
+Espagnol
+Allemand
+Italien
+Portugais
+Néerlandais
+Arabe
+Chinois mandarin
+Japonais
+Russe
+Polonais
+Turc
+Français
+Langue des signes française
+
+# Management et compétences transverses
+Management d'équipe
+Management de proximité
+Management transversal
+Management à distance
+Direction générale
+Direction de centre de profit
+Stratégie d'entreprise
+Développement d'activité
+Gestion d'entreprise
+Entrepreneuriat
+Leadership
+Prise de décision
+Délégation
+Gestion des conflits
+Gestion du stress
+Gestion du temps
+Organisation
+Autonomie
+Rigueur
+Esprit d'équipe
+Sens du service
+Sens commercial
+Adaptabilité
+Créativité
+Esprit d'analyse
+Esprit de synthèse
+Résolution de problèmes complexes
+Communication orale
+Communication écrite
+Prise de parole en public
+Négociation
+Pédagogie auprès des clients
+Animation de réunion
+Rédaction de rapports
+Travail en équipe
+Travail en horaires décalés
+Polyvalence
+Curiosité
+Veille technologique
+Conseil
+Conseil en stratégie
+Conseil en organisation
+Transformation digitale
+Innovation
+Design thinking
+Gestion de la relation fournisseurs
+Gestion de crise en entreprise
+Audit
+Analyse de processus
+Excellence opérationnelle
+Pilotage de la performance
+Formation des équipes
+Tutorat
+Mentorat

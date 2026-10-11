@@ -76,6 +76,7 @@ describe('JobsComponent', () => {
       login_mode: 'google',
       google_client_id: 'id',
       contract_types: ['CDI'],
+      max_skills_per_query: 5,
       delete_reasons: [
         { code: 'not_my_job', label: "Ce n'est pas mon métier" },
         { code: 'not_interested', label: "Elle ne m'intéresse pas" },

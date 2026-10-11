@@ -53,12 +53,24 @@ def _fold(text: str) -> str:
     return "".join(char for char in decomposed if not unicodedata.combining(char)).casefold()
 
 
-def build_search_text(contract_type: str, query: str, location: str = "", remote: bool = False) -> str:
+def _with_skills(query: str, skills: Iterable[str]) -> str:
+    """Renvoie le métier suivi de ses compétences, sans répéter celles qu'il cite déjà."""
+    parts = [query]
+    for skill in skills:
+        if _fold(skill) not in _fold(" ".join(parts)):
+            parts.append(skill)
+    return " ".join(parts)
+
+
+def build_search_text(
+    contract_type: str, query: str, location: str = "", remote: bool = False, skills: Iterable[str] = ()
+) -> str:
     """Renvoie le texte envoyé au moteur de recherche pour les sites français.
 
-    C'est la recherche, précédée de « offre d'emploi » et suivie de son type de contrat et de son lieu
+    C'est le métier et ses compétences, précédés de « offre d'emploi » et suivis du type de contrat et du lieu
     (ou du télétravail), s'ils n'y sont pas déjà.
     """
+    query = _with_skills(query, skills)
     folded_query = _fold(query)
     parts = [query]
     if not any(marker in folded_query for marker in OFFER_MARKERS):
@@ -73,11 +85,12 @@ def build_search_text(contract_type: str, query: str, location: str = "", remote
     return " ".join(parts)
 
 
-def build_international_search_text(contract_type: str, query: str) -> str:
+def build_international_search_text(contract_type: str, query: str, skills: Iterable[str] = ()) -> str:
     """Renvoie la variante en anglais d'une recherche en télétravail complet, pour les annonces hors de France.
 
     Ni « offre d'emploi » ni « CDI » : une annonce étrangère ne contient pas ces mots.
     """
+    query = _with_skills(query, skills)
     folded_query = _fold(query)
     parts = [query]
     if "remote" not in folded_query:
@@ -95,10 +108,11 @@ def build_searches(queries: Iterable[SearchQuery]) -> list[tuple[str, str, bool]
     """
     searches = []
     for query in queries:
-        text = build_search_text(query.contract_type, query.query, query.location, query.remote)
+        text = build_search_text(query.contract_type, query.query, query.location, query.remote, query.skills)
         searches.append((query.query, text, False))
         if query.remote:
-            searches.append((query.query, build_international_search_text(query.contract_type, query.query), True))
+            international = build_international_search_text(query.contract_type, query.query, query.skills)
+            searches.append((query.query, international, True))
     return searches
 
 

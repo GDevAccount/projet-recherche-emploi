@@ -106,9 +106,23 @@ test('le profil se complète : un CV, puis un poste recherché', async () => {
   await expect(page.getByText('CV enregistré.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Votre CV est en place' })).toBeVisible();
 
-  await page.getByLabel('Métier et spécialités').fill(QUERY);
+  await page.getByLabel('Métier').fill(QUERY);
+  // Une compétence se choisit dans le référentiel ; celle qui n'y est pas s'ajoute telle quelle
+  const skills = page.getByRole('combobox', { name: 'Compétences' });
+  await skills.fill('compta');
+  await page.getByRole('option', { name: 'Comptabilité fournisseurs' }).click();
+  await skills.fill('licornes');
+  await expect(page.getByRole('option')).toHaveText(['Ajouter « licornes »']);
+  await skills.press('Enter');
+  await skills.fill('voltige');
+  await skills.press('Enter');
+  // Chaque compétence est un tag, que sa croix retire
+  await page.getByRole('button', { name: 'Retirer la compétence « voltige »' }).click();
+  await expect(page.locator('.tag-input .tag')).toHaveText(['Comptabilité fournisseurs', 'licornes']);
   await page.getByRole('button', { name: 'Ajouter ce poste' }).click();
-  await expect(page.getByRole('listitem').filter({ hasText: QUERY })).toBeVisible();
+  const saved = page.getByRole('listitem').filter({ hasText: QUERY });
+  await expect(saved).toBeVisible();
+  await expect(saved.locator('.tag')).toHaveText(['Comptabilité fournisseurs', 'licornes']);
 
   await expect(page.getByRole('button', { name: 'Lancer une recherche' })).toBeEnabled();
 });
@@ -415,7 +429,7 @@ test("un visiteur essaie sans compte : une seule recherche, puis l'essai est ép
   await page.locator('input[type=file]').setInputFiles(CV_PATH);
   await page.getByRole('button', { name: 'Enregistrer ce CV' }).click();
   await expect(page.getByText('CV enregistré.')).toBeVisible();
-  await page.getByLabel('Métier et spécialités').fill(QUERY);
+  await page.getByLabel('Métier').fill(QUERY);
   await page.getByRole('button', { name: 'Ajouter ce poste' }).click();
 
   await page.getByRole('button', { name: 'Lancer une recherche' }).click();

@@ -112,7 +112,10 @@ class RejectedJobRead(_FromRow):
 class SearchQueryRead(_FromRow):
     id: int
     contract_type: str
+    # Le métier visé
     query: str
+    # Compétences ajoutées au texte envoyé au moteur de recherche
+    skills: list[str]
     # Vide : toute la France
     location: str
     # Télétravail complet, sans condition de lieu
@@ -406,6 +409,8 @@ class AppConfig(BaseModel):
     # Essai sans compte, par « POST /api/session/trial » ; None si l'instance n'en propose pas
     trial: TrialStatus | None
     contract_types: list[str]
+    # Nombre de compétences qu'un poste recherché accepte
+    max_skills_per_query: int
     # Motifs proposés à la suppression d'une offre, dans l'ordre où les présenter
     delete_reasons: list["DeleteReasonOption"]
 

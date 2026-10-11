@@ -19,6 +19,7 @@ from jobgrep.config import (
     INACTIVE_ACCOUNT_DAYS,
     MAX_ASSISTANT_QUESTIONS_PER_DAY,
     MAX_SEARCHES_PER_DAY,
+    MAX_SKILLS_PER_QUERY,
     MAX_TRIALS_PER_IP_PER_DAY,
     SESSION_DAYS,
     TRIAL_ACCOUNT_DAYS,
@@ -115,6 +116,7 @@ def test_config_tells_the_front_how_to_log_in(client, tmp_path):
         # Sans MAX_TRIALS_PER_DAY, aucun essai sans compte n'est proposé
         "trial": None,
         "contract_types": CONTRACT_TYPES,
+        "max_skills_per_query": MAX_SKILLS_PER_QUERY,
         "delete_reasons": [{"code": code, "label": label} for code, label in DELETE_REASONS.items()],
     }
 
@@ -155,6 +157,7 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/queries"),
         ("POST", "/api/queries"),
         ("DELETE", "/api/queries/1"),
+        ("GET", "/api/skills"),
         ("GET", "/api/cv"),
         ("PUT", "/api/cv"),
         ("POST", "/api/searches"),
@@ -241,6 +244,19 @@ def test_queries_are_private_and_validated(client):
     assert duplicate.status_code == 409 and duplicate.json() == {"detail": "Cette recherche existe déjà."}
     assert client.post("/api/queries", headers=ALICE, json={"contract_type": "CDI", "query": " "}).status_code == 422
     assert client.post("/api/queries", headers=ALICE, json={"contract_type": "?", "query": "x"}).status_code == 422
+
+    assert created.json()["skills"] == []
+    with_skills = {"contract_type": "CDI", "query": "comptable", "skills": [" SAP ", "paie"]}
+    skilled = client.post("/api/queries", headers=ALICE, json=with_skills)
+    # Une compétence du référentiel reprend son écriture
+    assert skilled.status_code == 201 and skilled.json()["skills"] == ["SAP", "Paie"]
+    assert client.get("/api/skills", headers=ALICE, params={"q": "compta"}).json()[0].startswith("Comptabilité")
+    assert client.get("/api/skills", headers=ALICE, params={"q": " "}).json() == []
+    assert client.get("/api/skills", headers=ALICE).status_code == 422
+    assert client.get("/api/skills", headers=ALICE, params={"q": "x" * 41}).status_code == 422
+    assert client.delete(f"/api/queries/{skilled.json()['id']}", headers=ALICE).status_code == 204
+    too_many = {"contract_type": "CDI", "query": "comptable", "skills": [str(index) for index in range(6)]}
+    assert client.post("/api/queries", headers=ALICE, json=too_many).status_code == 422
 
     # La même phrase s'enregistre pour un autre lieu
     elsewhere = client.post("/api/queries", headers=ALICE, json={**QUERY, "location": " Lyon "})

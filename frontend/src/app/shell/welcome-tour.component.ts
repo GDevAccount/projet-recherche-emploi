@@ -32,7 +32,7 @@ const SLIDES = [
     icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0',
     lines: [
       'Dans Profil, déposez votre CV en PDF. Vos coordonnées en sont retirées avant toute comparaison.',
-      'Décrivez ensuite un ou plusieurs postes recherchés : le métier et ses spécialités, le contrat, le lieu.',
+      'Décrivez ensuite un ou plusieurs postes recherchés : le métier, ses compétences, le contrat, le lieu.',
     ],
   },
   {

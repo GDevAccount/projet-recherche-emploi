@@ -17,6 +17,7 @@ from jobgrep.config import (
     MAX_ASSISTANT_QUESTIONS_PER_DAY,
     MAX_ASSISTANT_QUESTIONS_PER_MINUTE,
     MAX_SEARCHES_PER_DAY,
+    MAX_SKILLS_PER_QUERY,
     MAX_TRIAL_SEARCHES,
     SERVER_ERROR_DAYS,
     TRIAL_ACCOUNT_DAYS,
@@ -84,6 +85,7 @@ def fill_fields(text: str, contact_email: str = "") -> str:
     values = {
         "contact": contact_email or "adressez-vous à l'exploitant de l'application",
         "max_searches": MAX_SEARCHES_PER_DAY,
+        "max_skills": MAX_SKILLS_PER_QUERY,
         "job_sites": ", ".join(JOB_SITES),
         "inactive_months": INACTIVE_ACCOUNT_DAYS // 30,
         "server_error_days": SERVER_ERROR_DAYS,

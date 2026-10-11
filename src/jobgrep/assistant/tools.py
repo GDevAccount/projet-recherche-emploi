@@ -51,7 +51,7 @@ def build_account_tools(account: AccountReader) -> list[BaseTool]:
 
     @tool(QUERIES_TOOL)
     def queries(user_id: UserId) -> str:
-        """Rend les postes que recherche la personne qui écrit : pour chacun, le métier et les spécialités
+        """Rend les postes que recherche la personne qui écrit : pour chacun, le métier et les compétences
         qu'elle a saisis, le contrat et le lieu. À appeler quand la question porte sur ses postes
         recherchés, ou pour lui dire quoi y changer quand trop de pages sont écartées.
         """

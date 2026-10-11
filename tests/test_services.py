@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 from conftest import FakeEvaluator, FakeNotifier, FakeSearchEngine
 from helpers import blank_pdf, job, rejected_job
-from sqlalchemy import update
+from sqlalchemy import func, select, update
 
 from jobgrep.agent.prompts import prompt_version
 from jobgrep.config import (
@@ -18,13 +18,16 @@ from jobgrep.config import (
     DEFAULT_USER_ID,
     INACTIVE_ACCOUNT_DAYS,
     MAX_SEARCHES_PER_DAY,
+    MAX_SKILL_CHARS,
+    MAX_SKILLS_PER_QUERY,
     SERVER_ERROR_DAYS,
+    SKILL_SUGGESTIONS,
     WEEKS_SHOWN,
     Settings,
 )
 from jobgrep.container import build_container
 from jobgrep.data.cv_ingestion.pdf_reader import CvPdfReader
-from jobgrep.data.models import ClientError, EngineCall, SearchRun, ServerError
+from jobgrep.data.models import ClientError, EngineCall, SearchRun, ServerError, Skill
 from jobgrep.data.repositories.activity_repository import ActivityRepository
 from jobgrep.data.repositories.correction_repository import CorrectionRepository
 from jobgrep.data.repositories.cv_text_repository import CvTextRepository
@@ -33,6 +36,7 @@ from jobgrep.data.repositories.job_repository import JobRepository
 from jobgrep.data.repositories.rejected_job_repository import RejectedJobRepository
 from jobgrep.data.repositories.search_run_repository import SearchRunRepository
 from jobgrep.data.repositories.user_repository import UserRepository
+from jobgrep.data.skills_catalog import CATALOG_PATH, fold_skill, read_catalog
 from jobgrep.errors import ConflictError, InvalidInputError, NotFoundError, QuotaExceededError
 from jobgrep.schemas import BudgetOverview, ClientErrorReport, SearchProgress, SearchSummary
 from jobgrep.services import cv_service, health_service
@@ -921,6 +925,58 @@ def test_query_is_saved_for_a_location_or_for_full_remote(container):
         container.queries.add_query(BOB, "CDI", "data engineer", "Lyon")
     with pytest.raises(InvalidInputError):
         container.queries.add_query(BOB, "CDI", "data engineer", "x" * 101)
+
+
+def test_skills_of_a_query_are_cleaned_and_bounded(container):
+    created = container.queries.add_query(BOB, "CDI", "comptable", skills=[" SAP ", "", "paie  et  social", "sap"])
+
+    # Ni vide ni doublon, et l'ordre de saisie est gardé
+    assert created.skills == ["SAP", "paie et social"]
+    assert container.queries.list_queries(BOB)[0].skills == ["SAP", "paie et social"]
+    assert container.queries.add_query(BOB, "CDI", "auditeur").skills == []
+
+    too_many = [f"compétence {index}" for index in range(MAX_SKILLS_PER_QUERY + 1)]
+    with pytest.raises(InvalidInputError):
+        container.queries.add_query(BOB, "CDI", "contrôleur", skills=too_many)
+    with pytest.raises(InvalidInputError):
+        container.queries.add_query(BOB, "CDI", "contrôleur", skills=["x" * (MAX_SKILL_CHARS + 1)])
+    # Les compétences ne distinguent pas deux postes : le même métier au même lieu existe déjà
+    with pytest.raises(ConflictError):
+        container.queries.add_query(BOB, "CDI", "comptable", skills=["Sage"])
+
+
+def test_skill_catalog_is_well_filled_and_fits_the_limits():
+    lines = [line.strip() for line in CATALOG_PATH.read_text(encoding="utf-8").splitlines()]
+    written = [line for line in lines if line and not line.startswith("#")]
+
+    assert len(written) > 1000
+    # Une compétence proposée doit pouvoir être enregistrée, et ne figurer qu'une fois
+    assert max(map(len, written)) <= MAX_SKILL_CHARS
+    assert len({fold_skill(skill) for skill in written}) == len(written)
+    assert read_catalog() == written
+
+
+def test_skills_are_suggested_from_the_catalog_the_closest_first(container):
+    suggest = container.queries.suggest_skills
+    with container.database.session() as session:
+        assert session.scalar(select(func.count()).select_from(Skill)) == len(read_catalog())
+
+    # Sans accent ni majuscule ; ce qui commence par le texte, puis un mot qui commence par lui, puis le reste
+    assert suggest(BOB, "compta") == suggest(BOB, "  COMPTA ")
+    assert suggest(BOB, "compta")[0] == "Comptabilité analytique"
+    assert suggest(BOB, "electricite")[0] == "Électricité automobile"
+    pay = suggest(BOB, "paie")
+    assert pay[0] == "Paie" and "Gestion de la paie" in pay
+    assert len(suggest(BOB, "a")) == SKILL_SUGGESTIONS
+    assert suggest(BOB, "") == suggest(BOB, "dressage de licornes") == []
+    # Un caractère de motif SQL est cherché tel quel
+    assert suggest(BOB, "%") == suggest(BOB, "_") == []
+
+    # Une compétence hors du référentiel reste sur le poste de son auteur : elle n'est proposée à personne
+    typed = ["dressage de licornes", "python", "REDACTION"]
+    created = container.queries.add_query(BOB, "CDI", "dresseur", skills=typed)
+    assert created.skills == ["dressage de licornes", "Python", "Rédaction"]
+    assert suggest(CAROL, "dressage de licornes") == suggest(BOB, "dressage de licornes") == []
 
 
 def test_adding_a_query_forgets_the_rejections_that_depend_on_the_searches(container):
