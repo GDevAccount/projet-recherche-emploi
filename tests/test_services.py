@@ -995,6 +995,61 @@ def test_adding_a_query_forgets_the_rejections_that_depend_on_the_searches(conta
     assert len(container.jobs.list_rejected_jobs(CAROL)) == 1
 
 
+def test_saved_query_is_changed_under_the_rules_of_a_new_one(container):
+    created = container.queries.add_query(BOB, "CDI", "comptable", "Lyon", skills=["SAP"])
+    other = container.queries.add_query(BOB, "CDI", "auditeur")
+
+    changed = container.queries.update_query(
+        BOB, created.id, "freelance", "  Comptable fournisseurs ", "Lyon", remote=True, skills=["paie", " sage "]
+    )
+
+    # Même identifiant et même place dans la liste ; en télétravail complet, le lieu saisi est ignoré
+    assert changed == container.queries.list_queries(BOB)[0]
+    assert (changed.id, changed.created_at) == (created.id, created.created_at)
+    assert (changed.contract_type, changed.query, changed.location, changed.remote) == (
+        "freelance",
+        "Comptable fournisseurs",
+        "",
+        True,
+    )
+    # Une compétence du référentiel reprend son écriture
+    assert changed.skills == ["Paie", "Sage"]
+    # Enregistrer sans rien changer n'est pas un doublon de soi-même
+    assert container.queries.update_query(BOB, created.id, "freelance", "Comptable fournisseurs", remote=True) == (
+        changed.model_copy(update={"skills": []})
+    )
+
+    with pytest.raises(ConflictError):
+        container.queries.update_query(BOB, created.id, "CDI", "auditeur")
+    with pytest.raises(InvalidInputError):
+        container.queries.update_query(BOB, created.id, "CDI", "  ")
+    with pytest.raises(InvalidInputError):
+        container.queries.update_query(BOB, created.id, "bénévolat", "comptable")
+    with pytest.raises(InvalidInputError):
+        container.queries.update_query(BOB, created.id, "CDI", "comptable", skills=["x" * (MAX_SKILL_CHARS + 1)])
+    # Carol ne peut pas modifier le poste de Bob en devinant son identifiant
+    with pytest.raises(NotFoundError):
+        container.queries.update_query(CAROL, created.id, "CDI", "pirate")
+    assert [query.query for query in container.queries.list_queries(BOB)] == ["Comptable fournisseurs", other.query]
+
+
+def test_changing_a_query_forgets_the_rejections_unless_only_its_skills_change(container):
+    out_of_area = {**rejected_job("https://r/lieu"), "matches_cv": True, "matches_location": False}
+    unfit = {**rejected_job("https://r/profil"), "matches_search": False}
+    created = container.queries.add_query(BOB, "CDI", "data engineer", "Lyon")
+    with container.database.session() as session:
+        RejectedJobRepository(session, BOB).insert_rejected_jobs([unfit, out_of_area])
+        RejectedJobRepository(session, CAROL).insert_rejected_jobs([out_of_area])
+
+    # Les compétences ne trient pas : réévaluer ces pages serait payer pour le même verdict
+    container.queries.update_query(BOB, created.id, "CDI", "data engineer", "Lyon", skills=["Python"])
+    assert len(container.jobs.list_rejected_jobs(BOB)) == 2
+
+    container.queries.update_query(BOB, created.id, "CDI", "data engineer", "Rhône", skills=["Python"])
+    assert [page.url for page in container.jobs.list_rejected_jobs(BOB)] == ["https://r/profil"]
+    assert len(container.jobs.list_rejected_jobs(CAROL)) == 1
+
+
 def test_rejected_page_tells_why_it_was_rejected(container):
     def motives(**verdict):
         with container.database.session() as session:

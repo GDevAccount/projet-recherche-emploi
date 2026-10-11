@@ -1,26 +1,3 @@
-<ng-template #placeIcon let-place>
-  @switch (place) {
-    @case ('remote') {
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="4" y="5" width="16" height="11" rx="2" />
-        <path d="M2 20h20" />
-      </svg>
-    }
-    @case ('location') {
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-        <path d="M12 21s7-6.1 7-11.5a7 7 0 0 0-14 0C5 14.9 12 21 12 21Z" />
-        <circle cx="12" cy="9.5" r="2.5" />
-      </svg>
-    }
-    @default {
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M3 12h18M12 3c2.7 2.6 4 5.6 4 9s-1.3 6.4-4 9c-2.7-2.6-4-5.6-4-9s1.3-6.4 4-9Z" />
-      </svg>
-    }
-  }
-</ng-template>
-
 <article class="app-card">
   <header>
     <div>
@@ -51,7 +28,7 @@
                 </ul>
               }
               <span class="where" [class.remote]="place === 'remote'">
-                <ng-container [ngTemplateOutlet]="placeIcon" [ngTemplateOutletContext]="{ $implicit: place }" />
+                <app-place-icon [place]="place" />
                 @switch (place) {
                   @case ('remote') {
                     Télétravail complet
@@ -65,6 +42,18 @@
                 }
               </span>
             </div>
+            <button
+              type="button"
+              class="edit"
+              [attr.aria-label]="'Modifier le poste « ' + query.query + ' »'"
+              [disabled]="deleting() !== null"
+              (click)="openForm(query)"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+                <path d="m13.5 6.5 4 4" />
+              </svg>
+            </button>
             <button
               type="button"
               class="remove"
@@ -81,7 +70,7 @@
       </ul>
     } @else {
       <p class="empty">
-        Aucun poste pour l'instant. Décrivez le premier ci-dessous : c'est lui qui dit à l'agent quoi chercher, et
+        Aucun poste pour l'instant. Ajoutez le premier : c'est lui qui dit à l'agent quoi chercher, et
         quelles annonces garder.
       </p>
     }
@@ -89,175 +78,16 @@
     <p class="empty">Chargement…</p>
   }
 
-  <form (ngSubmit)="add()">
-    <h3>Ajouter un poste</h3>
+  @if (error()) {
+    <p-message severity="error">{{ error() }}</p-message>
+  }
 
-    <label class="field">
-      <span>Métier</span>
-      <input
-        pInputText
-        name="query"
-        autocomplete="off"
-        placeholder="comptable, infirmière, ingénieur IA…"
-        [ngModel]="text()"
-        (ngModelChange)="text.set($event)"
-      />
-      <small>
-        Le métier visé, sans plus : seules les offres de ce métier sont retenues. Inutile d'écrire le contrat ou le
-        lieu.
-      </small>
-    </label>
-
-    <div class="field">
-      <span id="skills-label">Compétences</span>
-      <div class="tag-input">
-        @if (skills().length) {
-          <ul class="tags">
-            @for (skill of skills(); track skill) {
-              <li class="tag">
-                {{ skill }}
-                <button
-                  type="button"
-                  [attr.aria-label]="'Retirer la compétence « ' + skill + ' »'"
-                  (click)="removeSkill(skill)"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-                    <path d="M6 6l12 12M18 6 6 18" />
-                  </svg>
-                </button>
-              </li>
-            }
-          </ul>
-        }
-        <input
-          name="skill"
-          autocomplete="off"
-          role="combobox"
-          aria-autocomplete="list"
-          aria-controls="skill-options"
-          aria-labelledby="skills-label"
-          aria-describedby="skills-help"
-          [placeholder]="skillsFull() ? '' : 'comptabilité, SAP, anglais…'"
-          [disabled]="skillsFull()"
-          [attr.aria-expanded]="listOpen()"
-          [attr.aria-activedescendant]="listOpen() && activeOption() >= 0 ? 'skill-option-' + activeOption() : null"
-          [ngModel]="skillDraft()"
-          (ngModelChange)="skillDraft.set($event)"
-          (keydown)="onSkillKey($event)"
-          (focus)="focusSkill(true)"
-          (blur)="focusSkill(false)"
-        />
-        <!-- mousedown.preventDefault : un clic dans la liste ne doit pas retirer le focus du champ, ce qui la fermerait -->
-        <ul
-          id="skill-options"
-          class="options"
-          role="listbox"
-          aria-labelledby="skills-label"
-          [hidden]="!listOpen()"
-          (mousedown)="$event.preventDefault()"
-        >
-          @for (option of options(); track option; let index = $index) {
-            <!-- Le clavier passe par le champ (aria-activedescendant) : une ligne de la liste ne prend pas le focus -->
-            <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
-            <li
-              role="option"
-              [id]="'skill-option-' + index"
-              [attr.aria-selected]="activeOption() === index"
-              [class.active]="activeOption() === index"
-              (click)="pickSkill(option)"
-            >
-              {{ option }}
-            </li>
-          }
-          @if (newSkill(); as typed) {
-            <!-- Le clavier passe par le champ (aria-activedescendant) : une ligne de la liste ne prend pas le focus -->
-            <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
-            <li
-              role="option"
-              class="create"
-              [id]="'skill-option-' + options().length"
-              [attr.aria-selected]="activeOption() === options().length"
-              [class.active]="activeOption() === options().length"
-              (click)="addSkill()"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              Ajouter « {{ typed }} »
-            </li>
-          }
-        </ul>
-      </div>
-      <small id="skills-help">
-        Facultatif. Commencez à taper, puis choisissez dans la liste. Une compétence qui n'y est pas s'ajoute avec le
-        bouton + ou la touche Entrée. Elles précisent la recherche, sans écarter d'offre.
-      </small>
-      @if (skillsFull()) {
-        <small class="full" role="status">
-          Un poste accepte {{ maxSkills() }} compétences au plus : retirez-en une pour en ajouter une autre.
-        </small>
-      }
-    </div>
-
-    <div class="field">
-      <span id="contract-label">Contrat</span>
-      <div class="pills" role="radiogroup" aria-labelledby="contract-label">
-        @for (type of contractTypes(); track type) {
-          <button
-            type="button"
-            role="radio"
-            [attr.aria-checked]="contract() === type"
-            [class.on]="contract() === type"
-            (click)="chooseContract(type)"
-          >
-            {{ type }}
-          </button>
-        }
-      </div>
-    </div>
-
-    <div class="field">
-      <span id="place-label">Où</span>
-      <div class="pills" role="radiogroup" aria-labelledby="place-label">
-        @for (option of places; track option.value) {
-          <button
-            type="button"
-            role="radio"
-            [attr.aria-checked]="place() === option.value"
-            [class.on]="place() === option.value"
-            (click)="place.set(option.value)"
-          >
-            <ng-container [ngTemplateOutlet]="placeIcon" [ngTemplateOutletContext]="{ $implicit: option.value }" />
-            {{ option.label }}
-          </button>
-        }
-      </div>
-      @switch (place()) {
-        @case ('location') {
-          <input
-            pInputText
-            name="location"
-            autocomplete="off"
-            aria-label="Lieu"
-            placeholder="Lyon, Bretagne, Île-de-France…"
-            [ngModel]="location()"
-            (ngModelChange)="location.set($event)"
-          />
-          <small>Une ville, un département ou une région.</small>
-        }
-        @case ('remote') {
-          <small>
-            Uniquement les postes 100 % à distance, en France comme à l'étranger. La recherche part aussi en anglais,
-            sur les sites d'offres à distance.
-          </small>
-        }
-      }
-    </div>
-
-    @if (error()) {
-      <p-message severity="error">{{ error() }}</p-message>
-    }
-
-    <p-button type="submit" label="Ajouter ce poste" [loading]="adding()" [disabled]="incomplete()" />
-  </form>
+  <p-button label="Ajouter un poste" (onClick)="openForm()" />
 </article>
+
+<!-- Pas de closedby : un clic à côté ne doit pas faire perdre une saisie ; Échap et « Annuler » ferment -->
+<dialog #dialog aria-labelledby="query-form-title" (close)="formClosed()">
+  @if (form(); as opened) {
+    <app-query-form [query]="opened.query" (closed)="closeForm()" />
+  }
+</dialog>

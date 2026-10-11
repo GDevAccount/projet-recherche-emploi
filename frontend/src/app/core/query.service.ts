@@ -25,6 +25,10 @@ export class QueryService {
     return this.http.post<SearchQuery>(this.url, creation);
   }
 
+  update(id: number, change: SearchQueryCreate): Observable<SearchQuery> {
+    return this.http.put<SearchQuery>(`${this.url}/${id}`, change);
+  }
+
   /** Compétences du référentiel qui contiennent ce texte, les plus proches d'abord. */
   suggestSkills(text: string): Observable<string[]> {
     return this.http.get<string[]>(`${environment.apiUrl}/skills`, { params: { q: text } });

@@ -140,8 +140,16 @@ def test_each_user_has_their_own_queries(session):
     assert bob.delete_query(bob.add_query(alice_query.contract_type, alice_query.query, "Lyon").id) is True
     assert len(bob.list_queries()) == 1
 
-    # Bob ne peut pas supprimer une recherche d'Alice en devinant son identifiant
+    # Bob ne peut ni lire, ni modifier, ni supprimer une recherche d'Alice en devinant son identifiant
+    assert bob.get_query(alice_query.id) is None and alice.get_query(alice_query.id) is alice_query
+    assert bob.update_query(alice_query.id, "stage", "pirate") is False
     assert bob.delete_query(alice_query.id) is False
+    assert (alice_query.contract_type, alice_query.query) == DEFAULT_QUERIES[0]
+    # Bob peut donner à sa recherche le métier d'une recherche d'Alice, mais pas celui d'une autre des siennes
+    assert bob.update_query(created.id, "CDD", alice.list_queries()[1].query) is True
+    elsewhere = bob.add_query("CDI", "data engineer", "Lyon")
+    assert bob.update_query(elsewhere.id, "CDI", created.query) is False
+    assert bob.delete_query(elsewhere.id) is True
     assert len(alice.list_queries()) == len(DEFAULT_QUERIES)
 
     assert bob.delete_query(created.id) is True

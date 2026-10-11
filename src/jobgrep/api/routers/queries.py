@@ -34,6 +34,13 @@ def add_query(creation: SearchQueryCreate, user_id: UserId, services: Services) 
     )
 
 
+@router.put("/queries/{query_id}")
+def update_query(query_id: int, change: SearchQueryCreate, user_id: UserId, services: Services) -> SearchQueryRead:
+    return services.queries.update_query(
+        user_id, query_id, change.contract_type, change.query, change.location, change.remote, change.skills
+    )
+
+
 @router.get("/skills")
 def suggest_skills(
     q: Annotated[str, Query(max_length=MAX_SKILL_CHARS)], user_id: UserId, services: Services

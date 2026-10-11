@@ -111,7 +111,11 @@ test('le profil se complète : un CV, puis un poste recherché', async () => {
   await expect(page.getByRole('heading', { name: 'Votre CV est en place' })).toBeVisible();
   await expect(page.locator('app-queries-card .count')).toHaveText('4');
 
-  await page.getByLabel('Métier').fill(QUERY);
+  // Le formulaire s'ouvre dans une fenêtre, le clavier dans son premier champ
+  await page.getByRole('button', { name: 'Ajouter un poste' }).click();
+  const form = page.getByRole('dialog', { name: 'Ajouter un poste' });
+  await expect(form.getByLabel('Métier')).toBeFocused();
+  await form.getByLabel('Métier').fill(QUERY);
   // Une compétence se choisit dans le référentiel ; celle qui n'y est pas s'ajoute telle quelle
   const skills = page.getByRole('combobox', { name: 'Compétences' });
   await skills.fill('compta');
@@ -124,10 +128,33 @@ test('le profil se complète : un CV, puis un poste recherché', async () => {
   // Chaque compétence est un tag, que sa croix retire
   await page.getByRole('button', { name: 'Retirer la compétence « voltige »' }).click();
   await expect(page.locator('.tag-input .tag')).toHaveText(['Comptabilité fournisseurs', 'licornes']);
-  await page.getByRole('button', { name: 'Ajouter ce poste' }).click();
+  await form.getByRole('button', { name: 'Ajouter ce poste' }).click();
+  await expect(form).toBeHidden();
   const saved = page.getByRole('listitem').filter({ hasText: QUERY });
   await expect(saved).toBeVisible();
   await expect(saved.locator('.tag')).toHaveText(['Comptabilité fournisseurs', 'licornes']);
+
+  // Un poste enregistré se modifie dans la même fenêtre, ouverte avec ses valeurs
+  const pencil = page.getByRole('button', { name: `Modifier le poste « ${QUERY} »` });
+  await pencil.click();
+  const editor = page.getByRole('dialog', { name: 'Modifier ce poste' });
+  await expect(editor.getByLabel('Métier')).toBeFocused();
+  await expect(editor.getByLabel('Métier')).toHaveValue(QUERY);
+  // Échap ferme d'abord la liste des compétences, puis la fenêtre, qui rend le clavier au crayon
+  await editor.getByRole('combobox', { name: 'Compétences' }).fill('compta');
+  await expect(editor.getByRole('option').first()).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(editor.getByRole('option')).toHaveCount(0);
+  await expect(editor).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(editor).toBeHidden();
+  await expect(pencil).toBeFocused();
+
+  await pencil.click();
+  await editor.getByRole('button', { name: 'Retirer la compétence « licornes »' }).click();
+  await editor.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(editor).toBeHidden();
+  await expect(saved.locator('.tag')).toHaveText(['Comptabilité fournisseurs']);
 
   await expect(page.getByRole('button', { name: 'Lancer une recherche' })).toBeEnabled();
 });

@@ -1,0 +1,179 @@
+<form (ngSubmit)="save()">
+  <h2 id="query-form-title">{{ query() ? 'Modifier ce poste' : 'Ajouter un poste' }}</h2>
+
+  <label class="field">
+    <span>Métier</span>
+    <input
+      pInputText
+      name="query"
+      autocomplete="off"
+      placeholder="comptable, infirmière, ingénieur IA…"
+      [ngModel]="text()"
+      (ngModelChange)="text.set($event)"
+    />
+    <small>
+      Le métier visé, sans plus : seules les offres de ce métier sont retenues. Inutile d'écrire le contrat ou le
+      lieu.
+    </small>
+  </label>
+
+  <div class="field">
+    <span id="skills-label">Compétences</span>
+    <div class="tag-input">
+      @if (skills().length) {
+        <ul class="tags">
+          @for (skill of skills(); track skill) {
+            <li class="tag">
+              {{ skill }}
+              <button
+                type="button"
+                [attr.aria-label]="'Retirer la compétence « ' + skill + ' »'"
+                (click)="removeSkill(skill)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+      <input
+        name="skill"
+        autocomplete="off"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls="skill-options"
+        aria-labelledby="skills-label"
+        aria-describedby="skills-help"
+        [placeholder]="skillsFull() ? '' : 'comptabilité, SAP, anglais…'"
+        [disabled]="skillsFull()"
+        [attr.aria-expanded]="listOpen()"
+        [attr.aria-activedescendant]="listOpen() && activeOption() >= 0 ? 'skill-option-' + activeOption() : null"
+        [ngModel]="skillDraft()"
+        (ngModelChange)="skillDraft.set($event)"
+        (keydown)="onSkillKey($event)"
+        (focus)="focusSkill(true)"
+        (blur)="focusSkill(false)"
+      />
+      <!-- mousedown.preventDefault : un clic dans la liste ne doit pas retirer le focus du champ, ce qui la fermerait -->
+      <ul
+        id="skill-options"
+        class="options"
+        role="listbox"
+        aria-labelledby="skills-label"
+        [hidden]="!listOpen()"
+        (mousedown)="$event.preventDefault()"
+      >
+        @for (option of options(); track option; let index = $index) {
+          <!-- Le clavier passe par le champ (aria-activedescendant) : une ligne de la liste ne prend pas le focus -->
+          <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+          <li
+            role="option"
+            [id]="'skill-option-' + index"
+            [attr.aria-selected]="activeOption() === index"
+            [class.active]="activeOption() === index"
+            (click)="pickSkill(option)"
+          >
+            {{ option }}
+          </li>
+        }
+        @if (newSkill(); as typed) {
+          <!-- Le clavier passe par le champ (aria-activedescendant) : une ligne de la liste ne prend pas le focus -->
+          <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+          <li
+            role="option"
+            class="create"
+            [id]="'skill-option-' + options().length"
+            [attr.aria-selected]="activeOption() === options().length"
+            [class.active]="activeOption() === options().length"
+            (click)="addSkill()"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Ajouter « {{ typed }} »
+          </li>
+        }
+      </ul>
+    </div>
+    <small id="skills-help">
+      Facultatif. Commencez à taper, puis choisissez dans la liste. Une compétence qui n'y est pas s'ajoute avec le
+      bouton + ou la touche Entrée. Elles précisent la recherche, sans écarter d'offre.
+    </small>
+    @if (skillsFull()) {
+      <small class="full" role="status">
+        Un poste accepte {{ maxSkills() }} compétences au plus : retirez-en une pour en ajouter une autre.
+      </small>
+    }
+  </div>
+
+  <div class="field">
+    <span id="contract-label">Contrat</span>
+    <div class="pills" role="radiogroup" aria-labelledby="contract-label">
+      @for (type of contractTypes(); track type) {
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="contract() === type"
+          [class.on]="contract() === type"
+          (click)="chooseContract(type)"
+        >
+          {{ type }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <div class="field">
+    <span id="place-label">Où</span>
+    <div class="pills" role="radiogroup" aria-labelledby="place-label">
+      @for (option of places; track option.value) {
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="place() === option.value"
+          [class.on]="place() === option.value"
+          (click)="place.set(option.value)"
+        >
+          <app-place-icon [place]="option.value" />
+          {{ option.label }}
+        </button>
+      }
+    </div>
+    @switch (place()) {
+      @case ('location') {
+        <input
+          pInputText
+          name="location"
+          autocomplete="off"
+          aria-label="Lieu"
+          placeholder="Lyon, Bretagne, Île-de-France…"
+          [ngModel]="location()"
+          (ngModelChange)="location.set($event)"
+        />
+        <small>Une ville, un département ou une région.</small>
+      }
+      @case ('remote') {
+        <small>
+          Uniquement les postes 100 % à distance, en France comme à l'étranger. La recherche part aussi en anglais,
+          sur les sites d'offres à distance.
+        </small>
+      }
+    }
+  </div>
+
+  @if (error()) {
+    <p-message severity="error">{{ error() }}</p-message>
+  }
+
+  <div class="actions">
+    <p-button
+      type="submit"
+      [label]="query() ? 'Enregistrer' : 'Ajouter ce poste'"
+      [loading]="saving()"
+      [disabled]="incomplete()"
+    />
+    <p-button type="button" label="Annuler" severity="secondary" [text]="true" (onClick)="cancel()" />
+  </div>
+</form>

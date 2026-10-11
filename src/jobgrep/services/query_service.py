@@ -43,6 +43,27 @@ def _capitalize(text: str) -> str:
     return text[:1].upper() + text[1:]
 
 
+def _check_job(
+    contract_type: str, query: str, location: str, remote: bool, skills: Sequence[str]
+) -> tuple[str, str, list[str]]:
+    """Renvoie le métier, le lieu et les compétences d'un poste saisi, nettoyés, ou refuse ce qui ne se cherche pas."""
+    query = query.strip()
+    skills = clean_skills(skills)
+    # En télétravail complet, le lieu ne compte pas
+    location = "" if remote else location.strip()
+    if not query:
+        raise InvalidInputError("La recherche est vide.")
+    if contract_type not in CONTRACT_TYPES:
+        raise InvalidInputError(f"Type de contrat inconnu : {contract_type}.")
+    if len(location) > MAX_LOCATION_CHARS:
+        raise InvalidInputError(f"Le lieu dépasse {MAX_LOCATION_CHARS} caractères.")
+    if len(skills) > MAX_SKILLS_PER_QUERY:
+        raise InvalidInputError(f"Un poste accepte au plus {MAX_SKILLS_PER_QUERY} compétences.")
+    if any(len(skill) > MAX_SKILL_CHARS for skill in skills):
+        raise InvalidInputError(f"Une compétence dépasse {MAX_SKILL_CHARS} caractères.")
+    return query, location, skills
+
+
 class QueryService:
     def __init__(self, database: Database):
         self.database = database
@@ -63,20 +84,7 @@ class QueryService:
         skills: Sequence[str] = (),
     ) -> SearchQueryRead:
         """Enregistre un poste recherché, pour un lieu, pour le télétravail complet ou pour toute la France."""
-        query = query.strip()
-        skills = clean_skills(skills)
-        # En télétravail complet, le lieu ne compte pas
-        location = "" if remote else location.strip()
-        if not query:
-            raise InvalidInputError("La recherche est vide.")
-        if contract_type not in CONTRACT_TYPES:
-            raise InvalidInputError(f"Type de contrat inconnu : {contract_type}.")
-        if len(location) > MAX_LOCATION_CHARS:
-            raise InvalidInputError(f"Le lieu dépasse {MAX_LOCATION_CHARS} caractères.")
-        if len(skills) > MAX_SKILLS_PER_QUERY:
-            raise InvalidInputError(f"Un poste accepte au plus {MAX_SKILLS_PER_QUERY} compétences.")
-        if any(len(skill) > MAX_SKILL_CHARS for skill in skills):
-            raise InvalidInputError(f"Une compétence dépasse {MAX_SKILL_CHARS} caractères.")
+        query, location, skills = _check_job(contract_type, query, location, remote, skills)
 
         with self.database.session() as session:
             skills = _spell_like_catalog(session, skills)
@@ -86,6 +94,34 @@ class QueryService:
             # Une page rejetée pour son métier, son contrat ou son lieu peut convenir à cette nouvelle recherche
             RejectedJobRepository(session, user_id).clear_search_dependent_rejections()
             return SearchQueryRead.model_validate(created)
+
+    def update_query(
+        self,
+        user_id: int,
+        query_id: int,
+        contract_type: str,
+        query: str,
+        location: str = "",
+        remote: bool = False,
+        skills: Sequence[str] = (),
+    ) -> SearchQueryRead:
+        """Modifie un poste recherché, selon les mêmes règles qu'à son ajout, et le renvoie."""
+        query, location, skills = _check_job(contract_type, query, location, remote, skills)
+
+        with self.database.session() as session:
+            queries = QueryRepository(session, user_id)
+            saved = queries.get_query(query_id)
+            if saved is None:
+                raise NotFoundError("Cette recherche n'existe pas.")
+            before = (saved.contract_type, saved.query, saved.location, saved.remote)
+            skills = _spell_like_catalog(session, skills)
+            if not queries.update_query(query_id, contract_type, query, location, remote, skills):
+                raise ConflictError("Cette recherche existe déjà.")
+            # Les compétences ne trient pas : elles seules changées, aucun rejet n'est à revoir, ni à repayer
+            if before != (contract_type, query, location, remote):
+                RejectedJobRepository(session, user_id).clear_search_dependent_rejections()
+            session.refresh(saved)
+            return SearchQueryRead.model_validate(saved)
 
     def apply_profile(self, user_id: int, extraction: Extraction) -> list[SearchQueryRead]:
         """Remplace les postes recherchés de l'utilisateur par ceux qu'un modèle a tirés de son CV, et les renvoie.

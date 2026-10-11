@@ -157,6 +157,7 @@ def test_config_leaks_no_secret(tmp_path):
         ("POST", "/api/rejected-jobs/restore"),
         ("GET", "/api/queries"),
         ("POST", "/api/queries"),
+        ("PUT", "/api/queries/1"),
         ("DELETE", "/api/queries/1"),
         ("GET", "/api/skills"),
         ("GET", "/api/cv"),
@@ -266,6 +267,17 @@ def test_queries_are_private_and_validated(client):
     assert client.delete(f"/api/queries/{elsewhere.json()['id']}", headers=ALICE).status_code == 204
 
     query_path = f"/api/queries/{created.json()['id']}"
+    change = {"contract_type": "freelance", "query": " analytics engineer ", "skills": ["sap"], "location": "Lyon"}
+    changed = client.put(query_path, headers=ALICE, json=change)
+    assert changed.status_code == 200
+    assert changed.json() == created.json() | {**change, "query": "analytics engineer", "skills": ["SAP"]}
+    assert client.get("/api/queries", headers=ALICE).json() == [changed.json()]
+    assert client.put(query_path, headers=ALICE, json=change | {"query": " "}).status_code == 422
+    assert client.put(query_path, headers=BOB, json=change).status_code == 404
+    other = client.post("/api/queries", headers=ALICE, json=QUERY).json()
+    assert client.put(query_path, headers=ALICE, json=QUERY).status_code == 409
+    assert client.delete(f"/api/queries/{other['id']}", headers=ALICE).status_code == 204
+
     assert client.delete(query_path, headers=BOB).status_code == 404
     assert client.delete(query_path, headers=ALICE).status_code == 204
     assert client.get("/api/queries", headers=ALICE).json() == []
