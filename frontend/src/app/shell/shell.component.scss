@@ -256,14 +256,23 @@ main {
 }
 
 .launch {
-  display: grid;
-  justify-items: end;
-  gap: 0.4rem;
+  position: relative;
 
+  // Hors du flux, à la largeur du bouton : le message ne doit ni l'élargir ni le déplacer
   small {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 0;
+    left: 0;
     font-size: 0.8125rem;
+    text-align: right;
     color: var(--app-muted);
   }
+}
+
+// La place du message, prise sous le bandeau plutôt que sur le bouton
+.hero:has(.launch small) {
+  margin-bottom: 5.5rem;
 }
 
 .cta {
