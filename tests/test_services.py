@@ -11,6 +11,7 @@ from conftest import FakeEvaluator, FakeNotifier, FakeSearchEngine
 from helpers import blank_pdf, job, rejected_job
 from sqlalchemy import func, select, update
 
+from jobgrep import cli
 from jobgrep.agent.prompts import prompt_version
 from jobgrep.config import (
     ASSISTANT_MESSAGE_DAYS,
@@ -622,6 +623,60 @@ def test_errors_of_the_front_are_kept_counted_and_reported(alerting, notifier, m
     assert alerting.health.get_overview().client_failures == 2
     alerting.health.database = None
     assert not alerting.health.record_client_error(CAROL, crash)
+
+
+def test_daily_purge_that_fails_leaves_a_trace_and_warns(alerting, notifier, monkeypatch):
+    def broken(now=None):
+        raise RuntimeError("base verrouillée par alice@exemple.fr")
+
+    monkeypatch.setattr(alerting.account, "delete_inactive_accounts", broken)
+
+    # L'appelant, une requête ordinaire, n'en voit rien
+    alerting.account.delete_inactive_accounts_if_due()
+
+    health = alerting.health.get_overview()
+    assert [(row.method, row.route, row.status_code, row.error_type) for row in health.server_errors] == [
+        ("TÂCHE", "suppression des comptes inactifs", 500, "RuntimeError")
+    ]
+    # Une promesse des règles de confidentialité n'est pas tenue : c'est un incident
+    assert (health.failures, health.healthy) == (1, False)
+    # Le type de l'erreur seulement, jamais son message
+    assert notifier.sent == [("Panne du serveur", "RuntimeError sur TÂCHE suppression des comptes inactifs")]
+
+
+def test_texts_that_cannot_be_prepared_at_deployment_leave_a_trace(alerting, monkeypatch):
+    def broken():
+        raise TimeoutError("OpenAI ne répond pas")
+
+    monkeypatch.setattr(alerting.assistant, "index_texts", broken)
+    monkeypatch.setattr(cli, "get_container", lambda: alerting)
+
+    # Le déploiement continue : la première question refera ce calcul
+    cli.index_texts()
+
+    [error] = alerting.health.get_overview().server_errors
+    assert (error.method, error.route, error.error_type) == (
+        "TÂCHE",
+        "préparation des textes de l'assistant",
+        "TimeoutError",
+    )
+
+
+def test_alert_that_does_not_arrive_is_said_in_the_health_card(alerting, notifier):
+    notifier.works = False
+
+    alerting.health.record_error(BOB, "GET", "/api/jobs", 500, "OperationalError")
+
+    # La panne, puis l'alerte qui n'est pas partie : sans cette ligne, personne ne saurait qu'il n'est plus prévenu.
+    # Une seule : l'échec d'une alerte ne se signale pas par une alerte
+    health = alerting.health.get_overview()
+    assert sorted((row.method, row.route, row.error_type) for row in health.server_errors) == [
+        ("GET", "/api/jobs", "OperationalError"),
+        ("TÂCHE", "envoi d'une alerte", "AlertNotSent"),
+    ]
+    # L'alerte d'essai, elle, répond déjà à qui la demande
+    assert alerting.health.send_test_alert() is False
+    assert len(alerting.health.get_overview().server_errors) == 2
 
 
 def test_restart_reports_the_searches_it_has_cut(alerting, notifier, ready_users):

@@ -10,6 +10,7 @@ from jobgrep.api.security import (
     SessionToken,
     TrialOpening,
     UserId,
+    check_origin,
     clear_session_cookie,
     set_session_cookie,
 )
@@ -125,3 +126,15 @@ def report_client_error(user_id: UserId, report: ClientErrorReport, services: Se
     Le front l'appelle de lui-même. Jamais le message de l'erreur ; au-delà d'un nombre par jour, elle est ignorée.
     """
     services.health.record_client_error(user_id, report)
+
+
+@router.post("/client-errors/visitor", status_code=status.HTTP_204_NO_CONTENT)
+def report_visitor_error(report: ClientErrorReport, services: Services, request: Request) -> None:
+    """Signale une erreur survenue dans le navigateur d'un visiteur sans session.
+
+    Publique : les écrans s'ouvrent sans compte, et une erreur avant le dépôt du CV ne se verrait pas. Les
+    mêmes motifs que pour un compte n'y laissent passer ni message ni contenu, et tous les visiteurs
+    partagent un plafond par jour.
+    """
+    check_origin(request, services)
+    services.health.record_client_error(None, report)

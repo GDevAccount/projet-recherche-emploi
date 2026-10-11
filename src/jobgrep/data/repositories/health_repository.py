@@ -33,14 +33,17 @@ class HealthRepository:
             )
         )
 
-    def record_client_error(self, user_id: int, route: str | None, error_type: str, source: str | None) -> None:
-        """Enregistre une erreur survenue dans le navigateur de ce compte."""
+    def record_client_error(
+        self, user_id: int | None, route: str | None, error_type: str, source: str | None
+    ) -> None:
+        """Enregistre une erreur survenue dans le navigateur de ce compte, ou d'un visiteur sans session (None)."""
         self.session.execute(
             insert(ClientError).values(user_id=user_id, route=route, error_type=error_type, source=source)
         )
 
-    def count_client_errors(self, user_id: int, since: datetime) -> int:
-        """Renvoie le nombre d'erreurs du front signalées par ce compte depuis cette date."""
+    def count_client_errors(self, user_id: int | None, since: datetime) -> int:
+        """Renvoie le nombre d'erreurs du front signalées depuis cette date par ce compte, ou, sans compte,
+        par tous les visiteurs sans session réunis."""
         statement = select(func.count()).where(ClientError.user_id == user_id, ClientError.created_at >= since)
         return self.session.scalar(statement)
 

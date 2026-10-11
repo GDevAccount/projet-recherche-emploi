@@ -27,6 +27,12 @@ logger = logging.getLogger(__name__)
 FAILED = "failed"
 # À partir de ce code, c'est le serveur qui est en faute, pas la demande
 FIRST_FAILURE_STATUS = 500
+# Une tâche de fond qui échoue se range parmi les pannes du serveur, sous cette méthode à la place de celle
+# d'une requête, et avec son nom à la place de la route
+TASK_METHOD = "TÂCHE"
+HTTP_SERVER_ERROR = 500
+ALERT_TASK = "envoi d'une alerte"
+ALERT_NOT_SENT = "AlertNotSent"
 
 
 class HealthService:
@@ -68,11 +74,35 @@ class HealthService:
             where = f"{method} {route}" if route else "une route inconnue"
             self.alerts.notify(f"error:{method}:{route}:{error_type}", "Panne du serveur", f"{error_type} sur {where}")
 
-    def record_client_error(self, user_id: int, report: ClientErrorReport, now: datetime | None = None) -> bool:
+    def record_task_failure(self, task: str, error_type: str, alert: bool = True) -> None:
+        """Garde la trace d'une tâche de fond qui a échoué, et prévient. Ne lève jamais.
+
+        Ces tâches ne répondent à personne : sans cela, leur échec ne s'écrirait que dans les logs, que
+        l'hébergeur ne garde pas. Elle se range parmi les pannes du serveur, donc parmi les incidents.
+        « alert » est faux pour l'échec d'une alerte : en prévenir par une alerte ne mènerait nulle part.
+        """
+        if alert:
+            self.record_error(None, TASK_METHOD, task, HTTP_SERVER_ERROR, error_type)
+            return
+        try:
+            with self.database.session() as session:
+                HealthRepository(session).record_error(None, TASK_METHOD, task, HTTP_SERVER_ERROR, error_type)
+        except Exception:
+            logger.exception("L'échec de la tâche « %s » n'a pas pu être enregistré", task)
+
+    def alert_not_sent(self) -> None:
+        """Garde la trace d'une alerte qui n'est pas arrivée : seule la carte Santé peut encore le dire."""
+        self.record_task_failure(ALERT_TASK, ALERT_NOT_SENT, alert=False)
+
+    def record_client_error(
+        self, user_id: int | None, report: ClientErrorReport, now: datetime | None = None
+    ) -> bool:
         """Garde la trace d'une erreur survenue dans le navigateur de l'utilisateur, et prévient. Ne lève jamais.
 
-        Renvoie faux si elle n'a pas été gardée : au-delà de CLIENT_ERRORS_PER_DAY par compte et par jour,
-        une page qui échoue en boucle n'apprend plus rien.
+        Sans compte, c'est un visiteur sans session. Renvoie faux si elle n'a pas été gardée : au-delà de
+        CLIENT_ERRORS_PER_DAY par jour, pour un compte comme pour tous les visiteurs réunis, une page qui
+        échoue en boucle n'apprend plus rien. Les visiteurs partagent leur plafond parce que rien ne les
+        distingue : la route est publique, et c'est ce qui empêche un inconnu de remplir la table.
         """
         now = now or datetime.now(UTC)
         try:

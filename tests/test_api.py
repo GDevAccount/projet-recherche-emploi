@@ -35,6 +35,7 @@ from jobgrep.data.models import TrialStart
 from jobgrep.data.repositories.job_repository import JobRepository
 from jobgrep.data.repositories.user_repository import UserRepository
 from jobgrep.schemas import DELETE_REASONS, MAX_QUESTION_CHARS
+from jobgrep.services import health_service
 
 ALICE = {"Authorization": "Bearer jeton-alice"}
 BOB = {"Authorization": "Bearer jeton-bob"}
@@ -202,8 +203,10 @@ def test_every_route_is_covered_by_the_identity_test(client):
         # Routes publiques : elles ne lisent aucune donnée d'utilisateur, et ont leurs propres tests
         if path not in ("/api/health", "/api/config")
         for method in operations
-        # La déconnexion ne lit aucune donnée, et l'essai sans compte s'ouvre sans identité : ils ont leurs tests
-        if (method, path) not in (("delete", "/api/session"), ("post", "/api/session/trial"))
+        # La déconnexion ne lit aucune donnée, l'essai sans compte s'ouvre sans identité et un visiteur
+        # signale une erreur de son navigateur sans session : ils ont leurs tests
+        if (method, path)
+        not in (("delete", "/api/session"), ("post", "/api/session/trial"), ("post", "/api/client-errors/visitor"))
     }
 
     assert routes == set(tested)
@@ -616,6 +619,32 @@ def test_front_reports_its_errors_without_their_message(client):
         ("/offres", "TypeError", "main-5UFRYBOQ.js:1:23456"),
         (None, "Error", None),
     }
+
+
+def test_visitor_without_session_reports_the_errors_of_their_browser(client, monkeypatch):
+    crash = {"error_type": "TypeError", "route": "/profil", "source": "main-5UFRYBOQ.js:1:23456"}
+    # Sans session ni preuve d'identité : les écrans s'ouvrent sans compte
+    assert client.post("/api/client-errors/visitor", json=crash).status_code == 204
+    # Les mêmes motifs que pour un compte : ni message, ni adresse
+    message = {"error_type": "Cannot read properties of undefined (reading 'title')"}
+    assert client.post("/api/client-errors/visitor", json=message).status_code == 422
+    elsewhere = {"Origin": "https://ailleurs.exemple"}
+    assert client.post("/api/client-errors/visitor", json=crash, headers=elsewhere).status_code == 403
+
+    health = client.get("/api/admin/health", headers=OWNER).json()
+    assert (health["client_failures"], health["healthy"]) == (1, False)
+    [group] = health["client_errors"]
+    # Aucun compte derrière cette erreur
+    assert (group["route"], group["error_type"], group["count"], group["accounts"]) == ("/profil", "TypeError", 1, 0)
+
+    # La route est publique : tous les visiteurs partagent un plafond, pour qu'un inconnu ne remplisse pas la table
+    monkeypatch.setattr(health_service, "CLIENT_ERRORS_PER_DAY", 2)
+    for _ in range(3):
+        assert client.post("/api/client-errors/visitor", json=crash).status_code == 204
+    assert client.get("/api/admin/health", headers=OWNER).json()["client_failures"] == 2
+    # Ce plafond n'est pas celui d'un compte, qui signale encore les siennes
+    assert client.post("/api/client-errors", headers=ALICE, json=crash).status_code == 204
+    assert client.get("/api/admin/health", headers=OWNER).json()["client_failures"] == 3
 
 
 def test_administrator_follows_how_far_each_guest_goes(tmp_path, valid_pdf):
