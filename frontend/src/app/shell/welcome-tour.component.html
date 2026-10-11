@@ -73,8 +73,8 @@
     </div>
 
     @if (last()) {
-      <button type="button" class="done" (click)="close(!account().can_search)">
-        {{ account().can_search ? "C'est parti" : 'Compléter mon profil' }}
+      <button type="button" class="done" (click)="close(!account()?.can_search)">
+        {{ account()?.can_search ? "C'est parti" : 'Compléter mon profil' }}
       </button>
     } @else {
       <button type="button" class="arrow next" aria-label="Écran suivant" (click)="next()">

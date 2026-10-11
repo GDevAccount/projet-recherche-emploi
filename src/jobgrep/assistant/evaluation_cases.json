@@ -486,7 +486,7 @@
         "Accès"
       ]
     ],
-    "reference": "Non : ce que contient l'essai n'est pas repris par le compte Google."
+    "reference": "Oui, si le compte Google n'a pas encore de CV : il reprend tout ce que contient l'essai (CV, postes recherchés, offres et suivi). Si le compte a déjà son CV, il reste tel quel et l'essai est effacé."
   },
   {
     "id": "prix",

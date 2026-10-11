@@ -90,7 +90,8 @@ export function tourWasSeen(window: Window | null): boolean {
   },
 })
 export class WelcomeTourComponent {
-  readonly account = input.required<Account>();
+  /** Le compte de la session ; null pour un visiteur qui n'en a pas. */
+  readonly account = input.required<Account | null>();
   /** Émis à la fermeture ; vrai quand l'utilisateur a demandé à compléter son profil. */
   readonly closed = output<boolean>();
 
@@ -105,7 +106,7 @@ export class WelcomeTourComponent {
   /** Rappel du quota sur l'écran de la recherche ; vide pour le propriétaire, qui n'en a pas. */
   protected readonly quota = computed(() => {
     const account = this.account();
-    if (this.index() !== SEARCH_SLIDE || account.remaining_searches === null) {
+    if (this.index() !== SEARCH_SLIDE || !account || account.remaining_searches === null) {
       return '';
     }
     if (account.is_trial) {

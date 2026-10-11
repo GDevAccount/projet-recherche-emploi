@@ -74,6 +74,18 @@
       <p-button label="Enregistrer ce CV" [loading]="saving()" [disabled]="undecided()" (onClick)="save()" />
       <p-button label="Annuler" severity="secondary" [text]="true" [disabled]="saving()" (onClick)="cancel()" />
     </div>
+  } @else if (refusal(); as why) {
+    <div class="closed">
+      <p>
+        @if (why === 'exhausted') {
+          Les essais sans compte sont épuisés pour aujourd'hui. Connectez-vous pour déposer votre CV, ou revenez
+          demain.
+        } @else {
+          Connectez-vous pour déposer votre CV et lancer votre première recherche.
+        }
+      </p>
+      <a class="signin" [routerLink]="loginPath">Se connecter</a>
+    </div>
   } @else {
     <label
       class="drop"
@@ -91,6 +103,14 @@
       <strong>{{ current?.updated_at ? 'Déposer un nouveau CV' : 'Déposer votre CV' }}</strong>
       <span>Glissez un fichier ici, ou cliquez pour le choisir. PDF avec du texte sélectionnable.</span>
     </label>
+  }
+
+  @if (!signedIn() && !refusal()) {
+    <p class="notice">
+      Sans inscription : déposer votre CV ouvre un essai, reconnu par ce seul navigateur, avec une recherche
+      offerte. En le déposant, vous acceptez les <a href="/conditions">conditions d'utilisation</a> et les
+      <a href="/confidentialite">règles de confidentialité</a>.
+    </p>
   }
 
   <p class="notice">

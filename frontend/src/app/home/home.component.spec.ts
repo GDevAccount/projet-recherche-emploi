@@ -19,11 +19,14 @@ describe('HomeComponent', () => {
   const links = (text: string) =>
     Array.from(element().querySelectorAll('a')).filter((link) => link.textContent.trim().startsWith(text));
 
-  it('should send every way in to the login screen, the only place where an account is opened', () => {
-    const ways = [...links('Se connecter'), ...links('Commencer')];
+  it('should start with the profile, open without an account, and keep the login screen for logging in', () => {
+    const starts = links('Commencer');
+    const logins = links('Se connecter');
 
-    expect(ways.length).toBeGreaterThanOrEqual(5);
-    expect(ways.map((link) => link.getAttribute('href'))).toEqual(ways.map(() => '/connexion'));
+    expect(starts.length).toBeGreaterThanOrEqual(3);
+    expect(starts.map((link) => link.getAttribute('href'))).toEqual(starts.map(() => '/profil'));
+    expect(logins.length).toBeGreaterThanOrEqual(2);
+    expect(logins.map((link) => link.getAttribute('href'))).toEqual(logins.map(() => '/connexion'));
   });
 
   it('should link to the legal pages served outside the application', () => {

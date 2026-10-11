@@ -5,6 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Account, CvDeposit, SearchQuery } from '../core/api.models';
 import { QueryService } from '../core/query.service';
 import { FETCH } from '../core/search-run.service';
+import { SessionService } from '../core/session.service';
 import { CvCardComponent } from './cv-card.component';
 
 const PDF = new File(['%PDF-1.4'], 'mon-cv.pdf', { type: 'application/pdf' });
@@ -70,6 +71,9 @@ describe('CvCardComponent', () => {
       providers: [provideHttpClient(), provideHttpClientTesting(), { provide: FETCH, useValue: fetchMock }],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
+    // Une session ouverte : sans elle, l'écran ne lit rien
+    TestBed.inject(SessionService).open('preuve').subscribe();
+    http.expectOne('/api/session').flush(ACCOUNT);
     fixture = TestBed.createComponent(CvCardComponent);
     fixture.detectChanges();
   });

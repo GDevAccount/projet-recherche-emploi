@@ -1,0 +1,48 @@
+<section class="panel" aria-labelledby="save-offers-title">
+  <div class="words">
+    <span class="app-eyebrow">Vous cherchez sans compte</span>
+    <h2 id="save-offers-title">Gardez vos offres : <em>connectez-vous avec Google.</em></h2>
+    <p>
+      Pour l'instant, seul ce navigateur reconnaît votre CV et vos offres, et ils seront effacés au bout de 30 jours.
+    </p>
+    <ul>
+      <li>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m5 12.5 4.5 4.5L19 7.5" />
+        </svg>
+        Votre CV, vos offres et le suivi de vos candidatures sont gardés, sur tous vos appareils
+      </li>
+      @if (account(); as account) {
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m5 12.5 4.5 4.5L19 7.5" />
+          </svg>
+          {{ account.max_searches_per_day }} recherches par jour, au lieu d'une seule
+        </li>
+      }
+      <li>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m5 12.5 4.5 4.5L19 7.5" />
+        </svg>
+        Aucun formulaire : votre compte est créé à la connexion
+      </li>
+    </ul>
+  </div>
+
+  <div class="go">
+    @let loaded = config();
+    @if (loaded?.login_mode === 'google' && loaded?.google_client_id; as clientId) {
+      <app-google-button [clientId]="clientId" (credential)="open($event)" (failed)="googleFailed()" />
+    } @else if (loaded !== undefined) {
+      <a class="cta" [routerLink]="loginPath">Se connecter</a>
+    }
+    @if (pending()) {
+      <small role="status">Connexion…</small>
+    } @else {
+      <small>Si ce compte Google a déjà son CV dans JobGrep, c'est lui qui est gardé.</small>
+    }
+    @if (error()) {
+      <p-message severity="error">{{ error() }}</p-message>
+    }
+  </div>
+</section>

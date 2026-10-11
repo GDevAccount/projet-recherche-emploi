@@ -239,3 +239,27 @@ header {
   font-size: 0.8125rem;
   color: var(--app-muted);
 }
+
+// Sans session ni essai possible : la zone de dépôt laisse la place à l'entrée vers la connexion
+.closed {
+  display: grid;
+  justify-items: start;
+  gap: 0.9rem;
+  padding: 1.25rem;
+  border: 1.5px dashed var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+
+  p {
+    margin: 0;
+  }
+}
+
+.signin {
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  background: var(--app-accent);
+  color: var(--app-accent-ink);
+  font-weight: 650;
+  text-decoration: none;
+}

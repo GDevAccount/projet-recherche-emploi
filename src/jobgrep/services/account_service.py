@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from jobgrep.config import (
     ASSISTANT_MESSAGE_DAYS,
     DEFAULT_PLAN,
+    DEFAULT_USER_ID,
     INACTIVE_ACCOUNT_DAYS,
     SERVER_ERROR_DAYS,
     TRIAL_ACCOUNT_DAYS,
@@ -76,6 +77,37 @@ class AccountService:
             UserRepository(session).forget_user(user_id)
         # Les copies d'avant migration contiennent encore ses données : elles restent, sans lui
         self.database.purge_user_from_backups(user_id)
+
+    def adopt_trial(self, trial_user_id: int, user_id: int, email: str) -> int:
+        """Rend le compte de qui se connecte après avoir essayé sans compte : son essai, ou le compte qu'il avait.
+
+        Un compte sans CV, donc neuf ou jamais servi, laisse la place à l'essai, qui prend son adresse : CV,
+        postes, offres et recherche en cours restent sous le même identifiant, rien n'est recopié. Un compte
+        qui a déjà son CV le garde, et l'essai est effacé : plus personne ne pourrait y revenir. Le
+        propriétaire garde toujours son compte, dont l'identifiant est réservé.
+        """
+        with self.database.session() as session:
+            trial_has_cv = CvTextRepository(session, trial_user_id).get_updated_at() is not None
+            account_has_cv = CvTextRepository(session, user_id).get_updated_at() is not None
+        if not trial_has_cv or account_has_cv or user_id == DEFAULT_USER_ID:
+            try:
+                self.delete_account(trial_user_id)
+            except ConflictError:
+                # Sa recherche tourne encore : il partira avec les essais expirés
+                logger.info("Compte d'essai %d laissé à la purge : une recherche y est en cours", trial_user_id)
+            return user_id
+
+        # Sans CV, ce compte n'a jamais pu chercher : rien n'y tourne, et il ne perd que des réglages
+        self.delete_account(user_id)
+        with self.database.session() as session:
+            # Écrite comme AuthService la cherche à chaque requête
+            adopted = UserRepository(session).give_email(trial_user_id, email.strip().lower())
+        if not adopted:
+            # L'essai a disparu entre-temps : la prochaine requête recréera le compte de cette adresse
+            logger.warning("Le compte d'essai %d n'a pas pu être repris", trial_user_id)
+            return user_id
+        logger.info("Compte d'essai %d repris par un compte connecté", trial_user_id)
+        return trial_user_id
 
     def delete_inactive_accounts_if_due(self, now: datetime | None = None) -> None:
         """Supprime les comptes inactifs et ce dont la durée de conservation est passée, une fois par jour au plus.

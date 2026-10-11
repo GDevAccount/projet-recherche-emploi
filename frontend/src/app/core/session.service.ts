@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, catchError, map, of, tap } from 'rxjs';
 
 import { environment } from '../../environments/environment';
@@ -12,6 +12,11 @@ export class SessionService {
   private readonly _account = signal<Account | null>(null);
   /** Compte de la session ouverte, ou null sans session. */
   readonly account = this._account.asReadonly();
+  /**
+   * Identifiant du compte de la session, ou null sans session. Les écrans s'y abonnent pour lire leurs données :
+   * il ne change pas quand le compte est seulement relu.
+   */
+  readonly userId = computed(() => this._account()?.user_id ?? null);
 
   /** Relit le compte de la session en cours. Renvoie false si aucune session n'est ouverte. */
   refresh(): Observable<boolean> {
@@ -39,6 +44,15 @@ export class SessionService {
     return this.http
       .post<Account>(`${environment.apiUrl}/session/trial`, null)
       .pipe(tap((account) => this._account.set(account)));
+  }
+
+  /**
+   * Rend le compte de la session, en ouvrant un compte d'essai pour le visiteur qui n'en a pas : les écrans sont
+   * ouverts à tous, et c'est la première action qui demande d'enregistrer quelque chose qui passe par ici.
+   */
+  ensure(): Observable<Account> {
+    const account = this._account();
+    return account ? of(account) : this.openTrial();
   }
 
   close(): Observable<void> {

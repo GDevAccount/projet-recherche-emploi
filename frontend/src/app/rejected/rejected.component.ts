@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Message } from 'primeng/message';
@@ -9,6 +9,7 @@ import { JobService } from '../core/job.service';
 import { ParisDatePipe } from '../core/paris-date.pipe';
 import { JOBS_PATH } from '../core/paths';
 import { SearchRunService } from '../core/search-run.service';
+import { SessionService } from '../core/session.service';
 import { normalize, siteOf } from '../core/text';
 
 /** Nombre de pages affichées d'un coup : une recherche peut en écarter des dizaines. */
@@ -104,9 +105,15 @@ export class RejectedComponent {
   constructor() {
     const jobService = this.jobService;
     const run = inject(SearchRunService);
-    // À l'ouverture, puis après chaque recherche : elle a pu écarter de nouvelles pages
+    const session = inject(SessionService);
+    // À l'ouverture, après chaque recherche, qui a pu écarter de nouvelles pages, et quand le compte change.
+    // Sans session, il n'y a rien à lire, et l'API refuserait
     effect(() => {
       run.completed();
+      if (session.userId() === null) {
+        untracked(() => this.pages.set([]));
+        return;
+      }
       jobService.listRejected().subscribe({
         next: (pages) => {
           this.pages.set(pages);

@@ -71,6 +71,9 @@ describe('JobsComponent', () => {
       providers: [provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
+    // Une session ouverte : sans elle, l'écran ne lit rien
+    TestBed.inject(SessionService).open('preuve').subscribe();
+    http.expectOne('/api/session').flush({ ...SEARCHING, search_running: false });
     fixture = TestBed.createComponent(JobsComponent);
     fixture.detectChanges();
     http.expectOne('/api/config').flush({

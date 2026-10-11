@@ -6,7 +6,7 @@ import { Observable, firstValueFrom } from 'rxjs';
 
 import { Account } from './api.models';
 import { apiInterceptor } from './api.interceptor';
-import { authGuard, homeGuard, loginGuard } from './auth.guard';
+import { authGuard, homeGuard, loginGuard, sessionGuard } from './auth.guard';
 import { SessionService } from './session.service';
 
 const ACCOUNT: Account = {
@@ -69,19 +69,50 @@ describe('session', () => {
     expect(session.account()).toBeNull();
   });
 
-  it('should let a reloaded page in when its cookie is still valid', async () => {
-    const result = guardResult(authGuard);
+  it('should read the session of a reloaded page before opening the screens', async () => {
+    const result = guardResult(sessionGuard);
     http.expectOne('/api/me').flush(ACCOUNT);
 
     expect(await result).toBe(true);
     expect(session.account()).toEqual(ACCOUNT);
   });
 
-  it('should send a visitor without a session to the login screen', async () => {
-    const result = guardResult(authGuard);
+  it('should open the screens to a visitor without a session', async () => {
+    const result = guardResult(sessionGuard);
     http.expectOne('/api/me').flush({ detail: 'Authentification requise.' }, UNAUTHORIZED);
 
-    expect(router.serializeUrl((await result) as UrlTree)).toBe('/connexion');
+    expect(await result).toBe(true);
+    expect(session.account()).toBeNull();
+  });
+
+  it('should keep the account page for those who have a session', async () => {
+    expect(router.serializeUrl((await guardResult(authGuard)) as UrlTree)).toBe('/connexion');
+
+    session.open('preuve').subscribe();
+    http.expectOne('/api/session').flush(ACCOUNT);
+
+    expect(await guardResult(authGuard)).toBe(true);
+  });
+
+  it('should let a trial account reach the login screen, where it keeps what it holds', async () => {
+    const result = guardResult(loginGuard);
+    http.expectOne('/api/me').flush({ ...ACCOUNT, is_trial: true });
+
+    expect(await result).toBe(true);
+  });
+
+  it('should open a trial account for a visitor at their first action, and only then', () => {
+    let opened: Account | undefined;
+    session.ensure().subscribe((account) => (opened = account));
+
+    const request = http.expectOne('/api/session/trial');
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    request.flush({ ...ACCOUNT, is_trial: true });
+    expect(opened?.is_trial).toBe(true);
+
+    // Une fois la session ouverte, plus rien n'est demandé
+    session.ensure().subscribe();
+    http.expectNone('/api/session/trial');
   });
 
   it('should not ask a logged-in user to log in again', async () => {
