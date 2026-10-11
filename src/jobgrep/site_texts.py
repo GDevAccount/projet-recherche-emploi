@@ -59,7 +59,7 @@ SITE_TEXTS = {
 GUIDE_SCREENS = {
     "Déposer ou remplacer son CV": "/profil",
     "Postes recherchés préparés à partir du CV": "/profil",
-    "Ajouter ou supprimer un poste recherché": "/profil",
+    "Ajouter, modifier ou supprimer un poste recherché": "/profil",
     "Suivre ses candidatures": "/offres",
     "Supprimer une offre": "/offres",
     "Retrouver une offre écartée à tort": "/rejets",

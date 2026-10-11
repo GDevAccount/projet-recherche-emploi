@@ -56,21 +56,26 @@ describe('QueriesCardComponent', () => {
 
   /** Une ligne de la liste : contrat, intitulé et lieu. */
   function rows(): string[] {
-    return [...element().querySelectorAll('ul:not(.tags) > li')].map((row) =>
+    return [...element().querySelectorAll('article > ul > li')].map((row) =>
       ['.contract', 'strong', '.where'].map((part) => text(row.querySelector(part)!)).join(' | '),
     );
   }
 
   async function serve(queries: SearchQuery[]): Promise<void> {
-    http
-      .expectOne('/api/config')
-      .flush({
+    http.expectOne({ method: 'GET', url: '/api/queries' }).flush(queries);
+    await fixture.whenStable();
+  }
+
+  /** Le formulaire lit les réglages à son ouverture, une fois : la seconde fenêtre ne les redemande pas. */
+  async function serveConfig(): Promise<void> {
+    for (const request of http.match('/api/config')) {
+      request.flush({
         login_mode: 'google',
         google_client_id: 'id',
         contract_types: ['CDI', 'freelance', 'stage'],
         max_skills_per_query: 3,
       });
-    http.expectOne({ method: 'GET', url: '/api/queries' }).flush(queries);
+    }
     await fixture.whenStable();
   }
 
@@ -84,6 +89,23 @@ describe('QueriesCardComponent', () => {
   async function click(label: string): Promise<void> {
     [...element().querySelectorAll('button')].find((button) => text(button) === label)!.click();
     await fixture.whenStable();
+  }
+
+  function dialog(): HTMLDialogElement {
+    return element().querySelector('dialog')!;
+  }
+
+  /** Ouvre la fenêtre du formulaire d'ajout. */
+  async function openAdd(): Promise<void> {
+    await click('Ajouter un poste');
+    await serveConfig();
+  }
+
+  /** Ouvre la fenêtre du formulaire d'un poste enregistré. */
+  async function openEdit(title: string): Promise<void> {
+    element().querySelector<HTMLButtonElement>(`button[aria-label="Modifier le poste « ${title} »"]`)!.click();
+    await fixture.whenStable();
+    await serveConfig();
   }
 
   async function submit(): Promise<void> {
@@ -119,6 +141,7 @@ describe('QueriesCardComponent', () => {
 
   it('should offer the contract types listed by the API', async () => {
     await serve([]);
+    await openAdd();
 
     const pills = [...element().querySelectorAll('[aria-labelledby=contract-label] button')].map((pill) => text(pill));
     expect(pills).toEqual(['CDI', 'freelance', 'stage']);
@@ -126,6 +149,12 @@ describe('QueriesCardComponent', () => {
 
   it('should add a search for all of France by default', async () => {
     await serve([]);
+    // Le formulaire n'est dans la page qu'une fois sa fenêtre ouverte
+    expect(element().querySelector('form')).toBeNull();
+    expect(dialog().hasAttribute('open')).toBe(false);
+    await openAdd();
+    expect(dialog().hasAttribute('open')).toBe(true);
+    expect(text(dialog().querySelector('h2')!)).toBe('Ajouter un poste');
     expect(submitButton().disabled).toBe(true);
 
     await type('query', 'ingénieur IA');
@@ -144,12 +173,15 @@ describe('QueriesCardComponent', () => {
     http.expectOne('/api/me').flush(ACCOUNT);
     await fixture.whenStable();
 
+    // Le poste rejoint la liste, et la fenêtre se referme
     expect(rows()).toEqual(['CDI | ingénieur IA | Toute la France']);
-    expect(element().querySelector<HTMLInputElement>('input[name=query]')!.value).toBe('');
+    expect(dialog().hasAttribute('open')).toBe(false);
+    expect(element().querySelector('form')).toBeNull();
   });
 
   it('should send the chosen contract and place', async () => {
     await serve([]);
+    await openAdd();
 
     await type('query', 'développeur Python');
     await click('freelance');
@@ -173,6 +205,7 @@ describe('QueriesCardComponent', () => {
 
   it('should ignore a typed place once full remote is chosen', async () => {
     await serve([]);
+    await openAdd();
 
     await type('query', 'AI engineer');
     await click('Un lieu précis');
@@ -206,6 +239,7 @@ describe('QueriesCardComponent', () => {
 
   it('should turn typed skills into tags that a cross removes', async () => {
     await serve([]);
+    await openAdd();
 
     await type('skill', 'SAP');
     // Entrée valide la compétence au lieu d'envoyer le formulaire
@@ -229,6 +263,7 @@ describe('QueriesCardComponent', () => {
 
   it('should take no more skills than a job accepts', async () => {
     await serve([]);
+    await openAdd();
 
     // Quatre compétences collées d'un coup : la limite donnée par l'API en garde trois
     await type('skill', 'SAP, paie, anglais, Sage');
@@ -247,6 +282,7 @@ describe('QueriesCardComponent', () => {
 
   it('should send the skills with the job, the one still being typed included', async () => {
     await serve([]);
+    await openAdd();
 
     await type('query', 'comptable');
     await type('skill', 'fournisseurs');
@@ -266,9 +302,11 @@ describe('QueriesCardComponent', () => {
     http.expectOne('/api/me').flush(ACCOUNT);
     await fixture.whenStable();
 
-    // Le poste enregistré montre ses compétences, et le formulaire repart vide
+    // Le poste enregistré montre ses compétences, et le formulaire suivant repart vide
     expect(tags('li')).toEqual(['fournisseurs', 'SAP']);
+    await openAdd();
     expect(tags('.tag-input')).toEqual([]);
+    expect(element().querySelector<HTMLInputElement>('input[name=query]')!.value).toBe('');
   });
 
   function skillInput(): HTMLInputElement {
@@ -293,6 +331,7 @@ describe('QueriesCardComponent', () => {
 
   it('should suggest skills from the catalog and take the one clicked', async () => {
     await serve([]);
+    await openAdd();
 
     await suggest('compta', ['Comptabilité générale', 'Comptabilité clients']);
     expect(options()).toEqual(['Comptabilité générale', 'Comptabilité clients', 'Ajouter « compta »']);
@@ -312,6 +351,7 @@ describe('QueriesCardComponent', () => {
 
   it('should pick a suggested skill with the arrow keys', async () => {
     await serve([]);
+    await openAdd();
 
     await suggest('sa', ['SAP', 'Sage']);
     await press('ArrowDown');
@@ -331,6 +371,7 @@ describe('QueriesCardComponent', () => {
 
   it('should offer to add a skill only when the catalog does not have it', async () => {
     await serve([]);
+    await openAdd();
 
     // Sans accent ni majuscule, c'est la même compétence : rien à ajouter
     await suggest('redaction', ['Rédaction', 'Rédaction web']);
@@ -347,6 +388,7 @@ describe('QueriesCardComponent', () => {
 
   it('should show why the API refused a search, and keep what was typed', async () => {
     await serve([query(1, { query: 'ingénieur IA' })]);
+    await openAdd();
 
     await type('query', 'ingénieur IA');
     await submit();
@@ -358,6 +400,84 @@ describe('QueriesCardComponent', () => {
     expect(text()).toContain('Cette recherche existe déjà.');
     expect(element().querySelector<HTMLInputElement>('input[name=query]')!.value).toBe('ingénieur IA');
     expect(element().querySelectorAll('li').length).toBe(1);
+  });
+
+  it('should change a saved job in the window, with its own values to start from', async () => {
+    await serve([
+      query(1, { query: 'comptable', skills: ['SAP', 'Paie'], location: 'Lyon' }),
+      query(2, { query: 'auditeur' }),
+    ]);
+
+    await openEdit('comptable');
+
+    expect(dialog().hasAttribute('open')).toBe(true);
+    expect(text(dialog().querySelector('h2')!)).toBe('Modifier ce poste');
+    // La liste reste entière derrière la fenêtre
+    expect(rows().length).toBe(2);
+    const field = (name: string) => dialog().querySelector<HTMLInputElement>(`input[name=${name}]`)!;
+    expect(field('query').value).toBe('comptable');
+    expect(field('location').value).toBe('Lyon');
+    expect(tags('.tag-input')).toEqual(['SAP', 'Paie']);
+    const checked = [...dialog().querySelectorAll('[aria-checked=true]')].map((pill) => text(pill));
+    expect(checked).toEqual(['CDI', 'Un lieu précis']);
+
+    await type('query', 'comptable fournisseurs');
+    dialog().querySelector<HTMLButtonElement>('button[aria-label="Retirer la compétence « Paie »"]')!.click();
+    await click('freelance');
+    await click('Télétravail complet');
+    await click('Enregistrer');
+
+    const request = http.expectOne({ method: 'PUT', url: '/api/queries/1' });
+    expect(request.request.body).toEqual({
+      contract_type: 'freelance',
+      query: 'comptable fournisseurs',
+      skills: ['SAP'],
+      location: '',
+      remote: true,
+    });
+    request.flush(
+      query(1, { contract_type: 'freelance', query: 'comptable fournisseurs', skills: ['SAP'], remote: true }),
+    );
+    await fixture.whenStable();
+
+    // Le poste garde sa place, et la fenêtre se referme
+    expect(rows()).toEqual([
+      'freelance | comptable fournisseurs | Télétravail complet',
+      'CDI | auditeur | Toute la France',
+    ]);
+    expect(dialog().hasAttribute('open')).toBe(false);
+  });
+
+  it('should leave a job as it was when its change is given up or refused', async () => {
+    await serve([query(1, { query: 'comptable' }), query(2, { query: 'auditeur' })]);
+    const edit = () => openEdit('comptable');
+
+    await edit();
+    await type('query', 'pirate');
+    await click('Annuler');
+    expect(dialog().hasAttribute('open')).toBe(false);
+    expect(rows()).toEqual(['CDI | comptable | Toute la France', 'CDI | auditeur | Toute la France']);
+
+    // Ce qui avait été saisi n'est gardé ni pour la fois suivante, ni pour un ajout
+    await edit();
+    expect(element().querySelector<HTMLInputElement>('input[name=query]')!.value).toBe('comptable');
+    await click('Annuler');
+    await openAdd();
+    expect(element().querySelector<HTMLInputElement>('input[name=query]')!.value).toBe('');
+    await click('Annuler');
+
+    await edit();
+    await type('query', 'auditeur');
+    await submit();
+    http
+      .expectOne({ method: 'PUT', url: '/api/queries/1' })
+      .flush({ detail: 'Cette recherche existe déjà.' }, { status: 409, statusText: 'Conflict' });
+    await fixture.whenStable();
+
+    // Le refus s'affiche dans la fenêtre restée ouverte, avec la saisie
+    expect(dialog().hasAttribute('open')).toBe(true);
+    expect(text(dialog())).toContain('Cette recherche existe déjà.');
+    expect(element().querySelector<HTMLInputElement>('input[name=query]')!.value).toBe('auditeur');
   });
 
   it('should delete a search and refresh the account', async () => {

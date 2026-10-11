@@ -88,7 +88,7 @@
     "sections": [
       [
         "aide",
-        "Ajouter ou supprimer un poste recherché"
+        "Ajouter, modifier ou supprimer un poste recherché"
       ]
     ],
     "reference": "Dans la rubrique Profil, carte « Postes recherchés », formulaire « Ajouter un poste » : écrire le métier, ajouter si on le veut des compétences, puis choisir le contrat et le lieu."
@@ -103,7 +103,7 @@
         "Postes recherchés préparés à partir du CV"
       ]
     ],
-    "reference": "Non : au dépôt du CV, JobGrep en tire jusqu'à {max_profile_jobs} postes recherchés, avec leurs compétences, leur contrat et le département ou la région. Ils apparaissent dans la carte « Postes recherchés », où l'on peut les supprimer ou en ajouter d'autres à la main."
+    "reference": "Non : au dépôt du CV, JobGrep en tire jusqu'à {max_profile_jobs} postes recherchés, avec leurs compétences, leur contrat et le département ou la région. Ils apparaissent dans la carte « Postes recherchés », où l'on peut les modifier, les supprimer ou en ajouter d'autres à la main."
   },
   {
     "id": "poste-remplacer-au-depot",
@@ -140,7 +140,7 @@
       ],
       [
         "aide",
-        "Ajouter ou supprimer un poste recherché"
+        "Ajouter, modifier ou supprimer un poste recherché"
       ],
       [
         "fonctionnement",
