@@ -1,6 +1,6 @@
 @let state = run.state();
 
-<section class="panel" [attr.data-state]="state">
+<section class="panel" [attr.data-state]="state" [class.leaving]="leaving()" [style.--fade]="fade">
   <header>
     <span class="signal"></span>
     <h2 role="status">

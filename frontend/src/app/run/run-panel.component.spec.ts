@@ -1,11 +1,11 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 
 import { SearchProgress } from '../core/api.models';
 import { FETCH, SearchRunService } from '../core/search-run.service';
-import { RunPanelComponent } from './run-panel.component';
+import { FADE_MS, RunPanelComponent, SUMMARY_MS } from './run-panel.component';
 
 function progress(values: Partial<SearchProgress>): string {
   const event: SearchProgress = {
@@ -133,6 +133,55 @@ describe('RunPanelComponent', () => {
     expect(text(element().querySelector('footer')!)).toContain('9 pages trouvées, 5 pas encore évaluées, 2 retenues, 3 écartées.');
     expect(element().querySelector('footer a.cta')!.getAttribute('href')).toBe('/offres');
     expect(element().querySelector('.cursor')).toBeNull();
+  });
+
+  it('should fade out after the summary, then lead to the offers', async () => {
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    send(progress({ message: 'Enregistrement', step: 'save' }));
+    send(`event: result\ndata: ${JSON.stringify({ found: 9, new: 5, kept: 2, rejected: 3, inserted: 2 })}\n\n`);
+    close();
+    await finished;
+    http.expectOne('/api/me').flush({});
+    vi.useFakeTimers();
+    try {
+      fixture.detectChanges();
+      const panel = element().querySelector('.panel')!;
+
+      vi.advanceTimersByTime(SUMMARY_MS - 1);
+      fixture.detectChanges();
+      expect(panel.classList).not.toContain('leaving');
+
+      vi.advanceTimersByTime(1);
+      fixture.detectChanges();
+      expect(panel.classList).toContain('leaving');
+      expect(navigate).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(FADE_MS);
+      expect(TestBed.inject(SearchRunService).state()).toBe('idle');
+      expect(navigate).toHaveBeenCalledWith(['/offres']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should stay open when the search did not reach its summary', async () => {
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    send(progress({ message: 'Recherche Tavily 1/1', step: 'search', done: 0, total: 1 }));
+    close();
+    await finished;
+    http.expectOne('/api/me').flush({});
+    vi.useFakeTimers();
+    try {
+      fixture.detectChanges();
+      vi.advanceTimersByTime(SUMMARY_MS + FADE_MS);
+      fixture.detectChanges();
+
+      expect(TestBed.inject(SearchRunService).state()).toBe('lost');
+      expect(navigate).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('should say that the search goes on when the stream stops without a summary', async () => {

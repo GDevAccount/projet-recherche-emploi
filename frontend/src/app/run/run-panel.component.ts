@@ -1,5 +1,14 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, viewChild } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 
 import { SearchStep } from '../core/api.models';
 import { JOBS_PATH, REJECTED_PATH } from '../core/paths';
@@ -15,6 +24,11 @@ const STEP_LABELS: Record<SearchStep, { label: string; node: string; what: strin
   save: { label: 'Enregistrement', node: 'InsertJobs', what: 'Offres et rejets rejoignent la base' },
 };
 
+/** Temps laissé au bilan d'une recherche terminée avant que le suivi ne s'efface. */
+export const SUMMARY_MS = 2000;
+/** Durée du fondu, donnée telle quelle à la feuille de styles. */
+export const FADE_MS = 400;
+
 function clock(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
@@ -23,6 +37,7 @@ function clock(seconds: number): string {
 /**
  * Suivi d'une recherche en direct : les quatre étapes du graph, les compteurs et le journal des événements.
  * Tout ce qui s'affiche vient des événements de l'API ; le panneau ne déduit rien d'un texte.
+ * Une recherche terminée laisse lire son bilan, puis le panneau s'efface et mène aux offres.
  */
 @Component({
   selector: 'app-run-panel',
@@ -37,6 +52,11 @@ export class RunPanelComponent {
   protected readonly rejectedPath = `/${REJECTED_PATH}`;
   protected readonly clock = clock;
 
+  protected readonly fade = `${FADE_MS}ms`;
+  /** Vrai pendant le fondu qui referme le suivi d'une recherche terminée. */
+  protected readonly leaving = signal(false);
+
+  private readonly router = inject(Router);
   private readonly console = viewChild<ElementRef<HTMLElement>>('console');
 
   protected readonly steps = computed(() => {
@@ -65,6 +85,26 @@ export class RunPanelComponent {
   });
 
   constructor() {
+    effect((onCleanup) => {
+      // Seule une recherche menée au bout se referme d'elle-même : un refus ou une coupure restent à lire
+      if (this.run.state() !== 'done') {
+        this.leaving.set(false);
+        return;
+      }
+      let fade: ReturnType<typeof setTimeout> | undefined;
+      const wait = setTimeout(() => {
+        this.leaving.set(true);
+        fade = setTimeout(() => {
+          this.run.dismiss();
+          void this.router.navigate([this.jobsPath]);
+        }, FADE_MS);
+      }, SUMMARY_MS);
+      // Fermé à la main entre-temps, ou écran quitté : rien ne doit plus partir
+      onCleanup(() => {
+        clearTimeout(wait);
+        clearTimeout(fade);
+      });
+    });
     effect(() => {
       // Le journal suit la dernière ligne, comme un terminal
       this.run.log();
