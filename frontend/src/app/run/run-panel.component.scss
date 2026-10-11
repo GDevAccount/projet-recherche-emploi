@@ -22,6 +22,17 @@
     linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px) 0 0 / 2rem 100%,
     var(--ink);
   box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.6);
+  transition: opacity var(--fade) ease;
+
+  // Recherche terminée : le panneau s'efface avant de laisser la place aux offres
+  &.leaving {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 }
 
 header {

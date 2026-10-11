@@ -223,8 +223,9 @@ test('une recherche se suit en direct et ajoute des offres', async () => {
   // Une recherche a été lancée : l'encart de la première a laissé la place au bouton habituel
   await expect(page.locator('app-first-search')).toHaveCount(0);
 
-  await panel.getByRole('link', { name: 'Voir mes offres' }).click();
+  // Le bilan lu, le suivi s'efface de lui-même et mène aux offres
   await expect(page).toHaveURL(/\/offres$/);
+  await expect(panel).toHaveCount(0);
   await expect(page.locator('.column.todo app-job-card').filter({ hasText: QUERY })).toBeVisible();
 });
 
@@ -295,7 +296,7 @@ test('une offre supprimée ne revient pas, même après une nouvelle recherche',
   await expect(panel.getByRole('status')).toHaveText('Recherche terminée', { timeout: 30_000 });
   // Tout est déjà connu : rien à évaluer, donc rien de payé une seconde fois
   await expect(panel.getByText(/0 pas\s+encore évaluée/)).toBeVisible();
-  await panel.getByRole('button', { name: 'Fermer le suivi' }).click();
+  await expect(panel).toHaveCount(0);
 
   await expect(cards).toHaveCount(before - 1);
   await expect(page.getByRole('heading', { name: title, exact: true })).toHaveCount(0);
