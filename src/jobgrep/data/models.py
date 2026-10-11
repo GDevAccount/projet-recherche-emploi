@@ -401,7 +401,8 @@ class ClientError(Base):
     __table_args__ = (Index("ix_client_errors_user", "user_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer)
+    # Vide pour un visiteur sans session
+    user_id: Mapped[int | None] = mapped_column(Integer)
     # Écran du front où l'erreur est survenue (« /offres »)
     route: Mapped[str | None] = mapped_column(Text)
     error_type: Mapped[str] = mapped_column(Text)

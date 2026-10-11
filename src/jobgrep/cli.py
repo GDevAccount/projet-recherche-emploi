@@ -16,6 +16,8 @@ from jobgrep.schemas import SearchProgress
 logger = logging.getLogger(__name__)
 
 PORT = 8000
+# Nom de la préparation des textes, tel qu'un administrateur le lit quand elle échoue
+INDEX_TASK = "préparation des textes de l'assistant"
 
 
 def run_search() -> None:
@@ -48,10 +50,14 @@ def migrate() -> None:
 def index_texts() -> None:
     # Au déploiement, pour que la première question à l'assistant n'attende pas ce calcul. Un échec ne doit
     # pas empêcher le serveur de démarrer : la première question le refera
+    container = get_container()
     try:
-        logger.info("%d passage(s) des textes du site prêts pour l'assistant", get_container().assistant.index_texts())
+        logger.info("%d passage(s) des textes du site prêts pour l'assistant", container.assistant.index_texts())
     except Exception as error:
         logger.warning("Les textes du site n'ont pas pu être préparés pour l'assistant : %s", type(error).__name__)
+        # Les logs du déploiement ne sont pas gardés : la carte Santé le dira. L'alerte, elle, part dans un
+        # fil que la fin de cette commande peut couper
+        container.health.record_task_failure(INDEX_TASK, type(error).__name__)
 
 
 def purge() -> None:

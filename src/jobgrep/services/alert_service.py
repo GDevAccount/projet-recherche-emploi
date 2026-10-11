@@ -63,9 +63,14 @@ class AlertService:
     """Envoie les alertes, sans répéter la même avant un délai. Sans destinataire réglé, il ne fait rien."""
 
     def __init__(
-        self, notifier: Notifier | None = None, dispatch: Callable[[Callable[[], object]], None] = send_in_background
+        self,
+        notifier: Notifier | None = None,
+        dispatch: Callable[[Callable[[], object]], None] = send_in_background,
+        on_failure: Callable[[], None] = lambda: None,
     ):
         self.notifier = notifier
+        # Appelé quand une alerte n'est pas arrivée : sans cela, personne ne saurait qu'il n'est plus prévenu
+        self.on_failure = on_failure
         # Façon de lancer un envoi : les tests y mettent un appel direct
         self.dispatch = dispatch
         # Dernier envoi de chaque alerte. En mémoire : un redémarrage remet les délais à zéro
@@ -98,11 +103,24 @@ class AlertService:
                 return False
             self._last_sent[key] = now
         try:
-            self.dispatch(lambda: notifier.send(title, message))
+            self.dispatch(lambda: self._send(notifier, title, message))
         except Exception:
             logger.exception("L'alerte « %s » n'a pas pu être lancée", title)
+            self._report_failure()
             return False
         return True
+
+    def _send(self, notifier: Notifier, title: str, message: str) -> bool:
+        sent = notifier.send(title, message)
+        if not sent:
+            self._report_failure()
+        return sent
+
+    def _report_failure(self) -> None:
+        try:
+            self.on_failure()
+        except Exception:
+            logger.exception("L'échec d'une alerte n'a pas pu être signalé")
 
     def send_test(self) -> bool:
         """Envoie une alerte d'essai en attendant la réponse, et dit si elle est partie."""

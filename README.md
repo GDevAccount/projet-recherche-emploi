@@ -101,6 +101,7 @@ La documentation interactive est à l'adresse `http://127.0.0.1:8000/docs`, et l
 | `GET /api/me` | Utilisateur de la requête (avec l'adresse, le nom et la photo de son compte Google), s'il est propriétaire (`is_owner`), administrateur (`is_admin`) ou en essai sans compte (`is_trial`), recherches restantes aujourd'hui (en tout, pour un essai), s'il peut lancer une recherche (`can_search` : un CV et au moins un poste recherché), s'il en a déjà lancé une (`has_searched`), et si l'une des siennes tourne déjà (`search_running`) |
 | `DELETE /api/me` | Supprimer son compte : CV, postes recherchés, offres, rejets, lancements, journal des pages évaluées, appels au moteur de recherche, corrections du tri, erreurs rencontrées sur le serveur et dans le navigateur, jours d'activité et adresse sont effacés ; seule sa consommation reste, en totaux mensuels sans adresse (table `archived_usage`). Ils sont effacés, y compris dans les copies d'avant migration, qui restent. Refusé (409) pendant une recherche |
 | `POST /api/client-errors` | Signaler une erreur survenue dans le navigateur, ce que le front fait de lui-même : `{"error_type": "TypeError", "route": "/offres", "source": "main-5UFRYBOQ.js:1:23456"}`. Seuls un nom de type, un écran sans paramètre et un fichier du front avec sa position sont acceptés (422 sinon) : jamais le message de l'erreur. Au-delà de 50 par compte et par jour, elle est ignorée. Répond 204 |
+| `POST /api/client-errors/visitor` | La même chose pour un visiteur sans session, donc sans identité : les écrans s'ouvrent sans compte, et une erreur avant le dépôt du CV ne se verrait pas. Mêmes motifs (422 sinon), ligne sans compte, et un plafond de 50 par jour pour tous les visiteurs réunis. Refusée (403) depuis un autre site. Répond 204 |
 | `POST /api/session`, `DELETE /api/session` | Ouvrir une session (cookie), la fermer. Une connexion Google faite avec le cookie d'un essai sans compte lui fait reprendre cet essai, si le compte n'a pas encore de CV ; sinon l'essai est effacé |
 | `POST /api/session/trial` | Ouvrir un compte d'essai, sans connexion ni en-tête : un cookie pour seule identité, et une seule recherche en tout. Un visiteur qui a déjà son essai le retrouve. Refusée (429) quand l'instance a ouvert `MAX_TRIALS_PER_DAY` essais aujourd'hui, quand la même adresse IP en a ouvert 3, ou quand le budget du jour est atteint ; absente (404) si l'instance ne propose pas d'essai |
 | `GET /api/jobs` | Offres retenues |
@@ -594,7 +595,7 @@ Table `corrections`, ce que l'utilisateur a corrigé du tri. Une ligne par page 
 | `search_run_id`, `model`, `prompt_version` | Lancement qui avait évalué la page, son modèle et son prompt ; vides si le journal ne connaît pas la page |
 | `created_at` | Date de la correction (UTC) |
 
-Table `server_errors`, les erreurs rendues par l'API hors d'une recherche : une demande refusée (CV illisible, quota atteint) ou une panne du serveur. Les erreurs de connexion (401, 403) et les demandes mal formées n'y sont pas. Une ligne y reste 90 jours (`SERVER_ERROR_DAYS`) :
+Table `server_errors`, les erreurs rendues par l'API hors d'une recherche : une demande refusée (CV illisible, quota atteint) ou une panne du serveur. Les erreurs de connexion (401, 403) et les demandes mal formées n'y sont pas. Une tâche de fond qui échoue s'y range aussi, comme une panne (code 500), avec `TÂCHE` pour méthode et son nom pour route : la purge quotidienne (`suppression des comptes inactifs`, `effacement des données expirées`), la préparation des textes de l'assistant au déploiement, et l'envoi d'une alerte (`AlertNotSent`). Une ligne y reste 90 jours (`SERVER_ERROR_DAYS`) :
 
 | Colonne | Contenu |
 |---|---|
@@ -605,12 +606,12 @@ Table `server_errors`, les erreurs rendues par l'API hors d'une recherche : une 
 | `error_type` | Type de l'erreur, jamais son message |
 | `created_at` | Date de l'erreur (UTC) |
 
-Table `client_errors`, les erreurs survenues dans le navigateur d'un utilisateur connecté, signalées par le front. Une ligne y reste 90 jours, comme dans `server_errors` :
+Table `client_errors`, les erreurs survenues dans le navigateur d'un utilisateur ou d'un visiteur sans session, signalées par le front. Une ligne y reste 90 jours, comme dans `server_errors` :
 
 | Colonne | Contenu |
 |---|---|
 | `id` | Identifiant de la ligne |
-| `user_id` | Compte qui a rencontré l'erreur |
+| `user_id` | Compte qui a rencontré l'erreur ; vide pour un visiteur sans session |
 | `route` | Écran du front (`/offres`), sans paramètre |
 | `error_type` | Type de l'erreur, jamais son message |
 | `source` | Fichier du front et position dans ce fichier ; vide si le navigateur ne les dit pas |

@@ -8,6 +8,7 @@ import { SessionService } from './session.service';
 
 /** Signalements par chargement de page : une erreur qui se répète à chaque rendu n'apprend rien de plus. */
 const MAX_REPORTS = 5;
+const VISITOR_ROUTE = 'client-errors/visitor';
 
 // Ce que l'API accepte : des noms et des positions, rien qui puisse porter un contenu
 const ERROR_TYPE = /^[A-Za-z_][A-Za-z0-9_.]*$/;
@@ -54,10 +55,8 @@ export class ReportingErrorHandler implements ErrorHandler {
     if (error instanceof HttpErrorResponse || this.reported.size >= MAX_REPORTS) {
       return;
     }
-    // Sans session, l'API refuserait le signalement
-    if (!this.injector.get(SessionService).account()) {
-      return;
-    }
+    // Sans session, la route des comptes refuserait le signalement : celle des visiteurs est publique
+    const route = this.injector.get(SessionService).account() ? 'client-errors' : VISITOR_ROUTE;
     const report = describeError(error, this.injector.get(Router).url);
     const key = `${report.error_type} ${report.route} ${report.source}`;
     if (this.reported.has(key)) {
@@ -66,7 +65,7 @@ export class ReportingErrorHandler implements ErrorHandler {
     this.reported.add(key);
     this.injector
       .get(HttpClient)
-      .post(`${environment.apiUrl}/client-errors`, report)
+      .post(`${environment.apiUrl}/${route}`, report)
       .subscribe({ error: () => undefined });
   }
 }

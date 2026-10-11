@@ -1,5 +1,6 @@
 import logging
 import threading
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 
 from jobgrep.config import (
@@ -36,11 +37,23 @@ from jobgrep.services.search_service import SearchService
 
 logger = logging.getLogger(__name__)
 
+# Noms des deux moitiés de la purge quotidienne, tels qu'un administrateur les lit quand l'une échoue
+INACTIVE_ACCOUNTS_TASK = "suppression des comptes inactifs"
+EXPIRED_RECORDS_TASK = "effacement des données expirées"
+
 
 class AccountService:
-    def __init__(self, database: Database, search: SearchService):
+    def __init__(
+        self,
+        database: Database,
+        search: SearchService,
+        on_failure: Callable[[str, str], None] = lambda task, error_type: None,
+    ):
         self.database = database
         self.search = search
+        # Appelé quand la purge quotidienne échoue, avec son nom et le type de l'erreur : elle tient des
+        # promesses des règles de confidentialité, son échec doit laisser une trace
+        self.on_failure = on_failure
         self._last_purge_day: date | None = None
         self._purge_lock = threading.Lock()
 
@@ -130,13 +143,15 @@ class AccountService:
             self._last_purge_day = now.date()
         try:
             self.delete_inactive_accounts(now)
-        except Exception:
+        except Exception as error:
             logger.exception("La suppression des comptes inactifs a échoué")
+            self.on_failure(INACTIVE_ACCOUNTS_TASK, type(error).__name__)
         # À part : l'échec de l'une ne doit pas empêcher l'autre
         try:
             self.forget_expired_records(now)
-        except Exception:
+        except Exception as error:
             logger.exception("L'effacement des données dont la durée de conservation est passée a échoué")
+            self.on_failure(EXPIRED_RECORDS_TASK, type(error).__name__)
 
     def forget_expired_records(self, now: datetime | None = None) -> int:
         """Efface ce que les règles de confidentialité promettent d'effacer à date fixe, et renvoie le nombre de lignes.

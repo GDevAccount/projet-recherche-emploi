@@ -101,13 +101,20 @@ describe('ReportingErrorHandler', () => {
     expect(logged).toEqual([error, error]);
   });
 
-  it('should stay silent without a session, and for an error the server already knows', () => {
-    handler.handleError(crash('TypeError', 'avant la connexion'));
+  it('should report the error of a visitor without a session to the public route', () => {
+    handler.handleError(crash('TypeError', 'avant le dépôt du CV'));
+
+    const request = http.expectOne({ method: 'POST', url: '/api/client-errors/visitor' });
+    expect(request.request.body.error_type).toBe('TypeError');
+    request.flush(null);
+  });
+
+  it('should stay silent for an error the server already knows', () => {
     openSession();
     handler.handleError(new HttpErrorResponse({ status: 422 }));
 
     http.expectNone('/api/client-errors');
-    expect(logged.length).toBe(2);
+    expect(logged.length).toBe(1);
   });
 
   it('should stop after a few reports for the same page load', () => {

@@ -123,7 +123,7 @@ def _identify(
     session = container.auth.read_session_token(session_token)
     if session is None:
         raise _unauthorized()
-    _check_origin(request, container)
+    check_origin(request, container)
     if session.trial_key is not None:
         user_id = container.auth.resolve_trial_user_id(session.trial_key)
         # Supprimé par son utilisateur, ou après TRIAL_ACCOUNT_DAYS
@@ -149,7 +149,7 @@ def open_trial(
     Seule ouverture de session sans preuve d'identité : c'est AuthService.start_trial qui la plafonne. Un
     visiteur qui a déjà son essai le retrouve, sans que son cookie soit prolongé.
     """
-    _check_origin(request, container)
+    check_origin(request, container)
     session = container.auth.read_session_token(session_token) if session_token else None
     if session is not None and session.trial_key is not None:
         user_id = container.auth.resolve_trial_user_id(session.trial_key)
@@ -227,7 +227,7 @@ def _caller_from_credentials(request: Request, container: Container, token: str)
     return Caller(DEFAULT_USER_ID, None)
 
 
-def _check_origin(request: Request, container: Container) -> None:
+def check_origin(request: Request, container: Container) -> None:
     """Refuse une requête qui modifie des données si elle vient d'un autre site que le front.
 
     Le navigateur joint le cookie de lui-même : sans ce contrôle, une page d'un autre site pourrait agir

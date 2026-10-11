@@ -76,7 +76,7 @@ class Container:
         # Sans sujet ntfy, aucune alerte ne part
         if notifier is None and settings.ntfy_topic:
             notifier = NtfyNotifier(settings.ntfy_url, settings.ntfy_topic)
-        self.alerts = AlertService(notifier)
+        self.alerts = AlertService(notifier, on_failure=lambda: self.health.alert_not_sent())
         # Le service de santé est construit après celui des recherches, dont il dépend : d'où l'appel différé
         self.search = SearchService(
             self.database,
@@ -84,7 +84,9 @@ class Container:
             lambda *run: self.health.search_closed(*run),
             self.usage.daily_budget_reached,
         )
-        self.account = AccountService(self.database, self.search)
+        self.account = AccountService(
+            self.database, self.search, lambda task, error_type: self.health.record_task_failure(task, error_type)
+        )
         self.assistant = AssistantService(
             self.database,
             embedder or OpenAIEmbedder(),
