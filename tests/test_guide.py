@@ -12,7 +12,7 @@ FRONT = ROOT / "frontend" / "src"
 # Où un libellé peut être écrit : les écrans du front, et les motifs que l'API rédige
 SOURCES = [*FRONT.rglob("*.html"), *FRONT.rglob("*.ts"), ROOT / "src" / "jobgrep" / "schemas.py"]
 # Citations du guide qui ne sont pas des libellés : un exemple de saisie
-NOT_LABELS = {"comptable fournisseurs"}
+NOT_LABELS = {"comptable", "Comptabilité fournisseurs", "SAP"}
 
 QUOTED = sorted(set(re.findall(r"« ([^»]+) »", read_site_text("aide"))) - NOT_LABELS)
 

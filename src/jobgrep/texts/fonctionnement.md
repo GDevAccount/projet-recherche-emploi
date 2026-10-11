@@ -10,7 +10,7 @@ Vous déposez votre CV en PDF. Vos coordonnées en sont retirées avant toute co
 
 ## 2. Vous décrivez les postes que vous cherchez
 
-Pour chaque poste, vous indiquez le métier et ses spécialités, le type de contrat (CDI, freelance, CDD, alternance ou stage) et le lieu : une ville, toute la France, ou le télétravail complet. Vous pouvez en décrire plusieurs.
+Pour chaque poste, vous indiquez le métier, les compétences qui le précisent si vous le souhaitez, le type de contrat (CDI, freelance, CDD, alternance ou stage) et le lieu : une ville, toute la France, ou le télétravail complet. Vous pouvez en décrire plusieurs.
 
 ## 3. Vous lancez une recherche
 

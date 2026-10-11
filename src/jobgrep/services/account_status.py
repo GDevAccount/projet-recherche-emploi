@@ -54,6 +54,7 @@ UNTRUSTED_NOTICE = (
 )
 MAX_TITLE_CHARS = 120
 MAX_REASON_CHARS = 300
+MAX_SKILLS_CHARS = 250
 
 
 def _quote(text: str | None, limit: int) -> str:
@@ -92,7 +93,10 @@ def _describe_query(query: SearchQueryRead) -> str:
     place = _quote(query.location, MAX_TITLE_CHARS) if query.location else "toute la France"
     if query.remote:
         place = "télétravail complet"
-    return f"- {_quote(query.query, MAX_TITLE_CHARS)} · contrat : {query.contract_type} · lieu : {place}"
+    line = f"- {_quote(query.query, MAX_TITLE_CHARS)} · contrat : {query.contract_type} · lieu : {place}"
+    if query.skills:
+        line += f" · compétences : {_quote(', '.join(query.skills), MAX_SKILLS_CHARS)}"
+    return line
 
 
 def _listing(label: str, count: int, lines: list[str]) -> str:

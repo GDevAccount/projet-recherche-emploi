@@ -10,7 +10,7 @@ from jobgrep.api.security import (
     clear_session_cookie,
     set_session_cookie,
 )
-from jobgrep.config import CONTRACT_TYPES, DEFAULT_USER_ID, MAX_SEARCHES_PER_DAY
+from jobgrep.config import CONTRACT_TYPES, DEFAULT_USER_ID, MAX_SEARCHES_PER_DAY, MAX_SKILLS_PER_QUERY
 from jobgrep.container import Container
 from jobgrep.schemas import (
     DELETE_REASONS,
@@ -31,6 +31,7 @@ def get_config(services: Services) -> AppConfig:
         google_client_id=services.settings.google_client_id or None,
         trial=services.auth.trial_status(),
         contract_types=CONTRACT_TYPES,
+        max_skills_per_query=MAX_SKILLS_PER_QUERY,
         delete_reasons=[DeleteReasonOption(code=code, label=label) for code, label in DELETE_REASONS.items()],
     )
 

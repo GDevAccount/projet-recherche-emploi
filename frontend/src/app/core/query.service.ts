@@ -19,6 +19,11 @@ export class QueryService {
     return this.http.post<SearchQuery>(this.url, creation);
   }
 
+  /** Compétences du référentiel qui contiennent ce texte, les plus proches d'abord. */
+  suggestSkills(text: string): Observable<string[]> {
+    return this.http.get<string[]>(`${environment.apiUrl}/skills`, { params: { q: text } });
+  }
+
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.url}/${id}`);
   }

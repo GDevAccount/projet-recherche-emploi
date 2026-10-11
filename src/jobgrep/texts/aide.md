@@ -12,9 +12,9 @@ Pour remplacer votre CV, déposez-en un nouveau au même endroit. Il prend la pl
 
 ## Ajouter ou supprimer un poste recherché
 
-Dans la rubrique Profil, allez à la carte « Postes recherchés » et remplissez le formulaire « Ajouter un poste » : écrivez le métier visé suivi de ses spécialités, par exemple « comptable fournisseurs », puis choisissez le contrat et le lieu : une ville ou une région, toute la France, ou le télétravail complet. Il est inutile d'écrire le contrat ou le lieu dans la phrase.
+Dans la rubrique Profil, allez à la carte « Postes recherchés » et remplissez le formulaire « Ajouter un poste » : écrivez le métier visé dans le champ « Métier », par exemple « comptable », ajoutez si vous le voulez des compétences dans le champ « Compétences » : commencez à taper, une liste propose les compétences connues de JobGrep, par exemple « Comptabilité fournisseurs » ou « SAP », et un clic sur l'une d'elles la retient. Si la vôtre n'y est pas, ajoutez-la telle quelle avec la ligne « Ajouter », marquée d'un +, ou avec la touche Entrée. Choisissez ensuite le contrat et le lieu : une ville ou une région, toute la France, ou le télétravail complet. Il est inutile d'écrire le contrat ou le lieu dans le métier.
 
-Seules les offres de ce métier sont retenues. Vous pouvez ajouter plusieurs postes. Pour en retirer un, cliquez sur la croix au bout de sa ligne.
+Seules les offres de ce métier sont retenues. Les compétences s'affichent en étiquettes, chacune avec une croix pour la retirer avant d'ajouter le poste. Elles précisent ce qui est demandé aux sites d'emploi, sans écarter d'offre : une annonce du bon métier qui ne les cite pas reste retenue si elle correspond à votre CV. Un poste en accepte {max_skills} au plus. Pour changer les compétences d'un poste déjà enregistré, supprimez-le et ajoutez-le de nouveau. Vous pouvez ajouter plusieurs postes. Pour en retirer un, cliquez sur la croix au bout de sa ligne.
 
 ## Lancer une recherche
 
@@ -51,6 +51,8 @@ La rubrique Rejets liste les pages écartées, avec le motif de chacune. Si une 
 ## Aucune offre retenue après une recherche
 
 Cela arrive quand aucune annonce récente ne correspond à la fois à votre CV et à vos postes recherchés. Regardez les motifs dans la rubrique Rejets : s'ils disent souvent « Autre métier que ceux recherchés », reformulez votre poste recherché ; s'ils disent « Hors lieu recherché », élargissez le lieu. Vous pouvez aussi ajouter un poste voisin.
+
+Si la recherche ramène peu d'annonces, regardez les compétences de vos postes : chacune resserre ce qui est demandé aux sites d'emploi, et plus un poste en porte, moins il trouve de pages. Supprimez le poste et ajoutez-le de nouveau avec moins de compétences, ou sans aucune.
 
 ## Changer de thème
 

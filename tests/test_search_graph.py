@@ -241,6 +241,33 @@ def test_location_is_added_to_the_search_unless_already_there(query, location, r
     assert build_search_text("CDI", query, location, remote) == sent
 
 
+@pytest.mark.parametrize(
+    ("query", "skills", "sent"),
+    [
+        ("comptable", ["fournisseurs", "SAP"], "offre d'emploi comptable fournisseurs SAP CDI Lyon"),
+        # Une compétence déjà écrite dans le métier, ou saisie deux fois, n'est pas répétée
+        ("développeur Python", ["python", "Django", "django"], "offre d'emploi développeur Python Django CDI Lyon"),
+        # Le contrat et le lieu cités par une compétence ne sont pas ajoutés une seconde fois
+        ("comptable", ["cabinet à Lyon"], "offre d'emploi comptable cabinet à Lyon CDI"),
+    ],
+)
+def test_skills_follow_the_job_in_the_search(query, skills, sent):
+    assert build_search_text("CDI", query, "Lyon", skills=skills) == sent
+
+
+def test_skills_are_sent_to_the_search_engine_but_are_not_a_sought_job(graph, container, search_engine):
+    container.queries.add_query(BOB, "CDI", "AI engineer", remote=True, skills=["LangGraph", "RAG"])
+
+    graph.invoke({"user_id": BOB})
+
+    assert search_engine.searches == [
+        ("offre d'emploi AI engineer LangGraph RAG CDI télétravail complet", False),
+        ("AI engineer LangGraph RAG remote job", True),
+    ]
+    with container.database.session() as session:
+        assert build_criteria(QueryRepository(session, BOB).list_queries()).sought_jobs == ("AI engineer",)
+
+
 def test_accepted_areas_are_those_of_every_search_together(container):
     def accepted(*places):
         with container.database.session() as session:

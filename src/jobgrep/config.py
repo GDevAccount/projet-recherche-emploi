@@ -17,6 +17,13 @@ LOCAL_TIMEZONE = "Europe/Paris"
 # Nombre de recherches par jour pour chaque utilisateur invité (le propriétaire n'est pas limité)
 MAX_SEARCHES_PER_DAY = 2
 
+# Compétences d'un poste recherché. Elles allongent le texte envoyé au moteur de recherche : trop nombreuses,
+# il ne trouve plus rien
+MAX_SKILLS_PER_QUERY = 5
+MAX_SKILL_CHARS = 40
+# Compétences du référentiel proposées pour un texte saisi
+SKILL_SUGGESTIONS = 8
+
 # Durée d'une session de l'API, après quoi le front redemande une connexion
 SESSION_DAYS = 30
 
@@ -181,7 +188,8 @@ TAVILY_CREDIT_PRICE_USD = 0.008
 TAVILY_CREDITS_PER_SEARCH = 2
 
 # Recherches enregistrées en base à sa création, modifiables ensuite.
-# Une phrase nomme un métier et ses spécialités : le filtre ne retient que les offres de ce métier.
+# Une phrase nomme un métier, ici avec ses spécialités, écrites avant que les compétences aient leur champ :
+# le filtre ne retient que les offres de ce métier.
 # Ni contrat ni lieu, qui sont ajoutés au texte envoyé au moteur de recherche. Ces recherches reçoivent
 # l'Île-de-France pour lieu (migration 0003). L'intitulé anglais ramène les annonces rédigées en anglais.
 DEFAULT_QUERIES = [

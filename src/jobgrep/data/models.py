@@ -3,6 +3,7 @@
 Changer une table ici ne change aucune base existante : il faut une migration (voir data/migrations).
 """
 
+import json
 from datetime import UTC, datetime
 
 from sqlalchemy import REAL, Index, Integer, Text, UniqueConstraint, text
@@ -45,6 +46,19 @@ class IntBool(TypeDecorator):
 
     def process_result_value(self, value: int | None, dialect) -> bool | None:
         return None if value is None else bool(value)
+
+
+class StringList(TypeDecorator):
+    """Liste de textes enregistrée en JSON."""
+
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value: list[str] | None, dialect) -> str | None:
+        return None if value is None else json.dumps(list(value), ensure_ascii=False)
+
+    def process_result_value(self, value: str | None, dialect) -> list[str] | None:
+        return None if value is None else json.loads(value)
 
 
 class Base(DeclarativeBase):
@@ -114,12 +128,28 @@ class SearchQuery(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, server_default=text(str(DEFAULT_USER_ID)))
     contract_type: Mapped[str] = mapped_column(Text)
+    # Le métier visé
     query: Mapped[str] = mapped_column(Text)
+    # Compétences qui précisent la recherche, sans écarter d'offre
+    skills: Mapped[list[str]] = mapped_column(StringList, server_default=text("'[]'"))
     # Vide : toute la France
     location: Mapped[str] = mapped_column(Text, server_default=text("''"))
     # Télétravail complet : le lieu ne compte plus
     remote: Mapped[bool] = mapped_column(IntBool, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+
+class Skill(Base):
+    """Compétence du référentiel proposé à la saisie d'un poste recherché. Aucune ligne ne vient d'un utilisateur."""
+
+    __tablename__ = "skills"
+    __table_args__ = (UniqueConstraint("search_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Telle qu'elle s'affiche
+    name: Mapped[str] = mapped_column(Text)
+    # Sans accent ni majuscule (fold_skill) : c'est sur elle que porte la recherche
+    search_name: Mapped[str] = mapped_column(Text)
 
 
 class User(Base):
