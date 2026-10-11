@@ -82,7 +82,9 @@
           <p>Deux choses avant la première recherche : votre CV, et au moins un poste recherché.</p>
         }
       </div>
-      @if (account.can_search) {
+      @if (firstSearch()) {
+        <!-- L'encart sous le bandeau porte le bouton : un seul lancement à l'écran -->
+      } @else if (account.can_search) {
         <div class="launch">
           <button
             type="button"
@@ -114,6 +116,10 @@
         </a>
       }
     </section>
+  }
+
+  @if (firstSearch()) {
+    <app-first-search [reveal]="completedHere()" />
   }
 
   @if (run.state() !== 'idle') {

@@ -433,6 +433,11 @@ class SearchService:
             has_cv = CvTextRepository(session, user_id).get_updated_at() is not None
         return has_queries and has_cv
 
+    def has_searched(self, user_id: int) -> bool:
+        """Dit si l'utilisateur a déjà lancé une recherche, aboutie ou non."""
+        with self.database.session() as session:
+            return SearchRunRepository(session, user_id).count_runs_since(ALWAYS) > 0
+
     def stream_search(self, user_id: int) -> Iterator[SearchProgress | SearchSummary]:
         """Lance la recherche de l'utilisateur et renvoie son déroulement : l'avancement, puis le bilan.
 

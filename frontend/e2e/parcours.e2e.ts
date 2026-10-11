@@ -187,6 +187,9 @@ test('le profil se complète : un CV, puis un poste recherché', async () => {
   await expect(editor).toBeHidden();
   await expect(saved.locator('.tag')).toHaveText(['Comptabilité fournisseurs']);
 
+  // Rien n'a encore été cherché : le lancement est mis en avant, dans un encart qui porte le seul bouton
+  const first = page.locator('app-first-search');
+  await expect(first.getByRole('heading', { name: /votre première recherche/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Lancer une recherche' })).toBeEnabled();
 });
 
@@ -198,6 +201,8 @@ test('une recherche se suit en direct et ajoute des offres', async () => {
   // Les quatre étapes du graph sont passées
   await expect(panel.locator('.pipeline li[data-status=done]')).toHaveCount(4);
   await expect(panel.getByText(/nouvelles offres vous attendent/)).toBeVisible();
+  // Une recherche a été lancée : l'encart de la première a laissé la place au bouton habituel
+  await expect(page.locator('app-first-search')).toHaveCount(0);
 
   await panel.getByRole('link', { name: 'Voir mes offres' }).click();
   await expect(page).toHaveURL(/\/offres$/);

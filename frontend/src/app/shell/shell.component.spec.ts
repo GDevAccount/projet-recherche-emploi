@@ -16,6 +16,7 @@ const GUEST: Account = {
   name: null,
   picture: null,
   can_search: false,
+  has_searched: true,
   search_running: false,
   remaining_searches: 1,
   max_searches_per_day: 2,
@@ -190,6 +191,62 @@ describe('ShellComponent', () => {
     expect(launchButton().disabled).toBe(false);
     expect(element().querySelector('a.cta')).toBeNull();
     expect(element().querySelector('app-run-panel')).toBeNull();
+  });
+
+  describe('first search', () => {
+    const READY: Account = { ...GUEST, can_search: true, has_searched: false };
+    const panel = () => element().querySelector<HTMLElement>('app-first-search');
+
+    it('should put the first launch forward, as the only launch button of the page', async () => {
+      await openSession(READY);
+
+      expect(text(panel()!)).toContain('Dernière étape');
+      expect(element().querySelectorAll('button.cta').length).toBe(1);
+      expect(panel()!.querySelector('[aria-current="step"]')!.textContent).toContain('Première recherche');
+    });
+
+    it('should leave the usual button to a user who has already searched', async () => {
+      await openSession({ ...READY, has_searched: true });
+
+      expect(panel()).toBeNull();
+      expect(launchButton().disabled).toBe(false);
+    });
+
+    it('should launch the search from the panel, then give way to its progress', async () => {
+      await openSession(READY);
+
+      panel()!.querySelector<HTMLButtonElement>('button.cta')!.click();
+      await fixture.whenStable();
+
+      expect(fetchMock).toHaveBeenCalledWith('/api/searches', expect.objectContaining({ method: 'POST' }));
+      expect(panel()).toBeNull();
+      expect(element().querySelector('app-run-panel')).toBeTruthy();
+    });
+
+    it('should scroll to the panel when the profile is completed during the visit', async () => {
+      const scroll = vi.fn();
+      Element.prototype.scrollIntoView = scroll;
+      await openSession(GUEST);
+      expect(panel()).toBeNull();
+
+      // Le CV vient d'être déposé : le compte est relu
+      TestBed.inject(SessionService).refresh().subscribe();
+      http.expectOne('/api/me').flush(READY);
+      await fixture.whenStable();
+
+      expect(panel()).toBeTruthy();
+      expect(scroll).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not scroll for a profile that was ready when the page opened', async () => {
+      const scroll = vi.fn();
+      Element.prototype.scrollIntoView = scroll;
+
+      await openSession(READY);
+
+      expect(panel()).toBeTruthy();
+      expect(scroll).not.toHaveBeenCalled();
+    });
   });
 
   it('should not offer a search once the daily quota is used up', async () => {

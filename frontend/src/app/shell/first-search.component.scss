@@ -1,0 +1,219 @@
+:host {
+  display: block;
+  margin-bottom: 2rem;
+  // La barre d'en-tête, fixée en haut, ne doit pas recouvrir l'encart quand la page défile jusqu'à lui
+  scroll-margin-top: 6rem;
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1.5px solid var(--app-accent-strong);
+  border-radius: var(--app-radius);
+  background:
+    radial-gradient(60% 140% at 100% 0%, color-mix(in srgb, var(--app-accent), transparent 78%), transparent 70%),
+    var(--app-surface);
+  box-shadow: 0 24px 60px -30px rgba(132, 204, 22, 0.75);
+  animation: first-search-in 0.45s ease-out both;
+}
+
+.trail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.4rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--app-muted);
+
+    // Le trait qui relie une étape à la suivante
+    &:not(:last-child)::after {
+      content: '';
+      width: clamp(0.75rem, 3vw, 2rem);
+      height: 2px;
+      margin-inline: 0.25rem;
+      border-radius: 2px;
+      background: var(--app-accent-strong);
+    }
+  }
+
+  .now {
+    color: var(--app-text);
+  }
+
+  // Sur un téléphone les étapes passent à la ligne : un trait resterait sans suite
+  @media (max-width: 40rem) {
+    gap: 0.5rem 1rem;
+
+    li:not(:last-child)::after {
+      display: none;
+    }
+  }
+}
+
+.badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--app-accent), transparent 70%);
+  color: var(--app-accent-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+
+  svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+
+  .now & {
+    background: var(--app-accent);
+    color: var(--app-accent-ink);
+    animation: first-search-halo 1.8s ease-out infinite;
+  }
+}
+
+.body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem 2.5rem;
+}
+
+.words {
+  flex: 1 1 22rem;
+
+  h2 {
+    margin: 0.5rem 0 0;
+    font-size: clamp(1.5rem, 3.2vw, 2.125rem);
+
+    em {
+      font-style: normal;
+      color: var(--app-accent-strong);
+
+      // Sur fond clair, le citron vert ne se lit pas en texte : il passe en trait de surligneur
+      :host-context(.app-light) & {
+        color: inherit;
+        background: linear-gradient(transparent 58%, var(--app-accent) 58% 92%, transparent 92%);
+      }
+    }
+  }
+
+  p {
+    max-width: 36rem;
+    margin: 0.75rem 0 0;
+    color: var(--app-muted);
+  }
+}
+
+.go {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+
+  small {
+    font-size: 0.8125rem;
+    color: var(--app-muted);
+  }
+}
+
+// Flèche tracée à la main, du texte vers le bouton
+.pointer {
+  position: absolute;
+  right: calc(100% - 1.5rem);
+  bottom: 3.6rem;
+  width: 6.5rem;
+  color: var(--app-accent-strong);
+  pointer-events: none;
+
+  @media (max-width: 60rem) {
+    display: none;
+  }
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: 1.05rem 1.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--app-accent);
+  color: var(--app-accent-ink);
+  font: inherit;
+  font-size: 1.125rem;
+  font-weight: 700;
+  cursor: pointer;
+  animation: first-search-halo 1.8s ease-out infinite;
+  transition: transform 0.15s;
+
+  &:hover {
+    transform: translateY(-2px) scale(1.02);
+  }
+
+  svg {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+
+  .arrow {
+    animation: first-search-nudge 1.2s ease-in-out infinite;
+  }
+}
+
+@media (max-width: 40rem) {
+  .go,
+  .cta {
+    width: 100%;
+  }
+}
+
+@keyframes first-search-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+@keyframes first-search-halo {
+  0% {
+    box-shadow: 0 0 0 0 rgba(132, 204, 22, 0.6);
+  }
+
+  70%,
+  100% {
+    box-shadow: 0 0 0 0.9rem rgba(132, 204, 22, 0);
+  }
+}
+
+@keyframes first-search-nudge {
+  50% {
+    transform: translateX(0.3rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .badge,
+  .cta,
+  .cta .arrow {
+    animation: none;
+  }
+
+  .cta {
+    box-shadow: 0 10px 28px -10px rgba(132, 204, 22, 0.75);
+  }
+}

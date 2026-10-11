@@ -11,6 +11,7 @@ import { SearchRunService } from '../core/search-run.service';
 import { SessionService } from '../core/session.service';
 import { ThemeService } from '../core/theme.service';
 import { RunPanelComponent } from '../run/run-panel.component';
+import { FirstSearchComponent } from './first-search.component';
 import { WelcomeTourComponent, tourWasSeen } from './welcome-tour.component';
 
 /** Cadre de l'application une fois connecté : en-tête, navigation, bandeau d'état. Les écrans s'y affichent. */
@@ -22,6 +23,7 @@ import { WelcomeTourComponent, tourWasSeen } from './welcome-tour.component';
     RouterOutlet,
     AssistantComponent,
     AvatarComponent,
+    FirstSearchComponent,
     RunPanelComponent,
     WelcomeTourComponent,
   ],
@@ -55,12 +57,33 @@ export class ShellComponent {
   /** Vrai sur la page Profil : le bandeau n'a pas à y renvoyer. */
   protected readonly onProfile = computed(() => this.url().split(/[?#]/)[0] === `/${PROFILE_PATH}`);
 
+  /**
+   * Le profil est prêt et rien n'a encore été cherché : le lancement est mis en avant, dans un encart. C'est
+   * l'API qui dit l'un et l'autre.
+   */
+  protected readonly firstSearch = computed(() => {
+    const account = this.account();
+    return (
+      !!account &&
+      account.can_search &&
+      !account.has_searched &&
+      account.remaining_searches !== 0 &&
+      this.run.state() === 'idle' &&
+      !this.run.busy()
+    );
+  });
+  /** Vrai si le profil a été complété pendant cette visite : l'encart apparaît alors sous les yeux de l'utilisateur. */
+  protected readonly completedHere = signal(false);
+
   constructor() {
     const window = inject(DOCUMENT).defaultView;
     let offered = false;
     // À la première visite d'un compte qui n'a encore rien réglé : après, elle ne s'ouvre qu'à la demande
     effect(() => {
       const account = this.account();
+      if (account && !account.can_search) {
+        untracked(() => this.completedHere.set(true));
+      }
       if (account && !offered) {
         offered = true;
         untracked(() => this.touring.set(!account.can_search && !tourWasSeen(window)));

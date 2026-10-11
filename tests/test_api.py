@@ -224,6 +224,7 @@ def test_account_tells_who_is_calling(client):
         "picture": "https://lh3.googleusercontent.com/proprietaire",
         # Le propriétaire a les recherches par défaut, mais pas encore de CV
         "can_search": False,
+        "has_searched": False,
         "search_running": False,
         "remaining_searches": None,
         "max_searches_per_day": MAX_SEARCHES_PER_DAY,
@@ -374,7 +375,8 @@ def test_search_is_streamed_then_counted(client, valid_pdf):
     client.put("/api/cv", headers=ALICE, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
     assert client.get("/api/me", headers=ALICE).json()["can_search"] is False
     client.post("/api/queries", headers=ALICE, json={"contract_type": "CDI", "query": "data engineer"})
-    assert client.get("/api/me", headers=ALICE).json()["can_search"] is True
+    ready = client.get("/api/me", headers=ALICE).json()
+    assert ready["can_search"] is True and ready["has_searched"] is False
     response = client.post("/api/searches", headers=ALICE)
 
     assert response.status_code == 200 and response.headers["content-type"].startswith("text/event-stream")
@@ -406,7 +408,8 @@ def test_search_is_streamed_then_counted(client, valid_pdf):
     assert client.delete(f"/api/jobs/{kept_id}?reason=not_my_job", headers=ALICE).status_code == 204
 
     # Le refus n'avait pas entamé le quota, la recherche si
-    assert client.get("/api/me", headers=ALICE).json()["remaining_searches"] == MAX_SEARCHES_PER_DAY - 1
+    after = client.get("/api/me", headers=ALICE).json()
+    assert after["remaining_searches"] == MAX_SEARCHES_PER_DAY - 1 and after["has_searched"] is True
     client.post("/api/searches", headers=ALICE)
     assert client.post("/api/searches", headers=ALICE).status_code == 429
 
