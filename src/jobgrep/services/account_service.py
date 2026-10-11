@@ -31,6 +31,7 @@ from jobgrep.data.repositories.search_run_repository import SearchRunRepository
 from jobgrep.data.repositories.usage_repository import UsageRepository
 from jobgrep.data.repositories.user_repository import UserRepository
 from jobgrep.errors import ConflictError
+from jobgrep.services.account_events import ACCOUNT_DELETED, TRIAL_ADOPTED, record_event
 from jobgrep.services.search_service import SearchService
 
 logger = logging.getLogger(__name__)
@@ -43,13 +44,15 @@ class AccountService:
         self._last_purge_day: date | None = None
         self._purge_lock = threading.Lock()
 
-    def delete_account(self, user_id: int) -> None:
+    def delete_account(self, user_id: int, reason: str = "requested") -> None:
         """Efface tout ce que l'application garde de l'utilisateur : CV, recherches, offres, rejets, adresse.
 
         Rien n'est récupérable ensuite. Seule reste sa consommation, en totaux mensuels que rien ne relie
         à lui : le coût de l'instance doit rester connu après son départ. Le propriétaire garde son
         identifiant, réservé, mais perd ses données
         comme un autre ; un invité encore autorisé qui se reconnecte reçoit un compte neuf.
+
+        « reason » dit pourquoi il part (DELETION_REASONS) : le départ est noté dans le parcours, sans le compte.
         """
         # Une recherche en cours écrirait ses offres après l'effacement
         if self.search.is_running(user_id):
@@ -74,7 +77,9 @@ class AccountService:
             EngineCallRepository(session, user_id).delete_all()
             HealthRepository(session).forget_user(user_id)
             ActivityRepository(session, user_id).delete_all()
-            UserRepository(session).forget_user(user_id)
+            # Une ligne déjà vide n'est pas un départ de plus
+            if UserRepository(session).forget_user(user_id):
+                record_event(session, user_id, ACCOUNT_DELETED, detail=reason, plan=plan, now=deleted_at)
         # Les copies d'avant migration contiennent encore ses données : elles restent, sans lui
         self.database.purge_user_from_backups(user_id)
 
@@ -91,17 +96,19 @@ class AccountService:
             account_has_cv = CvTextRepository(session, user_id).get_updated_at() is not None
         if not trial_has_cv or account_has_cv or user_id == DEFAULT_USER_ID:
             try:
-                self.delete_account(trial_user_id)
+                self.delete_account(trial_user_id, "trial_replaced")
             except ConflictError:
                 # Sa recherche tourne encore : il partira avec les essais expirés
                 logger.info("Compte d'essai %d laissé à la purge : une recherche y est en cours", trial_user_id)
             return user_id
 
         # Sans CV, ce compte n'a jamais pu chercher : rien n'y tourne, et il ne perd que des réglages
-        self.delete_account(user_id)
+        self.delete_account(user_id, "merged")
         with self.database.session() as session:
             # Écrite comme AuthService la cherche à chaque requête
             adopted = UserRepository(session).give_email(trial_user_id, email.strip().lower())
+            if adopted:
+                record_event(session, trial_user_id, TRIAL_ADOPTED, plan=TRIAL_PLAN)
         if not adopted:
             # L'essai a disparu entre-temps : la prochaine requête recréera le compte de cette adresse
             logger.warning("Le compte d'essai %d n'a pas pu être repris", trial_user_id)
@@ -162,10 +169,10 @@ class AccountService:
             inactive_ids = users.list_inactive_user_ids(now - timedelta(days=INACTIVE_ACCOUNT_DAYS))
             trial_ids = users.list_expired_trial_user_ids(now - timedelta(days=TRIAL_ACCOUNT_DAYS))
         for user_id in inactive_ids:
-            self.delete_account(user_id)
+            self.delete_account(user_id, "inactive")
             # L'identifiant seul : l'adresse vient d'être effacée, elle n'a rien à faire dans les logs
             logger.info("Compte %d supprimé après %d jours sans activité", user_id, INACTIVE_ACCOUNT_DAYS)
         for user_id in trial_ids:
-            self.delete_account(user_id)
+            self.delete_account(user_id, "trial_expired")
             logger.info("Compte d'essai %d supprimé %d jours après son ouverture", user_id, TRIAL_ACCOUNT_DAYS)
         return len(inactive_ids) + len(trial_ids)

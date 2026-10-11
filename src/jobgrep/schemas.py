@@ -1,6 +1,6 @@
 """Objets échangés entre les services et les interfaces. L'API les sert tels quels en JSON."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -667,6 +667,39 @@ class JourneyOverview(BaseModel):
     trial_steps: list[JourneyStep]
     # Tous les comptes, le dernier vu en premier ; un compte supprimé n'y est plus
     accounts: list[AccountJourney]
+
+
+class EventRow(BaseModel):
+    """Un moment du parcours, compté semaine par semaine sur tous les comptes d'une formule."""
+
+    label: str
+    # Une valeur par semaine d'EventOverview.weeks, dans le même ordre
+    counts: list[int]
+    total: int
+    # Part de la première ligne du groupe, quand ce moment n'arrive qu'une fois par compte ; None sinon
+    rate: float | None
+
+
+class EventBreakdown(BaseModel):
+    label: str
+    count: int
+
+
+class EventOverview(BaseModel):
+    """Historique du parcours, pour les administrateurs : il garde ce que les comptes supprimés ont fait.
+
+    Des nombres par semaine seulement : rien n'y relie un moment à un compte.
+    """
+
+    # Premier jour noté : rien n'est connu avant. None tant que rien ne l'a été
+    since: date | None
+    # Lundi de chaque semaine, à l'heure de Paris, la plus ancienne en premier ; la dernière est en cours
+    weeks: list[date]
+    trials: list[EventRow]
+    accounts: list[EventRow]
+    # Sur toute la période : pourquoi les comptes sont partis, et ce que les dépôts de CV ont fait des postes
+    deletions: list[EventBreakdown]
+    cv_outcomes: list[EventBreakdown]
 
 
 class BudgetOverview(BaseModel):

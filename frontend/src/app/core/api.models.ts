@@ -517,6 +517,33 @@ export interface JourneyOverview {
   accounts: AccountJourney[];
 }
 
+/** Un moment du parcours, compté semaine par semaine sur tous les comptes d'une formule. */
+export interface EventRow {
+  label: string;
+  /** Une valeur par semaine d'EventOverview.weeks, dans le même ordre */
+  counts: number[];
+  total: number;
+  /** Part de la première ligne du groupe ; null quand ce moment peut arriver plusieurs fois par compte */
+  rate: number | null;
+}
+
+export interface EventBreakdown {
+  label: string;
+  count: number;
+}
+
+/** Historique du parcours, pour les administrateurs : il garde ce que les comptes supprimés ont fait. */
+export interface EventOverview {
+  /** Premier jour noté, null tant que rien ne l'a été */
+  since: string | null;
+  /** Lundi de chaque semaine, la plus ancienne en premier ; la dernière est en cours */
+  weeks: string[];
+  trials: EventRow[];
+  accounts: EventRow[];
+  deletions: EventBreakdown[];
+  cv_outcomes: EventBreakdown[];
+}
+
 /** Dépense du mois en cours, tous comptes réunis, face au budget de l'instance. */
 export interface BudgetOverview {
   month_start: string;

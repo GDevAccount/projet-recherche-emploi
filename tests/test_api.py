@@ -2,6 +2,7 @@ import json
 import re
 import time
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from conftest import FakeAnswerModel, FakeEmbedder, FakeEvaluator, FakeJudge, FakeNotifier, FakeSearchEngine
@@ -17,12 +18,14 @@ from jobgrep.config import (
     DEFAULT_USER_ID,
     FILTER_MODEL,
     INACTIVE_ACCOUNT_DAYS,
+    LOCAL_TIMEZONE,
     MAX_ASSISTANT_QUESTIONS_PER_DAY,
     MAX_SEARCHES_PER_DAY,
     MAX_SKILLS_PER_QUERY,
     MAX_TRIALS_PER_IP_PER_DAY,
     SESSION_DAYS,
     TRIAL_ACCOUNT_DAYS,
+    WEEKS_SHOWN,
     Settings,
 )
 from jobgrep.container import build_container
@@ -173,6 +176,7 @@ def test_config_leaks_no_secret(tmp_path):
         ("GET", "/api/admin/budget"),
         ("POST", "/api/client-errors"),
         ("GET", "/api/admin/journeys"),
+        ("GET", "/api/admin/events"),
         ("GET", "/api/admin/journeys/1"),
         ("POST", "/api/jobs/1/open"),
         ("GET", "/api/assistant"),
@@ -434,7 +438,7 @@ def test_search_tracking_is_for_administrators_only(client, valid_pdf):
 
     # Un invité n'y a pas accès, pas même pour ses propres recherches
     paths = ("/api/searches", "/api/searches/stats", f"/api/searches/{run['id']}/evaluations", "/api/admin/usage")
-    for path in (*paths, "/api/admin/health", "/api/admin/budget", "/api/admin/journeys"):
+    for path in (*paths, "/api/admin/health", "/api/admin/budget", "/api/admin/journeys", "/api/admin/events"):
         response = client.get(path, headers=ALICE)
         assert response.status_code == 403 and "sk-" not in response.text
     # Il lance toujours les siennes
@@ -1320,6 +1324,62 @@ def test_trial_accounts_are_followed_apart_from_the_users(tmp_path, valid_pdf):
     usage = client.get("/api/admin/usage", headers=OWNER).json()
     assert [(row["plan"], row["deleted"]) for row in usage["accounts"]] == [("trial", True)]
     assert client.get("/api/admin/journeys", headers=OWNER).json()["trials"] == 0
+
+
+def test_what_accounts_did_stays_counted_once_they_are_gone(tmp_path, valid_pdf):
+    client = make_client(tmp_path, **TRIAL_SETTINGS)
+    cv = {"file": ("cv.pdf", valid_pdf, "application/pdf")}
+    # Le propriétaire n'est pas compté : l'historique dit si l'application sert à d'autres
+    client.put("/api/cv", headers=OWNER, files=cv)
+
+    # Un essai va jusqu'à la recherche, puis se connecte avec un compte neuf, qui le reprend
+    client.post("/api/session/trial")
+    client.put("/api/cv", files=cv)
+    client.post("/api/queries", json=QUERY)
+    client.post("/api/searches")
+    client.post("/api/session", headers=ALICE)
+    # Un autre dépose son CV, puis le propriétaire se connecte dans ce navigateur : l'essai est effacé
+    visitor = TestClient(client.app, base_url="http://localhost")
+    visitor.post("/api/session/trial")
+    visitor.put("/api/cv", files=cv)
+    visitor.post("/api/session", headers=OWNER)
+    # Enfin le compte qui avait repris son essai s'en va
+    assert TestClient(client.app).delete("/api/me", headers=ALICE).status_code == 204
+
+    # Plus aucun compte en place : le parcours ne montre plus rien
+    journeys = client.get("/api/admin/journeys", headers=OWNER).json()
+    assert (journeys["guests"], journeys["trials"]) == (0, 0)
+
+    assert client.get("/api/admin/events", headers=BOB).status_code == 403
+    events = client.get("/api/admin/events", headers=OWNER).json()
+
+    today = datetime.now(ZoneInfo(LOCAL_TIMEZONE)).date()
+    assert events["since"] == today.isoformat()
+    assert len(events["weeks"]) == WEEKS_SHOWN
+    assert events["weeks"][-1] == (today - timedelta(days=today.weekday())).isoformat()
+    assert [(row["label"], row["total"], row["rate"]) for row in events["trials"]] == [
+        ("Essais ouverts", 2, None),
+        ("CV déposés", 2, None),
+        ("Recherches lancées", 1, 0.5),
+        ("Repris par un compte", 1, 0.5),
+    ]
+    assert [(row["label"], row["total"]) for row in events["accounts"]] == [
+        ("Comptes créés", 1),
+        ("CV déposés", 0),
+        ("Recherches lancées", 0),
+        # Celui que l'essai a remplacé, puis celui qui est parti de lui-même
+        ("Comptes supprimés", 2),
+    ]
+    # Tout est arrivé cette semaine, la dernière de la liste
+    assert all(row["counts"][-1] == row["total"] for row in events["trials"] + events["accounts"])
+    assert {row["label"]: row["count"] for row in events["deletions"]} == {
+        "Compte neuf remplacé par son essai": 1,
+        "Essai abandonné à la connexion": 1,
+        "À la demande de l'utilisateur": 1,
+    }
+    assert events["cv_outcomes"] == [{"label": "Aucun poste tiré du CV", "count": 2}]
+    # Rien n'y désigne un compte
+    assert "alice" not in json.dumps(events) and "user_id" not in json.dumps(events)
 
 
 def test_assistant_answers_about_the_application_and_keeps_the_conversation(client):

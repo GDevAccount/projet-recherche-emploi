@@ -10,6 +10,7 @@ from jobgrep.schemas import (
     AssistantEvaluationRead,
     AssistantOverview,
     BudgetOverview,
+    EventOverview,
     HealthOverview,
     JourneyOverview,
     UsageOverview,
@@ -74,6 +75,15 @@ def get_journeys(admin_id: AdminId, services: Services) -> JourneyOverview:
     Réservé aux administrateurs. Pour chaque compte, son adresse et des nombres : aucun poste, aucune offre.
     """
     return services.usage.get_journeys()
+
+
+@router.get("/admin/events")
+def get_events(admin_id: AdminId, services: Services) -> EventOverview:
+    """Historique du parcours, semaine par semaine : essais ouverts, CV déposés, recherches lancées, départs.
+
+    Réservé aux administrateurs. Des nombres seulement, comptes supprimés compris : rien n'y désigne un compte.
+    """
+    return services.usage.get_events()
 
 
 @router.get("/admin/journeys/{user_id}")

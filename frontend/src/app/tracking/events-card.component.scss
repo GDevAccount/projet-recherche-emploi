@@ -1,0 +1,158 @@
+:host {
+  display: block;
+}
+
+header {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+
+  p {
+    max-width: 46rem;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--app-muted);
+  }
+}
+
+.groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+
+  @media (max-width: 60rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.group {
+  padding: 0.9rem 1rem 0.5rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+
+  h3 {
+    margin: 0 0 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--app-muted);
+  }
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 7rem 4.5rem;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 0;
+
+    & + li {
+      border-top: 1px solid var(--app-border);
+    }
+  }
+}
+
+.label {
+  font-size: 0.875rem;
+}
+
+.bars {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 1.75rem;
+  border-bottom: 1px solid var(--app-border);
+}
+
+// Toute la hauteur de la colonne répond au survol, même quand sa barre est à zéro
+.slot {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+
+  i {
+    width: 100%;
+    min-height: 1px;
+    border-radius: 2px 2px 0 0;
+    background: color-mix(in srgb, var(--app-muted), transparent 55%);
+  }
+
+  &:hover i {
+    background: var(--app-muted);
+  }
+
+  &:last-child i {
+    background: var(--app-accent-strong);
+  }
+}
+
+.value {
+  display: grid;
+  justify-items: end;
+  font-variant-numeric: tabular-nums;
+
+  strong {
+    font-family: var(--app-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  small {
+    font-size: 0.75rem;
+    color: var(--app-muted);
+  }
+}
+
+.details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 2rem;
+  margin-top: 1.25rem;
+
+  @media (max-width: 40rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  dl {
+    margin: 0;
+  }
+
+  dt {
+    margin-bottom: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--app-muted);
+  }
+
+  dd {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0;
+    padding: 0.3rem 0;
+    font-size: 0.875rem;
+
+    strong {
+      font-variant-numeric: tabular-nums;
+    }
+  }
+}
+
+.note {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+}
+
+.loading,
+.error {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--app-muted);
+}

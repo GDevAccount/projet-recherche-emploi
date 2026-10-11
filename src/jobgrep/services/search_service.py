@@ -47,6 +47,7 @@ from jobgrep.schemas import (
     SearchYield,
     WeekStats,
 )
+from jobgrep.services.account_events import SEARCH_LAUNCHED, record_event
 from jobgrep.services.search_costs import (
     COST_DECIMALS,
     model_cost_usd,
@@ -463,6 +464,8 @@ class SearchService:
                 since, limit = self._quota(session, user_id) or (None, None)
                 is_trial = limit is not None and since == ALWAYS
                 run_id = SearchRunRepository(session, user_id).record_run(since, limit)
+                if run_id is not None:
+                    record_event(session, user_id, SEARCH_LAUNCHED)
             if run_id is None:
                 if is_trial:
                     raise QuotaExceededError(
