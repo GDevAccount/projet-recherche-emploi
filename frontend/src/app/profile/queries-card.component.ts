@@ -56,7 +56,7 @@ export class QueriesCardComponent {
   protected readonly maxSkills = computed(() => this.config()?.max_skills_per_query ?? Infinity);
 
   // undefined : en cours de lecture
-  protected readonly queries = signal<SearchQuery[] | undefined>(undefined);
+  protected readonly queries = this.queryService.queries;
   protected readonly text = signal('');
   protected readonly skills = signal<string[]>([]);
   // La compétence en cours de saisie, pas encore devenue un tag
@@ -114,6 +114,8 @@ export class QueriesCardComponent {
         this.activeOption.set(-1);
       });
 
+    // Ceux d'une visite précédente de l'écran ont pu changer depuis
+    this.queries.set(undefined);
     this.queryService.list().subscribe({
       next: (queries) => this.queries.set(queries),
       error: (error: unknown) => this.error.set(apiErrorMessage(error)),

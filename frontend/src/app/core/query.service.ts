@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
@@ -10,6 +10,12 @@ import { SearchQuery, SearchQueryCreate } from './api.models';
 export class QueryService {
   private readonly http = inject(HttpClient);
   private readonly url = `${environment.apiUrl}/queries`;
+
+  /**
+   * Les postes recherchés tels que l'écran Profil les montre ; undefined tant qu'ils ne sont pas lus. Ils sont
+   * ici parce que deux cartes les changent : celle des postes, et celle du CV, dont le dépôt peut les remplacer.
+   */
+  readonly queries = signal<SearchQuery[] | undefined>(undefined);
 
   list(): Observable<SearchQuery[]> {
     return this.http.get<SearchQuery[]>(this.url);

@@ -11,15 +11,26 @@ import tempfile
 from pathlib import Path
 
 import uvicorn
-from conftest import FakeAnswerModel, FakeEmbedder, FakeEvaluator, FakeSearchEngine
+from conftest import FakeAnswerModel, FakeEmbedder, FakeEvaluator, FakeProfileExtractor, FakeSearchEngine
 
 from jobgrep.api.main import create_app
 from jobgrep.config import Settings, configure_logging
 from jobgrep.container import build_container
+from jobgrep.cv_agent.ports import DraftedJob, DraftedProfile
 
 FRONTEND_DIR = Path(__file__).parents[1] / "frontend" / "dist" / "frontend" / "browser"
 # Le même que dans frontend/e2e/ : sans connexion Google, il ouvre le compte du propriétaire
 PASSWORD = "mot-de-passe-e2e"
+
+
+# Ce que le faux modèle tire de tout CV déposé : le parcours le retrouve dans les postes recherchés
+PROFILE = DraftedProfile(
+    jobs=[
+        DraftedJob(title="dresseur de licornes", contract_type="CDI", skills=["comptabilite fournisseurs", "licornes"])
+    ],
+    location="Rhône",
+    remote=False,
+)
 
 
 def main() -> None:
@@ -38,7 +49,12 @@ def main() -> None:
             max_trials_per_day=5,
         )
         container = build_container(
-            settings, FakeSearchEngine(), FakeEvaluator(), embedder=FakeEmbedder(), answer_model=FakeAnswerModel()
+            settings,
+            FakeSearchEngine(),
+            FakeEvaluator(),
+            embedder=FakeEmbedder(),
+            answer_model=FakeAnswerModel(),
+            profile_extractor=FakeProfileExtractor(PROFILE),
         )
         uvicorn.run(create_app(container, docs=False), host="127.0.0.1", port=int(sys.argv[1]))
 

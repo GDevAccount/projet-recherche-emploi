@@ -89,7 +89,7 @@ describe('ShellComponent', () => {
     await openSession(GUEST);
 
     expect(element().querySelector('a.cta')).toBeNull();
-    expect(text(element().querySelector('.hero')!)).toContain('Déposez votre CV et décrivez un poste recherché');
+    expect(text(element().querySelector('.hero')!)).toContain('Déposez votre CV ci-dessous : vos postes recherchés en seront tirés');
 
     // De retour sur un autre écran, le renvoi vers le profil revient
     await router.navigateByUrl('/offres');

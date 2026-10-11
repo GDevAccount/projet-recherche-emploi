@@ -128,6 +128,29 @@ class CvStatus(BaseModel):
     updated_at: datetime | None
 
 
+# Étapes du dépôt d'un CV, dans l'ordre du graph : ReadCv, AnonymizeCv, SaveCv, ExtractProfile, SaveQueries
+CvStep = Literal["read", "anonymize", "save", "extract", "queries"]
+# Ce qu'il advient des postes recherchés au dépôt d'un CV (QueriesOutcome de cv_agent/ports.py)
+CvQueriesOutcome = Literal["created", "kept", "limit", "budget", "empty", "failed"]
+
+
+class CvProgress(BaseModel):
+    """Avancement du dépôt d'un CV, dans le flux de « POST /api/cv/stream »."""
+
+    step: CvStep
+
+
+class CvDeposit(CvStatus):
+    """Résultat du dépôt d'un CV : il est en place, et voici ce qu'il est advenu des postes recherchés."""
+
+    # « created » : les postes ont été tirés du CV, et remplacent ceux d'avant ; sinon ils n'ont pas changé
+    queries_outcome: CvQueriesOutcome
+    # Ce qui est dit à l'utilisateur, à afficher tel quel
+    message: str
+    # Les postes créés ; vide s'il n'y en a pas eu
+    queries: list[SearchQueryRead]
+
+
 # Étapes d'une recherche, dans l'ordre du graph : searchJobs, FilterDuplicates, FilterJobs, InsertJobs
 SearchStep = Literal["search", "dedupe", "evaluate", "save"]
 

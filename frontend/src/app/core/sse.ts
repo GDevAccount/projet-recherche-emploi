@@ -28,6 +28,21 @@ export async function readServerSentEvents(
   }
 }
 
+/** Message qu'une réponse ou un événement d'erreur de l'API porte dans « detail », rédigé en français. */
+export function readDetail(payload: unknown): string | null {
+  const detail = (payload as { detail?: unknown } | null)?.detail;
+  return typeof detail === 'string' && detail ? detail : null;
+}
+
+/** Message d'un refus de l'API, ou `fallback` si la réponse n'en porte pas. */
+export async function detailOf(response: Response, fallback: string): Promise<string> {
+  try {
+    return readDetail(await response.json()) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function parse(block: string): { name: string; payload: unknown } | null {
   let name = '';
   let data = '';
