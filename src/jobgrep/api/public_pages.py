@@ -80,9 +80,20 @@ PAGE_TEMPLATE = """<!doctype html>
 
 # Les couleurs sont celles du front (variables --app-* de frontend/src/styles.scss), recopiées : cette page est
 # servie même sans le front construit.
-# Le thème est celui de l'application : sombre, sauf si l'utilisateur y a choisi le clair. theme-init.js, le script
-# du front, pose alors « app-light » sur <html>. Sans JavaScript, ou sans front construit, la page reste sombre.
-PAGE_STYLE = """
+# Le thème est celui de l'application : celui du système, sauf si l'utilisateur en a choisi un dans le site.
+# theme-init.js, le script du front, pose alors « app-light » ou « app-dark » sur <html>. Sans JavaScript, ou sans
+# front construit, la page suit le système seul.
+LIGHT_COLORS = """
+    color-scheme: light;
+    --bg: #f5f4ef; --surface: #ffffff; --text: #15171a; --muted: #666a72; --border: rgba(21, 23, 26, 0.1);
+    --link: #3f6212;
+    --shadow: 0 1px 2px rgba(21, 23, 26, 0.04), 0 16px 40px -18px rgba(21, 23, 26, 0.18);
+    --glow: radial-gradient(56rem 28rem at 88% -8%, rgba(163, 230, 53, 0.3), transparent 62%),
+      radial-gradient(40rem 24rem at -8% 6%, rgba(56, 189, 248, 0.14), transparent 60%);
+"""
+
+PAGE_STYLE = (
+    """
   :root {
     color-scheme: dark;
     --accent: #a3e635; --accent-strong: #84cc16; --accent-ink: #1a2e05;
@@ -92,14 +103,14 @@ PAGE_STYLE = """
     --glow: radial-gradient(56rem 28rem at 88% -8%, rgba(163, 230, 53, 0.17), transparent 62%),
       radial-gradient(40rem 24rem at -8% 6%, rgba(56, 189, 248, 0.08), transparent 60%);
   }
-  :root.app-light {
-    color-scheme: light;
-    --bg: #f5f4ef; --surface: #ffffff; --text: #15171a; --muted: #666a72; --border: rgba(21, 23, 26, 0.1);
-    --link: #3f6212;
-    --shadow: 0 1px 2px rgba(21, 23, 26, 0.04), 0 16px 40px -18px rgba(21, 23, 26, 0.18);
-    --glow: radial-gradient(56rem 28rem at 88% -8%, rgba(163, 230, 53, 0.3), transparent 62%),
-      radial-gradient(40rem 24rem at -8% 6%, rgba(56, 189, 248, 0.14), transparent 60%);
+  @media (prefers-color-scheme: light) {
+    :root:not(.app-dark) {"""
+    + LIGHT_COLORS
+    + """    }
   }
+  :root.app-light {"""
+    + LIGHT_COLORS
+    + """  }
   * { box-sizing: border-box; }
   html { background: var(--bg); }
   body {
@@ -137,6 +148,7 @@ PAGE_STYLE = """
   :focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
   ::selection { background: var(--accent); color: var(--accent-ink); }
 """
+)
 
 
 def render_page(path: str, settings: Settings) -> str:

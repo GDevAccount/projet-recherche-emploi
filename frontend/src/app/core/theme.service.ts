@@ -6,15 +6,17 @@ import { DARK_BACKGROUND, DARK_CLASS, LIGHT_BACKGROUND, LIGHT_CLASS } from './th
 const STORAGE_KEY = 'theme';
 
 /**
- * Thème clair ou sombre : sombre à la première visite, quel que soit le système, puis le choix de l'utilisateur.
+ * Thème clair ou sombre : celui du système tant que l'utilisateur n'a pas choisi, sombre si le système n'en dit rien,
+ * puis le choix de l'utilisateur.
  * public/theme-init.js applique la même règle avant le démarrage d'Angular : changer l'une demande de changer l'autre.
  */
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   private readonly document = inject(DOCUMENT);
   private readonly window = this.document.defaultView;
+  private readonly systemLight = this.window?.matchMedia?.('(prefers-color-scheme: light)') ?? null;
 
-  private readonly _dark = signal(this.initialChoice());
+  private readonly _dark = signal(this.storedChoice() ?? !this.systemLight?.matches);
   readonly dark = this._dark.asReadonly();
 
   constructor() {
@@ -27,6 +29,12 @@ export class ThemeService {
         .querySelector('meta[name="theme-color"]')
         ?.setAttribute('content', this._dark() ? DARK_BACKGROUND : LIGHT_BACKGROUND);
     });
+    // Le système change de thème pendant la visite (réglage, passage au soir) : le site suit, sauf choix fait ici
+    this.systemLight?.addEventListener('change', (event) => {
+      if (this.storedChoice() === null) {
+        this._dark.set(!event.matches);
+      }
+    });
   }
 
   toggle(): void {
@@ -38,13 +46,14 @@ export class ThemeService {
     }
   }
 
-  private initialChoice(): boolean {
+  /** Le thème choisi dans le site : sombre ou non, `null` si rien n'a été choisi. */
+  private storedChoice(): boolean | null {
     let stored: string | null = null;
     try {
       stored = this.window?.localStorage.getItem(STORAGE_KEY) ?? null;
     } catch {
-      // Stockage refusé par le navigateur : le thème reste sombre
+      // Stockage refusé par le navigateur : le thème suit le système
     }
-    return stored !== 'light';
+    return stored === 'dark' || stored === 'light' ? stored === 'dark' : null;
   }
 }

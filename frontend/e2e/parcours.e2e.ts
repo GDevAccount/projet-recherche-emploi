@@ -460,14 +460,20 @@ test('le suivi montre le bilan des recherches et le détail de leurs pages', asy
   await expect(page.locator('app-usage-card tbody th').first()).toHaveText('Propriétaire');
 });
 
-test('le thème est sombre au départ, et le choix du clair est gardé après rechargement', async () => {
-  // Le navigateur de test annonce un système clair : le thème sombre ne vient pas de lui
+test('le thème suit le système, puis le choix fait dans le site est gardé après rechargement', async () => {
+  // Le navigateur de test annonce un système clair, et rien n'a été choisi dans le site
+  await expect(page.locator('html')).toHaveClass(/app-light/);
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f5f4ef');
+
+  // Le système passe au sombre pendant la visite : le site suit, sans rechargement
+  await page.emulateMedia({ colorScheme: 'dark' });
   await expect(page.locator('html')).toHaveClass(/app-dark/);
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0a0b0d');
 
   await page.getByRole('button', { name: 'Passer au thème clair' }).click();
   await expect(page.locator('html')).toHaveClass(/app-light/);
 
+  // Le choix l'emporte sur le système, resté sombre, y compris au rechargement
   await page.reload();
   await expect(page.locator('html')).toHaveClass(/app-light/);
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f5f4ef');
@@ -476,7 +482,6 @@ test('le thème est sombre au départ, et le choix du clair est gardé après re
 
 test('les pages légales prennent le thème choisi dans le site, pas celui du système', async () => {
   // Le site est en thème clair, le système annoncé sombre : seul le choix fait dans le site explique le fond clair
-  await page.emulateMedia({ colorScheme: 'dark' });
   await page.getByRole('link', { name: 'Règles de confidentialité' }).last().click();
   await expect(
     page.getByRole('heading', { level: 1, name: 'Règles de confidentialité' }),

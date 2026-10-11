@@ -51,7 +51,7 @@ La commande doit être lancée depuis la racine : `jobs.db` est cherché ou cré
 
 ## Utiliser l'application
 
-L'application a trois rubriques, **Offres**, **Rejets** et **Profil**, un thème sombre, que le bouton de l'en-tête passe au clair, et un bouton « Lancer une recherche » visible partout.
+L'application a trois rubriques, **Offres**, **Rejets** et **Profil**, un thème clair et un thème sombre, celui du système tant que le bouton de l'en-tête n'en a pas choisi un, et un bouton « Lancer une recherche » visible partout.
 
 À sa première visite, un nouvel arrivant reçoit une visite guidée en cinq écrans, qui explique ces étapes ; le lien « Comment ça marche », en bas de page, la rouvre à tout moment.
 
