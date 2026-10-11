@@ -307,7 +307,7 @@ Google peut aussi demander la preuve que le site vous appartient. Dans [Search C
 
 Un moteur de recherche ne lit que ce qui est servi sans connexion :
 
-- la page d'accueil, dont le texte est écrit dans `frontend/src/index.html` pour qui n'exécute pas le JavaScript ;
+- la page d'accueil (`/`), qui présente l'application au visiteur sans session et mène à `/connexion` ; un utilisateur connecté y est conduit à ses offres. Son résumé est écrit dans `frontend/src/index.html` pour qui n'exécute pas le JavaScript ;
 - `/fonctionnement`, qui présente l'application étape par étape (texte dans `src/jobgrep/texts/`) ;
 - `/confidentialite` et `/conditions`.
 

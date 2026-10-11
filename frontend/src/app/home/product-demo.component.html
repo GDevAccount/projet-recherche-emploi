@@ -1,0 +1,106 @@
+<div class="tabs" role="tablist" aria-label="Écrans de l'application">
+  @for (view of views; track view.id) {
+    <button
+      #tab
+      type="button"
+      role="tab"
+      [id]="'demo-tab-' + view.id"
+      [attr.aria-selected]="current() === view.id"
+      [attr.aria-controls]="'demo-panel-' + view.id"
+      [tabindex]="current() === view.id ? 0 : -1"
+      (click)="current.set(view.id)"
+      (keydown)="move($event, $index)"
+    >
+      {{ view.label }}
+    </button>
+  }
+</div>
+
+@for (view of views; track view.id) {
+  <div
+    class="panel"
+    role="tabpanel"
+    tabindex="0"
+    [id]="'demo-panel-' + view.id"
+    [attr.aria-labelledby]="'demo-tab-' + view.id"
+    [hidden]="current() !== view.id"
+  >
+    <p class="summary">{{ view.summary }}</p>
+
+    <div class="screen" inert aria-hidden="true">
+      @switch (view.id) {
+        @case ('search') {
+          <div class="run">
+            <header>
+              <span class="signal"></span>
+              <strong>Recherche en cours</strong>
+              <span class="clock">00:42</span>
+            </header>
+            <ol class="pipeline">
+              <li data-status="done"><span class="node">✓</span><div><strong>Recherche</strong><small>31 pages trouvées</small></div></li>
+              <li data-status="done"><span class="node">✓</span><div><strong>Dédoublonnage</strong><small>19 déjà vues, 12 nouvelles</small></div></li>
+              <li data-status="active"><span class="node">3</span><div><strong>Évaluation</strong><small>Le modèle lit chaque page avec votre CV</small></div></li>
+              <li><span class="node">4</span><div><strong>Enregistrement</strong><small>Offres et rejets rejoignent vos listes</small></div></li>
+            </ol>
+          </div>
+          <ul class="feed">
+            <li class="kept"><span class="verdict">Retenue</span><span class="title">Développeur Python / Django (H/F)</span><span class="site">welcometothejungle.com</span></li>
+            <li><span class="verdict">Écartée</span><span class="title">Les 10 métiers du développement web en 2026</span><span class="site">Article</span></li>
+            <li><span class="verdict">Écartée</span><span class="title">Développeur Java senior (H/F)</span><span class="site">Autre métier que ceux recherchés</span></li>
+            <li class="kept"><span class="verdict">Retenue</span><span class="title">Ingénieur backend Python — éditeur de logiciels</span><span class="site">apec.fr</span></li>
+            <li><span class="verdict">Écartée</span><span class="title">Développeur Python (H/F) — Lille</span><span class="site">Hors lieu recherché</span></li>
+          </ul>
+        }
+        @case ('rejections') {
+          <div class="breakdown">
+            <span class="app-eyebrow">Pourquoi des pages sont écartées</span>
+            <ul>
+              <li><span>Liste ou page de résultats</span><i style="--w: 100%"></i><b>14</b></li>
+              <li><span>Autre métier que ceux recherchés</span><i style="--w: 64%"></i><b>9</b></li>
+              <li><span>Hors lieu recherché</span><i style="--w: 43%"></i><b>6</b></li>
+              <li><span>Niveau d'expérience incompatible</span><i style="--w: 21%"></i><b>3</b></li>
+            </ul>
+          </div>
+          <article class="page">
+            <span class="motive">Niveau d'expérience incompatible</span>
+            <h4>Lead développeur Python (H/F)</h4>
+            <p>L'annonce demande dix ans d'expérience et l'encadrement d'une équipe ; votre CV en montre cinq, sans encadrement.</p>
+            <div class="facts"><span>CDI</span><span>Lyon</span><span class="restore">C'était une bonne offre</span></div>
+          </article>
+        }
+        @case ('profile') {
+          <div class="cv">
+            <span class="doc">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                <path d="M7 3h7l4 4v14H7V3Z" /><path d="M14 3v4h4M10 12h5M10 16h5" stroke-linecap="round" />
+              </svg>
+            </span>
+            <div>
+              <strong>CV en place</strong>
+              <small>Coordonnées retirées · le fichier PDF n'est pas conservé</small>
+            </div>
+          </div>
+          <ul class="queries">
+            <li>
+              <strong>Développeur Python</strong>
+              <span class="skills"><i>Django</i><i>PostgreSQL</i><i>API REST</i></span>
+              <span class="where">CDI · Rhône</span>
+            </li>
+            <li>
+              <strong>Développeur full stack</strong>
+              <span class="skills"><i>Python</i><i>Angular</i></span>
+              <span class="where">Freelance · Télétravail complet</span>
+            </li>
+            <li>
+              <strong>Ingénieur backend</strong>
+              <span class="skills"><i>Python</i><i>Docker</i></span>
+              <span class="where">CDI · Rhône</span>
+            </li>
+          </ul>
+        }
+      }
+    </div>
+  </div>
+}
+
+<p class="note">Écrans redessinés pour cette page, avec des données fictives.</p>

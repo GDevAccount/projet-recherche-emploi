@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Button } from 'primeng/button';
 import { InputText } from 'primeng/inputtext';
 import { Message } from 'primeng/message';
@@ -12,11 +12,12 @@ import { apiErrorMessage } from '../core/api-error';
 import { Account } from '../core/api.models';
 import { ConfigService } from '../core/config.service';
 import { GoogleIdentityService } from '../core/google-identity.service';
+import { JOBS_PATH } from '../core/paths';
 import { SessionService } from '../core/session.service';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, Button, InputText, Message],
+  imports: [FormsModule, RouterLink, Button, InputText, Message],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -64,7 +65,7 @@ export class LoginComponent {
     this.pending.set(true);
     this.error.set('');
     opening.subscribe({
-      next: () => void this.router.navigate(['/']),
+      next: () => void this.router.navigate([JOBS_PATH]),
       error: (error: unknown) => {
         this.pending.set(false);
         this.error.set(this.refusalMessage(error));

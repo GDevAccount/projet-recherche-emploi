@@ -82,7 +82,7 @@ describe('LoginComponent', () => {
     expect(request.request.headers.get('Authorization')).toBe('Bearer sesame');
     request.flush(ACCOUNT);
 
-    expect(navigate).toHaveBeenCalledWith(['/']);
+    expect(navigate).toHaveBeenCalledWith(['offres']);
   });
 
   it('should say when the password is wrong', async () => {
@@ -109,7 +109,7 @@ describe('LoginComponent', () => {
     expect(request.request.headers.get('Authorization')).toBe('Bearer jeton-google');
     request.flush(ACCOUNT);
 
-    expect(navigate).toHaveBeenCalledWith(['/']);
+    expect(navigate).toHaveBeenCalledWith(['offres']);
   });
 
   it('should show the reason given by the API to an uninvited address', async () => {
@@ -141,7 +141,7 @@ describe('LoginComponent', () => {
     expect(request.request.headers.has('Authorization')).toBe(false);
     request.flush({ ...ACCOUNT, user_id: 7, is_owner: false, is_admin: false, is_trial: true, remaining_searches: 1 });
 
-    expect(navigate).toHaveBeenCalledWith(['/']);
+    expect(navigate).toHaveBeenCalledWith(['offres']);
   });
 
   it('should show why a trial is refused, and say so beforehand when none is left today', async () => {
