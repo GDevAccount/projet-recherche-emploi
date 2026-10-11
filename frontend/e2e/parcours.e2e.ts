@@ -44,7 +44,7 @@ test("sans JavaScript, l'accueil décrit l'application et renvoie aux pages lég
   await context.close();
 });
 
-test("sans session, l'accueil présente l'application et mène à la connexion", async () => {
+test("sans session, l'accueil présente l'application et mène au profil ou à la connexion", async () => {
   await page.goto('/');
 
   await expect(page).toHaveURL(/\/$/);
@@ -64,10 +64,12 @@ test("sans session, l'accueil présente l'application et mène à la connexion",
   // Une seule entrée pour se connecter et pour créer son compte : l'écran de connexion
   await page.getByRole('banner').getByRole('link', { name: 'Se connecter' }).click();
   await expect(page).toHaveURL(/\/connexion$/);
+  await expect(page.getByText('Essayer sans compte')).toHaveCount(0);
   await page.getByRole('link', { name: "JobGrep, retour à l'accueil" }).click();
   await expect(page).toHaveURL(/\/$/);
+  // Commencer ne demande pas de compte : on arrive au profil, où se dépose le CV
   await page.getByRole('main').getByRole('link', { name: 'Commencer gratuitement' }).first().click();
-  await expect(page).toHaveURL(/\/connexion$/);
+  await expect(page).toHaveURL(/\/profil$/);
 
   // Les pages légales sont à un clic de l'accueil
   await page.goto('/');
@@ -75,12 +77,29 @@ test("sans session, l'accueil présente l'application et mène à la connexion",
   await expect(page.getByRole('heading', { level: 1, name: 'Règles de confidentialité' })).toBeVisible();
 });
 
-test('sans session, un écran de données mène à la connexion et les données sont refusées', async () => {
+test('sans session, les écrans sont ouverts et vides, et les données restent refusées', async () => {
   await page.goto('/offres');
 
+  await expect(page).toHaveURL(/\/offres$/);
+  await expect(page.getByRole('heading', { name: "Pas encore d'offre" })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Déposer mon CV' })).toBeVisible();
+  // Rien de ce qui demande un compte, et la visite guidée ne s'impose pas
+  await expect(page.locator('app-welcome-tour, app-assistant, .quota')).toHaveCount(0);
+
+  await page.getByRole('link', { name: 'Rejets', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Aucune page écartée' })).toBeVisible();
+  await page.getByRole('link', { name: 'Profil', exact: true }).click();
+  await expect(page.getByText('Sans inscription : déposer votre CV ouvre un essai')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ajouter un poste' })).toHaveCount(0);
+
+  // Regarder ne dépose aucun cookie, et c'est l'API qui protège les données
+  expect(await page.context().cookies()).toEqual([]);
+  expect((await page.request.get('/api/jobs')).status()).toBe(401);
+
+  // La page Compte, elle, n'a de sens qu'avec une session
+  await page.goto('/compte');
   await expect(page).toHaveURL(/\/connexion$/);
   await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
-  expect((await page.request.get('/api/jobs')).status()).toBe(401);
 });
 
 test('un mot de passe faux est refusé, le bon ouvre la session', async () => {
@@ -187,6 +206,9 @@ test('le profil se complète : un CV, puis un poste recherché', async () => {
   await expect(editor).toBeHidden();
   await expect(saved.locator('.tag')).toHaveText(['Comptabilité fournisseurs']);
 
+  // Rien n'a encore été cherché : le lancement est mis en avant, dans un encart qui porte le seul bouton
+  const first = page.locator('app-first-search');
+  await expect(first.getByRole('heading', { name: /votre première recherche/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Lancer une recherche' })).toBeEnabled();
 });
 
@@ -198,6 +220,8 @@ test('une recherche se suit en direct et ajoute des offres', async () => {
   // Les quatre étapes du graph sont passées
   await expect(panel.locator('.pipeline li[data-status=done]')).toHaveCount(4);
   await expect(panel.getByText(/nouvelles offres vous attendent/)).toBeVisible();
+  // Une recherche a été lancée : l'encart de la première a laissé la place au bouton habituel
+  await expect(page.locator('app-first-search')).toHaveCount(0);
 
   await panel.getByRole('link', { name: 'Voir mes offres' }).click();
   await expect(page).toHaveURL(/\/offres$/);
@@ -481,38 +505,44 @@ test('la déconnexion ferme la session', async () => {
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
   await expect(page).toHaveURL(/\/connexion$/);
 
+  // Les écrans restent ouverts, mais vides : les offres du compte ne sont plus là
   await page.goto('/offres');
-  await expect(page).toHaveURL(/\/connexion$/);
+  await expect(page).toHaveURL(/\/offres$/);
+  await expect(page.getByRole('heading', { name: "Pas encore d'offre" })).toBeVisible();
   expect((await page.request.get('/api/jobs')).status()).toBe(401);
 
-  // Sans session, une adresse inconnue rend l'accueil, et l'essai s'ouvre depuis l'écran de connexion
+  // Sans session, une adresse inconnue rend l'accueil, d'où l'on commence par le profil
   await page.goto('/adresse-inconnue');
   await expect(page).toHaveURL(/\/$/);
   await page.getByRole('main').getByRole('link', { name: 'Commencer gratuitement' }).first().click();
-  await expect(page).toHaveURL(/\/connexion$/);
+  await expect(page).toHaveURL(/\/profil$/);
 });
 
-test("un visiteur essaie sans compte : une seule recherche, puis l'essai est épuisé", async () => {
-  // Les deux textes qu'il accepte en essayant sont à portée de clic
-  await expect(
-    page.locator('.terms').getByRole('link', { name: "conditions d'utilisation" }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Essayer sans compte' }).click();
+test("un visiteur dépose son CV sans compte : une recherche, puis l'invitation à se connecter", async () => {
+  // Les deux textes qu'il accepte en déposant son CV sont à portée de clic
+  const card = page.locator('app-cv-card');
+  await expect(card.getByRole('link', { name: "conditions d'utilisation" })).toBeVisible();
+  await expect(page.locator('.quota')).toHaveCount(0);
 
-  // Un compte vide, pas celui du propriétaire : ni CV ni poste, donc rien à lancer
-  await expect(page.locator('.quota')).toContainText('Essai · 1 recherche');
-  await expect(page.getByRole('link', { name: 'Suivi', exact: true })).toHaveCount(0);
-  await page.getByRole('link', { name: 'Compléter mon profil' }).click();
   await page.locator('input[type=file]').setInputFiles(CV_PATH);
+  // Choisir un fichier n'ouvre rien : c'est l'enregistrement qui ouvre le compte d'essai
+  expect(await page.context().cookies()).toEqual([]);
   // Sans poste recherché, aucune question : ils sont tirés du CV, compétences et lieu compris
   await expect(page.getByText('Vos postes recherchés seront préparés à partir de ce CV')).toBeVisible();
   await page.getByRole('button', { name: 'Enregistrer ce CV' }).click();
   await expect(page.getByText('Vos postes recherchés ont été préparés à partir de lui')).toBeVisible();
+
+  // Un compte vide, pas celui du propriétaire, ouvert sans que la visite guidée s'en mêle
+  await expect(page.locator('.quota')).toContainText('Essai · 1 recherche');
+  await expect(page.locator('app-welcome-tour')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Suivi', exact: true })).toHaveCount(0);
   const drawn = page.getByRole('listitem').filter({ hasText: QUERY });
   await expect(drawn).toContainText('Rhône');
   await expect(drawn.locator('.tag')).toHaveText(['Comptabilité fournisseurs', 'Licornes']);
+  // Rien ne l'invite encore à se connecter : il n'a pas ses offres
+  await expect(page.locator('app-save-offers')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Lancer une recherche' }).click();
+  await page.locator('app-first-search').getByRole('button', { name: 'Lancer une recherche' }).click();
   await expect(page.locator('app-run-panel').getByRole('status')).toHaveText('Recherche terminée', {
     timeout: 30_000,
   });
@@ -520,11 +550,22 @@ test("un visiteur essaie sans compte : une seule recherche, puis l'essai est ép
   await expect(page.locator('.launch small')).toContainText("Nombre d'essais épuisé");
   await expect(page.getByRole('button', { name: 'Lancer une recherche' })).toBeDisabled();
 
-  // La page Compte dit ce qu'est cet essai, et le quitter ramène à la connexion
-  await page.getByRole('link', { name: 'Mon compte' }).click();
-  await expect(page.getByRole('heading', { name: "Compte d'essai" })).toBeVisible();
-  await page.getByRole('button', { name: "Quitter l'essai" }).last().click();
+  // Ses offres sont là : c'est le moment de lui proposer de les garder
+  await page.getByRole('link', { name: 'Offres', exact: true }).click();
+  await expect(page.locator('app-job-card')).toHaveCount(1);
+  const invitation = page.locator('app-save-offers');
+  await expect(invitation.getByRole('heading', { name: /Gardez vos offres/ })).toBeVisible();
+  // Cette instance se protège par un mot de passe : l'encart mène à l'écran de connexion, ouvert à un essai
+  await invitation.getByRole('link', { name: 'Se connecter' }).click();
   await expect(page).toHaveURL(/\/connexion$/);
+  await expect(page.getByLabel('Mot de passe')).toBeVisible();
+
+  // La page Compte dit ce qu'est cet essai, et le quitter ramène à la connexion
+  await page.goto('/compte');
+  await expect(page.getByRole('heading', { name: "Compte d'essai" })).toBeVisible();
+  await page.getByRole('button', { name: "Quitter l'essai" }).click();
+  await expect(page).toHaveURL(/\/connexion$/);
+  expect((await page.request.get('/api/jobs')).status()).toBe(401);
 });
 
 test("la politique de contenu n'a rien refusé pendant le parcours", () => {

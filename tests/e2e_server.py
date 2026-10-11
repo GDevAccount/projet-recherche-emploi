@@ -45,7 +45,7 @@ def main() -> None:
             app_password=PASSWORD,
             auth_cookie_secret="secret-des-tests-de-bout-en-bout",
             google_client_id="",
-            # Le parcours se termine par un essai sans compte
+            # Le parcours se termine par un visiteur qui dépose son CV sans compte, ce qui ouvre un essai
             max_trials_per_day=5,
         )
         container = build_container(

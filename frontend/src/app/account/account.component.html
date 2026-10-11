@@ -14,8 +14,9 @@
       } @else if (account.is_trial) {
         <h2>Compte d'essai</h2>
         <p class="origin">
-          Ouvert sans connexion : seul ce navigateur le reconnaît. Pour continuer à chercher, quittez l'essai et
-          connectez-vous. Ce que contient l'essai ne suit pas.
+          Ouvert sans connexion : seul ce navigateur le reconnaît. <a [routerLink]="loginPath">Connectez-vous</a>
+          pour garder votre CV et vos offres, et continuer à chercher. Si votre compte a déjà son CV, c'est lui
+          qui est gardé.
         </p>
       } @else {
         <h2>Propriétaire</h2>

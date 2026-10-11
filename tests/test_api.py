@@ -224,6 +224,7 @@ def test_account_tells_who_is_calling(client):
         "picture": "https://lh3.googleusercontent.com/proprietaire",
         # Le propriétaire a les recherches par défaut, mais pas encore de CV
         "can_search": False,
+        "has_searched": False,
         "search_running": False,
         "remaining_searches": None,
         "max_searches_per_day": MAX_SEARCHES_PER_DAY,
@@ -374,7 +375,8 @@ def test_search_is_streamed_then_counted(client, valid_pdf):
     client.put("/api/cv", headers=ALICE, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
     assert client.get("/api/me", headers=ALICE).json()["can_search"] is False
     client.post("/api/queries", headers=ALICE, json={"contract_type": "CDI", "query": "data engineer"})
-    assert client.get("/api/me", headers=ALICE).json()["can_search"] is True
+    ready = client.get("/api/me", headers=ALICE).json()
+    assert ready["can_search"] is True and ready["has_searched"] is False
     response = client.post("/api/searches", headers=ALICE)
 
     assert response.status_code == 200 and response.headers["content-type"].startswith("text/event-stream")
@@ -406,7 +408,8 @@ def test_search_is_streamed_then_counted(client, valid_pdf):
     assert client.delete(f"/api/jobs/{kept_id}?reason=not_my_job", headers=ALICE).status_code == 204
 
     # Le refus n'avait pas entamé le quota, la recherche si
-    assert client.get("/api/me", headers=ALICE).json()["remaining_searches"] == MAX_SEARCHES_PER_DAY - 1
+    after = client.get("/api/me", headers=ALICE).json()
+    assert after["remaining_searches"] == MAX_SEARCHES_PER_DAY - 1 and after["has_searched"] is True
     client.post("/api/searches", headers=ALICE)
     assert client.post("/api/searches", headers=ALICE).status_code == 429
 
@@ -1110,6 +1113,74 @@ def test_trial_account_gets_a_single_search_ever(tmp_path, valid_pdf):
     # Une seule recherche, en tout et pour tout
     refused = client.post("/api/searches")
     assert refused.status_code == 429 and "Nombre d'essais épuisé" in refused.json()["detail"]
+
+
+def test_signing_in_after_a_trial_keeps_what_the_trial_holds(tmp_path, valid_pdf):
+    client = make_client(tmp_path, **TRIAL_SETTINGS)
+    trial_id = client.post("/api/session/trial").json()["user_id"]
+    client.put("/api/cv", files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    client.post("/api/queries", json=QUERY)
+    client.post("/api/searches")
+    offers = client.get("/api/jobs").json()
+    assert len(offers) == 1
+
+    # Le navigateur envoie le cookie de l'essai avec la preuve Google : le compte, neuf, reprend l'essai
+    account = client.post("/api/session", headers=ALICE).json()
+
+    assert (account["user_id"], account["is_trial"], account["email"]) == (trial_id, False, "alice@exemple.fr")
+    assert (account["can_search"], account["has_searched"]) == (True, True)
+    # Le quota est désormais celui d'un compte : la recherche de l'essai compte pour aujourd'hui
+    assert account["remaining_searches"] == MAX_SEARCHES_PER_DAY - 1
+    # Avec le nouveau cookie seul, puis depuis un autre navigateur : ce sont bien les offres d'Alice
+    assert client.get("/api/jobs").json() == offers
+    elsewhere = TestClient(client.app)
+    assert elsewhere.get("/api/jobs", headers=ALICE).json() == offers
+    with client.app.state.container.database.session() as session:
+        assert UserRepository(session).is_trial(trial_id) is False
+        # Une seule ligne porte l'adresse : celle créée à la connexion a laissé la place
+        emails = [user.email for user in UserRepository(session).list_users()]
+        assert emails.count("alice@exemple.fr") == 1
+
+
+def test_signing_in_to_an_account_that_has_its_cv_drops_the_trial(tmp_path, valid_pdf):
+    client = make_client(tmp_path, **TRIAL_SETTINGS)
+    alice_id = client.get("/api/me", headers=ALICE).json()["user_id"]
+    client.put("/api/cv", headers=ALICE, files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    client.post("/api/queries", headers=ALICE, json=QUERY | {"query": "data engineer"})
+
+    # À la même adresse que le premier : le cookie de session ne circule en HTTP que sur la machine
+    visitor = TestClient(client.app, base_url="http://localhost")
+    trial_id = visitor.post("/api/session/trial").json()["user_id"]
+    visitor.put("/api/cv", files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+    visitor.post("/api/queries", json=QUERY)
+    account = visitor.post("/api/session", headers=ALICE).json()
+
+    # Le compte existant l'emporte, avec ses postes ; l'essai est effacé, plus personne n'y reviendrait
+    assert account["user_id"] == alice_id
+    assert [query["query"] for query in visitor.get("/api/queries").json()] == ["data engineer"]
+    assert client.app.state.container.cv.get_status(trial_id).updated_at is None
+    with client.app.state.container.database.session() as session:
+        assert UserRepository(session).is_trial(trial_id) is False
+
+
+def test_the_owner_keeps_their_account_whatever_the_trial_holds(tmp_path, valid_pdf):
+    client = make_client(tmp_path, **TRIAL_SETTINGS)
+    trial_id = client.post("/api/session/trial").json()["user_id"]
+    client.put("/api/cv", files={"file": ("cv.pdf", valid_pdf, "application/pdf")})
+
+    account = client.post("/api/session", headers=OWNER).json()
+
+    # Son identifiant est réservé : il ne peut pas prendre celui d'un essai
+    assert (account["user_id"], account["is_owner"]) == (DEFAULT_USER_ID, True)
+    assert client.app.state.container.cv.get_status(trial_id).updated_at is None
+
+
+def test_a_trial_without_cv_is_not_worth_keeping(tmp_path):
+    client = make_client(tmp_path, **TRIAL_SETTINGS)
+    alice_id = client.get("/api/me", headers=ALICE).json()["user_id"]
+    client.post("/api/session/trial")
+
+    assert client.post("/api/session", headers=ALICE).json()["user_id"] == alice_id
 
 
 def test_trial_visitor_keeps_the_same_account_without_renewing_the_cookie(tmp_path):

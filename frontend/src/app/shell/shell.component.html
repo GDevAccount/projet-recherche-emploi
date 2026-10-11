@@ -19,7 +19,7 @@
     <div class="tools">
       @if (account(); as account) {
         @if (account.is_trial) {
-          <span class="quota" title="Recherches restantes de votre essai">
+          <span class="quota trial" title="Recherches restantes de votre essai">
             Essai · <strong>{{ account.remaining_searches }}</strong>
             {{ (account.remaining_searches ?? 0) > 1 ? 'recherches' : 'recherche' }}
           </span>
@@ -46,11 +46,16 @@
           </svg>
         }
       </button>
-      <button type="button" class="icon logout" [attr.aria-label]="account()?.is_trial ? 'Quitter l\'essai' : 'Se déconnecter'" [disabled]="closing()" (click)="logout()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10" />
-        </svg>
-      </button>
+      @if (!account() || account()?.is_trial) {
+        <!-- Sans compte : l'entrée vers la connexion. Quitter un essai se fait depuis la page Compte -->
+        <a class="signin" [routerLink]="loginPath">Se connecter</a>
+      } @else {
+        <button type="button" class="icon logout" aria-label="Se déconnecter" [disabled]="closing()" (click)="logout()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10" />
+          </svg>
+        </button>
+      }
       @if (account(); as account) {
         <a
           class="account"
@@ -67,22 +72,26 @@
 </header>
 
 <main>
-  @if (account(); as account) {
-    <section class="hero">
-      <div>
-        <h1>Vos offres, <em>triées pour vous.</em></h1>
-        @if (account.can_search) {
-          <p>Votre profil est prêt : chaque recherche ne garde que les annonces qui lui correspondent.</p>
-        } @else if (onProfile()) {
-          <p>
-            Déposez votre CV ci-dessous : vos postes recherchés en seront tirés, et vous pourrez lancer votre
-            première recherche.
-          </p>
-        } @else {
-          <p>Deux choses avant la première recherche : votre CV, et au moins un poste recherché.</p>
-        }
-      </div>
-      @if (account.can_search) {
+  <!-- Sans session aussi : les écrans sont ouverts à tous, et le bandeau dit par où commencer -->
+  @let current = account();
+  <section class="hero">
+    <div>
+      <h1>Vos offres, <em>triées pour vous.</em></h1>
+      @if (current?.can_search) {
+        <p>Votre profil est prêt : chaque recherche ne garde que les annonces qui lui correspondent.</p>
+      } @else if (onProfile() || !current) {
+        <p>
+          Déposez votre CV{{ onProfile() ? ' ci-dessous' : '' }} : vos postes recherchés en seront tirés, et vous
+          pourrez lancer votre première recherche.
+        </p>
+      } @else {
+        <p>Deux choses avant la première recherche : votre CV, et au moins un poste recherché.</p>
+      }
+    </div>
+    @if (current; as account) {
+      @if (firstSearch()) {
+        <!-- L'encart sous le bandeau porte le bouton : un seul lancement à l'écran -->
+      } @else if (account.can_search) {
         <div class="launch">
           <button
             type="button"
@@ -98,7 +107,7 @@
           @if (account.remaining_searches === 0) {
             @if (account.is_trial) {
               <small>
-                Nombre d'essais épuisé. <a [routerLink]="accountPath">Connectez-vous</a> pour continuer à chercher.
+                Nombre d'essais épuisé. <a [routerLink]="loginPath">Connectez-vous</a> pour continuer à chercher.
               </small>
             } @else {
               <small>Quota atteint pour aujourd'hui.</small>
@@ -113,7 +122,18 @@
           </svg>
         </a>
       }
-    </section>
+    } @else if (!onProfile()) {
+      <a class="cta" [routerLink]="profilePath">
+        Déposer mon CV
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </a>
+    }
+  </section>
+
+  @if (firstSearch()) {
+    <app-first-search [reveal]="completedHere()" />
   }
 
   @if (run.state() !== 'idle') {
@@ -125,11 +145,15 @@
     </p>
   }
 
+  @if (saveOffers()) {
+    <app-save-offers />
+  }
+
   <router-outlet />
 </main>
 
-@if (touring() && account(); as account) {
-  <app-welcome-tour [account]="account" (closed)="closeTour($event)" />
+@if (touring()) {
+  <app-welcome-tour [account]="account()" (closed)="closeTour($event)" />
 } @else if (account()) {
   <app-assistant />
 }

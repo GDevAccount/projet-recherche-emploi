@@ -711,6 +711,8 @@ class Account(BaseModel):
     picture: str | None
     # Un CV et au moins un poste recherché sont enregistrés
     can_search: bool
+    # Au moins une recherche a déjà été lancée : tant que non, le front met en avant le premier lancement
+    has_searched: bool
     # Une recherche de cet utilisateur tourne sur le serveur : il ne peut pas en lancer une autre
     search_running: bool
     # None pour le propriétaire, qui n'a pas de quota. Pour un compte d'essai, ce qu'il lui reste en tout,

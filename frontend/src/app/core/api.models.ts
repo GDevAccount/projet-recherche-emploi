@@ -34,6 +34,8 @@ export interface Account {
   name: string | null;
   picture: string | null;
   can_search: boolean;
+  /** Au moins une recherche a déjà été lancée : tant que non, le premier lancement est mis en avant */
+  has_searched: boolean;
   /** Une recherche de cet utilisateur tourne sur le serveur, lancée d'ici ou d'ailleurs */
   search_running: boolean;
   /** null pour le propriétaire, qui n'a pas de quota ; pour un compte d'essai, ce qu'il lui reste en tout */

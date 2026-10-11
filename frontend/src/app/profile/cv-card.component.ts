@@ -1,11 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Signal, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 import { Button } from 'primeng/button';
 import { Message } from 'primeng/message';
+import { catchError, firstValueFrom, map, of } from 'rxjs';
 
-import { CvDeposit, CvStatus, CvStep } from '../core/api.models';
+import { CvDeposit, CvStatus, CvStep, TrialStatus } from '../core/api.models';
 import { apiErrorMessage } from '../core/api-error';
+import { ConfigService } from '../core/config.service';
 import { CvService } from '../core/cv.service';
 import { ParisDatePipe } from '../core/paris-date.pipe';
+import { LOGIN_PATH } from '../core/paths';
 import { QueryService } from '../core/query.service';
 import { SessionService } from '../core/session.service';
 
@@ -21,10 +26,11 @@ const STEP_LABELS: Record<CvStep, string> = {
 /**
  * CV en place et dépôt d'un nouveau. Le fichier choisi n'est envoyé qu'à la confirmation : il remplace l'ancien,
  * et le serveur en tire les postes recherchés, à la place de ceux en place si l'utilisateur le demande.
+ * Pour un visiteur sans session, c'est ce dépôt qui ouvre son compte d'essai, quand l'instance en propose.
  */
 @Component({
   selector: 'app-cv-card',
-  imports: [Button, Message, ParisDatePipe],
+  imports: [RouterLink, Button, Message, ParisDatePipe],
   templateUrl: './cv-card.component.html',
   styleUrl: './cv-card.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -51,7 +57,38 @@ export class CvCardComponent {
   protected readonly replaceQueries = signal<boolean | null>(null);
   protected readonly undecided = computed(() => this.queryCount() > 0 && this.replaceQueries() === null);
 
+  protected readonly loginPath = `/${LOGIN_PATH}`;
+  protected readonly signedIn = computed(() => this.session.userId() !== null);
+  // undefined : en cours de lecture ; null : l'instance ne propose pas d'essai sans compte. Seul un visiteur
+  // sans session a besoin de le savoir
+  private readonly trial: Signal<TrialStatus | null | undefined> = this.signedIn()
+    ? signal(undefined)
+    : toSignal(
+        inject(ConfigService)
+          .getConfig()
+          .pipe(
+            map((config) => config.trial),
+            catchError(() => of(null)),
+          ),
+      );
+  /**
+   * Pourquoi un visiteur sans session ne peut pas déposer de CV : plus d'essai aujourd'hui (« exhausted »), ou
+   * aucun sur cette instance (« closed »). null quand il le peut, ou tant que le serveur ne l'a pas dit.
+   */
+  protected readonly refusal = computed(() => {
+    const trial = this.trial();
+    if (this.signedIn() || trial === undefined || trial === 'available') {
+      return null;
+    }
+    return trial === 'exhausted' ? 'exhausted' : 'closed';
+  });
+
   constructor() {
+    if (!this.signedIn()) {
+      // Sans session, il n'y a pas de CV à lire, et l'API refuserait
+      this.status.set({ updated_at: null });
+      return;
+    }
     this.cvService.getStatus().subscribe({
       next: (status) => this.status.set(status),
       error: (error: unknown) => this.error.set(apiErrorMessage(error)),
@@ -90,6 +127,8 @@ export class CvCardComponent {
     this.steps.set([]);
     this.error.set('');
     try {
+      // Le premier dépôt d'un visiteur ouvre son compte d'essai : l'API le refuse s'il n'en reste plus
+      await firstValueFrom(this.session.ensure());
       const deposit = await this.cvService.deposit(file, this.replaceQueries() === true, (progress) =>
         this.steps.update((steps) => [...steps, progress.step]),
       );

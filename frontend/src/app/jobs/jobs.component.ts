@@ -7,6 +7,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -47,7 +48,7 @@ export class JobsComponent {
   private readonly session = inject(SessionService);
   protected readonly run = inject(SearchRunService);
   /** Faux tant qu'il manque le CV ou un poste recherché : inviter à lancer une recherche serait trompeur. */
-  protected readonly canSearch = computed(() => this.session.account()?.can_search ?? true);
+  protected readonly canSearch = computed(() => this.session.account()?.can_search ?? false);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
   // undefined : en cours de lecture
@@ -104,10 +105,12 @@ export class JobsComponent {
   protected readonly filtered = computed(() => this.visible().length !== this.total());
 
   constructor() {
-    // À l'ouverture, puis après chaque recherche : elle a pu ajouter des offres
+    // À l'ouverture, après chaque recherche, qui a pu ajouter des offres, et quand le compte change : un essai
+    // repris ou non par le compte qui se connecte. Sans session, il n'y a rien à lire, et l'API refuserait
     effect(() => {
       this.run.completed();
-      this.load();
+      const signedIn = this.session.userId() !== null;
+      untracked(() => (signedIn ? this.load() : this.jobs.set([])));
     });
   }
 

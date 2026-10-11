@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 
 import { Account } from '../core/api.models';
+import { GoogleIdentityService } from '../core/google-identity.service';
 import { FETCH } from '../core/search-run.service';
 import { SessionService } from '../core/session.service';
 import { DARK_CLASS, LIGHT_CLASS } from '../core/theme';
@@ -16,12 +17,24 @@ const GUEST: Account = {
   name: null,
   picture: null,
   can_search: false,
+  has_searched: true,
   search_running: false,
   remaining_searches: 1,
   max_searches_per_day: 2,
 };
 
+/** Le bouton de Google, sans son script : le test joue le clic en appelant onCredential. */
+class FakeGoogleIdentity {
+  onCredential: (idToken: string) => void = () => undefined;
+
+  renderButton(_parent: HTMLElement, _clientId: string, onCredential: (idToken: string) => void): Promise<void> {
+    this.onCredential = onCredential;
+    return Promise.resolve();
+  }
+}
+
 describe('ShellComponent', () => {
+  let google: FakeGoogleIdentity;
   let fixture: ComponentFixture<ShellComponent>;
   let http: HttpTestingController;
   // Un flux qui ne se termine pas : la recherche reste « en cours »
@@ -37,6 +50,7 @@ describe('ShellComponent', () => {
         provideHttpClientTesting(),
         provideRouter([]),
         { provide: FETCH, useValue: fetchMock },
+        { provide: GoogleIdentityService, useValue: (google = new FakeGoogleIdentity()) },
       ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
@@ -190,6 +204,158 @@ describe('ShellComponent', () => {
     expect(launchButton().disabled).toBe(false);
     expect(element().querySelector('a.cta')).toBeNull();
     expect(element().querySelector('app-run-panel')).toBeNull();
+  });
+
+  describe('without a session', () => {
+    beforeEach(async () => {
+      fixture = TestBed.createComponent(ShellComponent);
+      await fixture.whenStable();
+    });
+
+    it('should open the screens to a visitor, and lead to the profile where the CV is dropped', () => {
+      expect(text(element().querySelector('.hero')!)).toContain('Déposez votre CV : vos postes recherchés en seront tirés');
+      expect(element().querySelector('a.cta')?.getAttribute('href')).toBe('/profil');
+      expect(text(element().querySelector('a.cta')!)).toBe('Déposer mon CV');
+      expect(element().querySelector('header a.signin')?.getAttribute('href')).toBe('/connexion');
+      // Rien de ce qui demande un compte : ni quota, ni déconnexion, ni assistant, ni visite imposée
+      expect(element().querySelector('.quota, .logout, a.account, app-assistant, app-welcome-tour')).toBeNull();
+    });
+
+    it('should not impose the tour when the trial account is born from the first CV', async () => {
+      TestBed.inject(SessionService).openTrial().subscribe();
+      http.expectOne('/api/session/trial').flush({ ...GUEST, is_trial: true, has_searched: false });
+      await fixture.whenStable();
+
+      expect(element().querySelector('app-welcome-tour')).toBeNull();
+      expect(element().querySelector('header a.signin')).toBeTruthy();
+    });
+
+    it('should still explain how it works from the footer', async () => {
+      [...element().querySelectorAll<HTMLButtonElement>('footer button')]
+        .find((button) => text(button) === 'Comment ça marche')!
+        .click();
+      await fixture.whenStable();
+
+      expect(element().querySelector('app-welcome-tour')).toBeTruthy();
+    });
+  });
+
+  describe('offers found without an account', () => {
+    const TRIAL: Account = { ...GUEST, is_trial: true, can_search: true, remaining_searches: 0 };
+    const panel = () => element().querySelector<HTMLElement>('app-save-offers');
+
+    async function serveConfig(loginMode: 'google' | 'password'): Promise<void> {
+      http.expectOne('/api/config').flush({
+        login_mode: loginMode,
+        google_client_id: loginMode === 'google' ? 'id' : null,
+        trial: 'available',
+        contract_types: [],
+        max_skills_per_query: 5,
+        delete_reasons: [],
+      });
+      await fixture.whenStable();
+    }
+
+    it('should wait for the first search before asking a trial account to log in', async () => {
+      await openSession({ ...TRIAL, has_searched: false, remaining_searches: 1 });
+
+      expect(panel()).toBeNull();
+    });
+
+    it('should offer to keep the offers by logging in with Google, on the spot', async () => {
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      await openSession(TRIAL);
+      await serveConfig('google');
+      expect(text(panel()!)).toContain('Gardez vos offres');
+      expect(text(panel()!)).toContain("2 recherches par jour, au lieu d'une seule");
+
+      google.onCredential('jeton-google');
+      const request = http.expectOne('/api/session');
+      expect(request.request.headers.get('Authorization')).toBe('Bearer jeton-google');
+      // L'API a fait passer le contenu de l'essai au compte : même identifiant, plus d'essai
+      request.flush({ ...TRIAL, is_trial: false, email: 'alice@exemple.fr', remaining_searches: 1 });
+      await fixture.whenStable();
+
+      expect(navigate).toHaveBeenCalledWith(['offres']);
+      expect(panel()).toBeNull();
+    });
+
+    it('should say why Google or the instance refused, and keep the trial', async () => {
+      await openSession(TRIAL);
+      await serveConfig('google');
+
+      google.onCredential('jeton-google');
+      http
+        .expectOne('/api/session')
+        .flush({ detail: "Cette adresse n'est pas autorisée à utiliser l'application." }, { status: 403, statusText: 'Forbidden' });
+      await fixture.whenStable();
+
+      expect(text(panel()!)).toContain("Cette adresse n'est pas autorisée à utiliser l'application.");
+      expect(TestBed.inject(SessionService).account()?.is_trial).toBe(true);
+    });
+
+    it('should send to the login screen on an instance without Google', async () => {
+      await openSession(TRIAL);
+      await serveConfig('password');
+
+      expect(panel()!.querySelector('a.cta')?.getAttribute('href')).toBe('/connexion');
+    });
+  });
+
+  describe('first search', () => {
+    const READY: Account = { ...GUEST, can_search: true, has_searched: false };
+    const panel = () => element().querySelector<HTMLElement>('app-first-search');
+
+    it('should put the first launch forward, as the only launch button of the page', async () => {
+      await openSession(READY);
+
+      expect(text(panel()!)).toContain('Dernière étape');
+      expect(element().querySelectorAll('button.cta').length).toBe(1);
+      expect(panel()!.querySelector('[aria-current="step"]')!.textContent).toContain('Première recherche');
+    });
+
+    it('should leave the usual button to a user who has already searched', async () => {
+      await openSession({ ...READY, has_searched: true });
+
+      expect(panel()).toBeNull();
+      expect(launchButton().disabled).toBe(false);
+    });
+
+    it('should launch the search from the panel, then give way to its progress', async () => {
+      await openSession(READY);
+
+      panel()!.querySelector<HTMLButtonElement>('button.cta')!.click();
+      await fixture.whenStable();
+
+      expect(fetchMock).toHaveBeenCalledWith('/api/searches', expect.objectContaining({ method: 'POST' }));
+      expect(panel()).toBeNull();
+      expect(element().querySelector('app-run-panel')).toBeTruthy();
+    });
+
+    it('should scroll to the panel when the profile is completed during the visit', async () => {
+      const scroll = vi.fn();
+      Element.prototype.scrollIntoView = scroll;
+      await openSession(GUEST);
+      expect(panel()).toBeNull();
+
+      // Le CV vient d'être déposé : le compte est relu
+      TestBed.inject(SessionService).refresh().subscribe();
+      http.expectOne('/api/me').flush(READY);
+      await fixture.whenStable();
+
+      expect(panel()).toBeTruthy();
+      expect(scroll).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not scroll for a profile that was ready when the page opened', async () => {
+      const scroll = vi.fn();
+      Element.prototype.scrollIntoView = scroll;
+
+      await openSession(READY);
+
+      expect(panel()).toBeTruthy();
+      expect(scroll).not.toHaveBeenCalled();
+    });
   });
 
   it('should not offer a search once the daily quota is used up', async () => {

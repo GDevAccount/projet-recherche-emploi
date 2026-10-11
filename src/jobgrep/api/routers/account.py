@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from fastapi import APIRouter, Request, Response, status
 
 from jobgrep.api.security import (
@@ -5,6 +7,7 @@ from jobgrep.api.security import (
     CredentialsCaller,
     CurrentCaller,
     Services,
+    SessionToken,
     TrialOpening,
     UserId,
     clear_session_cookie,
@@ -49,8 +52,18 @@ def delete_account(caller: CurrentCaller, services: Services, request: Request, 
 
 
 @router.post("/session")
-def open_session(caller: CredentialsCaller, services: Services, request: Request, response: Response) -> Account:
-    """Échange un jeton d'identité Google (ou le mot de passe de l'instance) contre un cookie de session."""
+def open_session(
+    caller: CredentialsCaller,
+    services: Services,
+    request: Request,
+    response: Response,
+    session_token: SessionToken,
+) -> Account:
+    """Échange un jeton d'identité Google (ou le mot de passe de l'instance) contre un cookie de session.
+
+    Qui se connecte avec Google après avoir essayé sans compte garde ce qu'il y a fait, si son compte est neuf.
+    """
+    caller = _adopt_trial(caller, session_token, services)
     token = services.auth.create_session_token(caller.email, caller.name, caller.picture)
     set_session_cookie(request, response, token)
     return _account(caller, services)
@@ -75,6 +88,18 @@ def close_session(request: Request, response: Response) -> None:
     clear_session_cookie(request, response)
 
 
+def _adopt_trial(caller: Caller, session_token: str | None, services: Container) -> Caller:
+    """Renvoie l'appelant sous le compte qui est désormais le sien : son essai, s'il en avait un à reprendre."""
+    session = services.auth.read_session_token(session_token) if session_token else None
+    # Sans adresse, c'est le mot de passe de l'instance, donc le propriétaire : il n'a rien à reprendre
+    if session is None or session.trial_key is None or caller.email is None:
+        return caller
+    trial_user_id = services.auth.resolve_trial_user_id(session.trial_key)
+    if trial_user_id is None:
+        return caller
+    return replace(caller, user_id=services.account.adopt_trial(trial_user_id, caller.user_id, caller.email))
+
+
 def _account(caller: Caller, services: Container) -> Account:
     user_id = caller.user_id
     return Account(
@@ -86,6 +111,7 @@ def _account(caller: Caller, services: Container) -> Account:
         name=caller.name,
         picture=caller.picture,
         can_search=services.search.can_search(user_id),
+        has_searched=services.search.has_searched(user_id),
         search_running=services.search.is_running(user_id),
         remaining_searches=services.search.remaining_searches(user_id),
         max_searches_per_day=MAX_SEARCHES_PER_DAY,

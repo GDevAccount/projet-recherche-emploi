@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { Account, SearchQuery } from '../core/api.models';
+import { SessionService } from '../core/session.service';
 import { QueriesCardComponent } from './queries-card.component';
 
 const ACCOUNT: Account = {
@@ -12,6 +13,7 @@ const ACCOUNT: Account = {
   name: null,
   picture: null,
   can_search: true,
+  has_searched: true,
   search_running: false,
   remaining_searches: 2,
   max_searches_per_day: 2,
@@ -40,6 +42,9 @@ describe('QueriesCardComponent', () => {
       providers: [provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
+    // Une session ouverte : sans elle, l'écran ne lit rien
+    TestBed.inject(SessionService).open('preuve').subscribe();
+    http.expectOne('/api/session').flush(ACCOUNT);
     fixture = TestBed.createComponent(QueriesCardComponent);
     fixture.detectChanges();
   });

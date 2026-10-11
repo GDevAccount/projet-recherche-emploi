@@ -55,6 +55,7 @@ const SEARCHING: Account = {
   name: null,
   picture: null,
   can_search: true,
+  has_searched: true,
   search_running: true,
   remaining_searches: 1,
   max_searches_per_day: 2,
@@ -70,6 +71,9 @@ describe('JobsComponent', () => {
       providers: [provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
+    // Une session ouverte : sans elle, l'écran ne lit rien
+    TestBed.inject(SessionService).open('preuve').subscribe();
+    http.expectOne('/api/session').flush({ ...SEARCHING, search_running: false });
     fixture = TestBed.createComponent(JobsComponent);
     fixture.detectChanges();
     http.expectOne('/api/config').flush({

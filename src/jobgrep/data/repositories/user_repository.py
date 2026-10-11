@@ -32,6 +32,18 @@ class UserRepository:
         """Renvoie le compte d'essai de cette clé, ou None s'il n'existe pas ou a été supprimé."""
         return self.session.scalar(select(User.id).where(User.trial_key == trial_key))
 
+    def give_email(self, trial_user_id: int, email: str) -> bool:
+        """Fait de ce compte d'essai le compte de cette adresse, et renvoie faux s'il n'est pas un essai.
+
+        L'adresse ne doit plus être celle d'un autre compte : elle est unique.
+        """
+        statement = (
+            update(User)
+            .where(User.id == trial_user_id, User.trial_key.is_not(None))
+            .values(email=email, trial_key=None)
+        )
+        return self.session.execute(statement).rowcount == 1
+
     def is_trial(self, user_id: int) -> bool:
         """Dit si ce compte est un compte d'essai, ouvert sans connexion."""
         statement = select(User.id).where(User.id == user_id, User.trial_key.is_not(None))

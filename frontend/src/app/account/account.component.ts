@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Button } from 'primeng/button';
 import { Message } from 'primeng/message';
 
@@ -12,7 +12,7 @@ import { AvatarComponent } from './avatar.component';
 /** Rubrique Compte : qui est connecté, ce que l'application garde de lui, et la suppression du compte. */
 @Component({
   selector: 'app-account',
-  imports: [Button, Message, AvatarComponent],
+  imports: [RouterLink, Button, Message, AvatarComponent],
   templateUrl: './account.component.html',
   styleUrl: './account.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,6 +23,7 @@ export class AccountComponent {
   protected readonly run = inject(SearchRunService);
 
   protected readonly account = this.session.account;
+  protected readonly loginPath = `/${LOGIN_PATH}`;
   protected readonly closing = signal(false);
   // Rien n'est récupérable après : la suppression demande une confirmation
   protected readonly confirming = signal(false);

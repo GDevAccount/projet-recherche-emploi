@@ -8,7 +8,7 @@ JobGrep est une application qui cherche des offres d'emploi sur le web, les comp
 
 L'accès se fait avec un compte Google. Votre compte est personnel : ne partagez pas votre accès. L'exploitant peut limiter l'accès à certaines personnes, et retirer le vôtre à tout moment, sans préavis.
 
-Quand l'exploitant le propose, l'application peut aussi être essayée sans compte. Cet essai n'est reconnu que par le navigateur qui l'a ouvert, et il est supprimé au bout de {trial_days} jours. Ce qu'il contient n'est pas repris par le compte Google avec lequel vous vous connecteriez ensuite. En ouvrant un essai, vous acceptez ces conditions et les règles de confidentialité.
+Les écrans de l'application se consultent sans compte. Quand l'exploitant le propose, elle peut aussi être essayée sans compte : déposer votre CV ouvre un essai, reconnu par le seul navigateur qui l'a ouvert, et supprimé au bout de {trial_days} jours. Si vous vous connectez ensuite avec un compte Google qui n'a pas encore de CV dans l'application, ce compte reprend ce que contient l'essai : CV, postes recherchés, offres et suivi des candidatures. Si ce compte a déjà son CV, il reste tel quel et l'essai est effacé. En déposant votre CV sans compte, vous acceptez ces conditions et les règles de confidentialité.
 
 ## Limites d'utilisation
 

@@ -32,9 +32,9 @@ Les annonces écartées restent consultables, avec leur motif. Si une bonne offr
 
 ## Ce qu'il faut pour commencer
 
-La connexion se fait avec un compte Google, qui ne transmet que votre adresse e-mail et votre profil de base. Chaque compte dispose de {max_searches} recherches par jour.
+Les écrans de JobGrep se consultent sans compte. Quand il est proposé, un essai sans compte donne droit à {trial_searches} recherche, avec votre CV : il s'ouvre au dépôt du CV, sans rien demander d'autre, et il est supprimé au bout de {trial_days} jours.
 
-Quand il est proposé, un essai sans compte donne droit à {trial_searches} recherche, avec votre CV. Il est supprimé au bout de {trial_days} jours.
+La connexion se fait avec un compte Google, qui ne transmet que votre adresse e-mail et votre profil de base. Elle garde votre CV et vos offres, y compris ceux d'un essai si votre compte n'a pas encore de CV. Chaque compte dispose de {max_searches} recherches par jour.
 
 ## Vos données
 

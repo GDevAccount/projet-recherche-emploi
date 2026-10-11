@@ -5,6 +5,7 @@ import {
   ElementRef,
   Injector,
   afterNextRender,
+  computed,
   inject,
   signal,
   viewChild,
@@ -40,10 +41,17 @@ export class QueriesCardComponent {
   protected readonly deleting = signal<number | null>(null);
   protected readonly error = signal('');
   protected readonly placeOf = placeOf;
+  /** Faux pour un visiteur sans session : ses postes naîtront du dépôt de son CV, qui ouvre son compte. */
+  protected readonly signedIn = computed(() => this.session.userId() !== null);
 
   constructor() {
     // Ceux d'une visite précédente de l'écran ont pu changer depuis
     this.queries.set(undefined);
+    if (!this.signedIn()) {
+      // Sans session, il n'y a pas de poste à lire, et l'API refuserait : ils viendront du CV déposé
+      this.queries.set([]);
+      return;
+    }
     this.queryService.list().subscribe({
       next: (queries) => this.queries.set(queries),
       error: (error: unknown) => this.error.set(apiErrorMessage(error)),

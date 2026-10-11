@@ -11,7 +11,7 @@
       ne garde que celles qui vous correspondent, avec la raison de son verdict.
     </p>
     <div class="calls">
-      <a class="cta" [routerLink]="loginPath">
+      <a class="cta" [routerLink]="startPath">
         Commencer gratuitement
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M5 12h14M13 6l6 6-6 6" />
@@ -19,7 +19,9 @@
       </a>
       <a class="ghost" href="/#apercu" (click)="goTo($event, 'apercu')">Découvrir la plateforme</a>
     </div>
-    <p class="fine">Connexion avec votre compte Google. Aucun formulaire d'inscription.</p>
+    <p class="fine">
+      Aucun formulaire d'inscription : déposez votre CV, puis gardez vos offres avec votre compte Google.
+    </p>
 
     <app-offers-preview class="preview" />
   </section>
@@ -139,7 +141,7 @@
   <section class="closing" aria-labelledby="closing-title">
     <h2 id="closing-title">Votre prochaine recherche prend une minute.</h2>
     <p>Déposez votre CV, lancez la recherche, et ne lisez que les annonces qui vous correspondent.</p>
-    <a class="cta" [routerLink]="loginPath">
+    <a class="cta" [routerLink]="startPath">
       Commencer gratuitement
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M5 12h14M13 6l6 6-6 6" />
@@ -174,7 +176,7 @@
     <nav aria-label="Accès">
       <h2>Accès</h2>
       <a [routerLink]="loginPath">Se connecter</a>
-      <a [routerLink]="loginPath">Commencer gratuitement</a>
+      <a [routerLink]="startPath">Commencer gratuitement</a>
     </nav>
     <nav aria-label="Informations">
       <h2>Informations</h2>

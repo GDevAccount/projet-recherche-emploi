@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
 import { RejectedJob } from '../core/api.models';
+import { SessionService } from '../core/session.service';
 import { RejectedComponent } from './rejected.component';
 
 const NOT_AN_OFFER = 'Pas une offre valable';
@@ -35,6 +36,9 @@ describe('RejectedComponent', () => {
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
+    // Une session ouverte : sans elle, l'écran ne lit rien
+    TestBed.inject(SessionService).open('preuve').subscribe();
+    http.expectOne('/api/session').flush({ user_id: 2 });
     fixture = TestBed.createComponent(RejectedComponent);
     fixture.detectChanges();
   });

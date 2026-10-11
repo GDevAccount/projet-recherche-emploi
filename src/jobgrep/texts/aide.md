@@ -30,7 +30,7 @@ Pour retirer un poste, cliquez sur la croix au bout de sa ligne.
 
 ## Lancer une recherche
 
-Le bouton « Lancer une recherche » est en haut de chaque écran. Il n'apparaît qu'une fois votre CV déposé et au moins un poste recherché enregistré : avant cela, le bouton « Compléter mon profil » le remplace.
+Le bouton « Lancer une recherche » est en haut de chaque écran. Il n'apparaît qu'une fois votre CV déposé et au moins un poste recherché enregistré : avant cela, le bouton « Compléter mon profil » le remplace, ou « Déposer mon CV » tant que vous n'êtes pas connecté.
 
 Une recherche prend environ une minute, et vous voyez chaque annonce passer, retenue ou écartée. Vous pouvez fermer la page : la recherche continue et ses résultats vous attendront. Une seule recherche peut tourner à la fois.
 
@@ -80,7 +80,7 @@ Cliquez sur votre vignette, en haut à droite, pour ouvrir la page Compte. Elle 
 
 ## Se déconnecter
 
-Le bouton en forme de porte, en haut à droite, ferme votre session. Pour un essai sans compte, il s'appelle « Quitter l'essai ».
+Le bouton en forme de porte, en haut à droite, ferme votre session. Pour un essai sans compte, le bouton « Quitter l'essai » est sur la page Compte.
 
 ## Combien de temps le CV est conservé
 
@@ -90,7 +90,11 @@ Déposer un nouveau CV remplace l'ancien, qui n'est pas gardé. Le fichier PDF l
 
 ## L'essai sans compte
 
-Quand il est proposé sur l'écran de connexion, l'essai permet de déposer un CV et de lancer {trial_searches} recherche sans se connecter. Il n'est reconnu que par le navigateur qui l'a ouvert, et il est supprimé au bout de {trial_days} jours. Ce qu'il contient n'est pas repris si vous vous connectez ensuite avec un compte Google.
+Les écrans de JobGrep s'ouvrent sans compte. Quand l'essai est proposé, déposer votre CV dans la rubrique Profil suffit à l'ouvrir : il permet de lancer {trial_searches} recherche sans se connecter. Il n'est reconnu que par le navigateur qui l'a ouvert, et il est supprimé au bout de {trial_days} jours.
+
+Pour garder votre CV et vos offres, et continuer à chercher, connectez-vous avec votre compte Google : le lien « Se connecter » est en haut à droite, et un encart vous le propose une fois votre recherche faite. Un compte qui n'a pas encore de CV reprend tout ce que contient l'essai : CV, postes recherchés, offres et suivi. Un compte qui a déjà son CV reste tel quel, et l'essai est effacé.
+
+S'il ne reste plus d'essai aujourd'hui, ou si l'application n'en propose pas, la carte « CV » vous invite à vous connecter avant de déposer votre CV.
 
 ## L'assistant
 

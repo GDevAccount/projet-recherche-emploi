@@ -2,7 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { LOGIN_PATH } from '../core/paths';
+import { LOGIN_PATH, PROFILE_PATH } from '../core/paths';
 import { HomeNavComponent } from './home-nav.component';
 import { OffersPreviewComponent } from './offers-preview.component';
 import { ProductDemoComponent } from './product-demo.component';
@@ -116,14 +116,15 @@ const QUESTIONS = [
   {
     question: 'Comment commencer ?',
     answer: [
-      'Connectez-vous, déposez votre CV en PDF, relisez les postes recherchés qui en sont tirés, puis lancez votre première recherche. Une visite guidée vous accompagne à la première connexion.',
+      'Déposez votre CV en PDF, relisez les postes recherchés qui en sont tirés, puis lancez votre première recherche. Quand l’essai sans compte est proposé, rien d’autre n’est demandé ; sinon, vous vous connectez d’abord avec votre compte Google.',
     ],
   },
   {
     question: 'Faut-il créer un compte ?',
     answer: [
-      'Il n’y a pas de formulaire d’inscription : la connexion se fait avec votre compte Google, qui ne transmet que votre adresse e-mail et votre profil de base. Votre compte JobGrep est créé à la première connexion.',
-      'L’exploitant peut réserver l’accès à certaines personnes. Quand il est proposé, un essai sans compte permet de lancer une recherche avec votre CV.',
+      'Pas pour essayer, quand l’exploitant le propose : déposer votre CV ouvre un essai, reconnu par votre seul navigateur, avec une recherche offerte.',
+      'Pour garder vos offres et continuer à chercher, vous vous connectez avec votre compte Google, qui ne transmet que votre adresse e-mail et votre profil de base. Il n’y a pas de formulaire d’inscription : votre compte est créé à la première connexion, et il reprend ce que vous avez fait pendant l’essai.',
+      'L’exploitant peut réserver l’accès à certaines personnes.',
     ],
   },
   {
@@ -166,6 +167,8 @@ export class HomeComponent {
   private readonly document = inject(DOCUMENT);
 
   protected readonly loginPath = `/${LOGIN_PATH}`;
+  /** Les écrans sont ouverts sans session : on commence par le profil, où se dépose le CV. */
+  protected readonly startPath = `/${PROFILE_PATH}`;
   protected readonly sections = SECTIONS;
   protected readonly sites = SITES;
   protected readonly features = FEATURES;

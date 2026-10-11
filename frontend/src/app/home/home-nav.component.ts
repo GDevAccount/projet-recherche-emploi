@@ -2,7 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { LOGIN_PATH } from '../core/paths';
+import { LOGIN_PATH, PROFILE_PATH } from '../core/paths';
 import { ThemeService } from '../core/theme.service';
 import { SECTIONS, scrollToSection } from './sections';
 
@@ -19,6 +19,7 @@ export class HomeNavComponent {
   protected readonly theme = inject(ThemeService);
 
   protected readonly loginPath = `/${LOGIN_PATH}`;
+  protected readonly startPath = `/${PROFILE_PATH}`;
   protected readonly sections = SECTIONS;
 
   /** Menu des sections, replié sur un petit écran. */

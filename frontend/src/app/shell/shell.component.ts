@@ -11,9 +11,14 @@ import { SearchRunService } from '../core/search-run.service';
 import { SessionService } from '../core/session.service';
 import { ThemeService } from '../core/theme.service';
 import { RunPanelComponent } from '../run/run-panel.component';
+import { FirstSearchComponent } from './first-search.component';
+import { SaveOffersComponent } from './save-offers.component';
 import { WelcomeTourComponent, tourWasSeen } from './welcome-tour.component';
 
-/** Cadre de l'application une fois connecté : en-tête, navigation, bandeau d'état. Les écrans s'y affichent. */
+/**
+ * Cadre de l'application : en-tête, navigation, bandeau d'état. Les écrans s'y affichent, avec ou sans session :
+ * sans elle, ils sont vides et le bandeau mène au dépôt du CV.
+ */
 @Component({
   selector: 'app-shell',
   imports: [
@@ -22,7 +27,9 @@ import { WelcomeTourComponent, tourWasSeen } from './welcome-tour.component';
     RouterOutlet,
     AssistantComponent,
     AvatarComponent,
+    FirstSearchComponent,
     RunPanelComponent,
+    SaveOffersComponent,
     WelcomeTourComponent,
   ],
   templateUrl: './shell.component.html',
@@ -36,6 +43,7 @@ export class ShellComponent {
   protected readonly run = inject(SearchRunService);
 
   protected readonly profilePath = PROFILE_PATH;
+  protected readonly loginPath = `/${LOGIN_PATH}`;
   protected readonly accountPath = ACCOUNT_PATH;
   protected readonly account = this.session.account;
   protected readonly sections = computed(() =>
@@ -55,15 +63,41 @@ export class ShellComponent {
   /** Vrai sur la page Profil : le bandeau n'a pas à y renvoyer. */
   protected readonly onProfile = computed(() => this.url().split(/[?#]/)[0] === `/${PROFILE_PATH}`);
 
+  /**
+   * Le profil est prêt et rien n'a encore été cherché : le lancement est mis en avant, dans un encart. C'est
+   * l'API qui dit l'un et l'autre.
+   */
+  protected readonly firstSearch = computed(() => {
+    const account = this.account();
+    return (
+      !!account &&
+      account.can_search &&
+      !account.has_searched &&
+      account.remaining_searches !== 0 &&
+      this.run.state() === 'idle' &&
+      !this.run.busy()
+    );
+  });
+  /** Vrai si le profil a été complété pendant cette visite : l'encart apparaît alors sous les yeux de l'utilisateur. */
+  protected readonly completedHere = signal(false);
+  /**
+   * Un compte d'essai a ses offres : c'est le moment de lui proposer de se connecter pour les garder. Pas
+   * pendant une recherche, dont le suivi occupe l'écran.
+   */
+  protected readonly saveOffers = computed(() => {
+    const account = this.account();
+    return !!account && account.is_trial && account.has_searched && !this.run.busy();
+  });
+
   constructor() {
-    const window = inject(DOCUMENT).defaultView;
-    let offered = false;
-    // À la première visite d'un compte qui n'a encore rien réglé : après, elle ne s'ouvre qu'à la demande
+    const account = this.account();
+    // À la première visite d'un compte qui n'a encore rien réglé : après, elle ne s'ouvre qu'à la demande. Le
+    // visiteur sans session, lui, vient de lire la page d'accueil, et son compte d'essai naît au dépôt du CV :
+    // la visite ne doit pas s'ouvrir à ce moment-là
+    this.touring.set(!!account && !account.can_search && !tourWasSeen(inject(DOCUMENT).defaultView));
     effect(() => {
-      const account = this.account();
-      if (account && !offered) {
-        offered = true;
-        untracked(() => this.touring.set(!account.can_search && !tourWasSeen(window)));
+      if (!this.account()?.can_search) {
+        untracked(() => this.completedHere.set(true));
       }
     });
   }

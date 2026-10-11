@@ -70,8 +70,13 @@
       </ul>
     } @else {
       <p class="empty">
-        Aucun poste pour l'instant. Ajoutez le premier : c'est lui qui dit à l'agent quoi chercher, et
-        quelles annonces garder.
+        @if (signedIn()) {
+          Aucun poste pour l'instant. Ajoutez le premier : c'est lui qui dit à l'agent quoi chercher, et
+          quelles annonces garder.
+        } @else {
+          Aucun poste pour l'instant. Déposez votre CV : vos postes recherchés en seront tirés, avec le métier,
+          les compétences, le contrat et le lieu. Vous pourrez les corriger ensuite.
+        }
       </p>
     }
   } @else if (!error()) {
@@ -82,7 +87,9 @@
     <p-message severity="error">{{ error() }}</p-message>
   }
 
-  <p-button label="Ajouter un poste" (onClick)="openForm()" />
+  @if (signedIn()) {
+    <p-button label="Ajouter un poste" (onClick)="openForm()" />
+  }
 </article>
 
 <!-- Pas de closedby : un clic à côté ne doit pas faire perdre une saisie ; Échap et « Annuler » ferment -->
