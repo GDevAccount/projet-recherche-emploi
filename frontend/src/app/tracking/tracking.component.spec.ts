@@ -9,6 +9,7 @@ import {
   BudgetOverview,
   EvaluationGroup,
   HealthOverview,
+  EventOverview,
   JourneyOverview,
   OutcomeGroup,
   PageEvaluation,
@@ -244,6 +245,18 @@ function budget(values: Partial<BudgetOverview> = {}): BudgetOverview {
   };
 }
 
+function events(values: Partial<EventOverview> = {}): EventOverview {
+  return {
+    since: null,
+    weeks: ['2026-09-28', '2026-10-05'],
+    trials: [],
+    accounts: [],
+    deletions: [],
+    cv_outcomes: [],
+    ...values,
+  };
+}
+
 function journeys(values: Partial<JourneyOverview> = {}): JourneyOverview {
   return { guests: 0, steps: [], trials: 0, trial_steps: [], accounts: [], ...values };
 }
@@ -305,6 +318,8 @@ describe('TrackingComponent', () => {
   /** Ce que l'API répond pour le parcours des utilisateurs : un test le change avant d'appeler serve. */
   let guests = journeys();
   beforeEach(() => (guests = journeys()));
+  let history = events();
+  beforeEach(() => (history = events()));
 
   /** Ce que l'API répond pour l'assistant : un test le change avant d'appeler serve. */
   let asked = assistant();
@@ -347,6 +362,7 @@ describe('TrackingComponent', () => {
     http.expectOne({ method: 'GET', url: '/api/admin/health?days=7' }).flush(state);
     http.expectOne({ method: 'GET', url: '/api/admin/budget' }).flush(spending);
     http.expectOne({ method: 'GET', url: '/api/admin/journeys' }).flush(guests);
+    http.expectOne({ method: 'GET', url: '/api/admin/events' }).flush(history);
     http.expectOne({ method: 'GET', url: '/api/admin/assistant?days=30' }).flush(asked);
     http.expectOne({ method: 'GET', url: '/api/admin/assistant/evaluations' }).flush(evaluations);
     await fixture.whenStable();
@@ -665,6 +681,44 @@ describe('TrackingComponent', () => {
     expect(card.querySelector('.verdict')).toBeNull();
     expect(text(card.querySelector('.note'))).toContain('seul le moteur de recherche est compté');
     expect(text(card.querySelector('.note'))).toContain('MONTHLY_BUDGET_USD');
+  });
+
+  it('should keep counting what the accounts did once they are gone', async () => {
+    history = events({
+      since: '2026-10-01',
+      trials: [
+        { label: 'Essais ouverts', counts: [1, 3], total: 4, rate: null },
+        { label: 'Repris par un compte', counts: [0, 1], total: 1, rate: 0.25 },
+      ],
+      accounts: [{ label: 'Comptes supprimés', counts: [0, 0], total: 0, rate: null }],
+      deletions: [{ label: 'Essai arrivé à son terme', count: 2 }],
+    });
+    await serve(stats({ runs: 0 }), []);
+
+    const card = element().querySelector('app-events-card')!;
+    expect(text(card.querySelector('header p'))).toContain('depuis le 1 oct.');
+    expect([...card.querySelectorAll('.group li')].map((row) => text(row))).toEqual([
+      'Essais ouverts 4',
+      'Repris par un compte 1 25 %',
+      'Comptes supprimés 0',
+    ]);
+    // Chaque barre à l'échelle de la plus haute de sa ligne ; une ligne à zéro reste plate
+    const heights = [...card.querySelectorAll<HTMLElement>('.group li .slot i')].map(
+      (bar) => bar.style.height,
+    );
+    expect(heights.slice(0, 2).map((height) => Math.round(parseFloat(height)))).toEqual([33, 100]);
+    expect(heights.slice(4)).toEqual(['0%', '0%']);
+    expect(text(card.querySelector('.details'))).toBe(
+      'Pourquoi les comptes sont partis Essai arrivé à son terme 2',
+    );
+  });
+
+  it('should say that nothing has been recorded yet', async () => {
+    await serve(stats({ runs: 0 }), []);
+
+    const card = element().querySelector('app-events-card')!;
+    expect(text(card.querySelector('header p'))).toContain("Rien n'a encore été noté");
+    expect(card.querySelector('.groups')).toBeNull();
   });
 
   it('should show how far the guests go, and where each account stands', async () => {

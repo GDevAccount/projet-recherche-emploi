@@ -1,6 +1,6 @@
 import math
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from jobgrep.config import (
@@ -10,9 +10,11 @@ from jobgrep.config import (
     MODEL_PRICES_USD,
     OFFER_PAGE_KIND,
     TRIAL_PLAN,
+    WEEKS_SHOWN,
 )
 from jobgrep.data.database import Database
 from jobgrep.data.models import Correction, Job, PageEvaluation, SearchRun
+from jobgrep.data.repositories.account_event_repository import AccountEventRepository
 from jobgrep.data.repositories.correction_repository import CorrectionRepository
 from jobgrep.data.repositories.cv_text_repository import CvTextRepository
 from jobgrep.data.repositories.health_repository import HealthRepository
@@ -30,11 +32,23 @@ from jobgrep.schemas import (
     AccountJourney,
     AccountUsage,
     BudgetOverview,
+    EventBreakdown,
+    EventOverview,
+    EventRow,
     JourneyEvent,
     JourneyOverview,
     JourneyStep,
     RejectionCount,
     UsageOverview,
+)
+from jobgrep.services.account_events import (
+    ACCOUNT_CREATED,
+    ACCOUNT_DELETED,
+    CV_DEPOSITED,
+    DELETION_REASONS,
+    SEARCH_LAUNCHED,
+    TRIAL_ADOPTED,
+    TRIAL_OPENED,
 )
 from jobgrep.services.search_costs import (
     COST_DECIMALS,
@@ -63,6 +77,29 @@ REJECTION_LABELS = {
     "matches_level": "Niveau",
     "matches_contract": "Contrat",
     "matches_location": "Lieu",
+}
+# Lignes de l'historique du parcours : libellé, moment compté, et s'il n'arrive qu'une fois par compte.
+# La première ligne d'un groupe est celle à laquelle les parts se rapportent
+TRIAL_EVENT_ROWS = (
+    ("Essais ouverts", TRIAL_OPENED, False),
+    ("CV déposés", CV_DEPOSITED, False),
+    ("Recherches lancées", SEARCH_LAUNCHED, True),
+    ("Repris par un compte", TRIAL_ADOPTED, True),
+)
+ACCOUNT_EVENT_ROWS = (
+    ("Comptes créés", ACCOUNT_CREATED, False),
+    ("CV déposés", CV_DEPOSITED, False),
+    ("Recherches lancées", SEARCH_LAUNCHED, False),
+    ("Comptes supprimés", ACCOUNT_DELETED, False),
+)
+# Ce qu'un dépôt de CV a fait des postes recherchés (CvQueriesOutcome)
+CV_OUTCOME_LABELS = {
+    "created": "Postes tirés du CV",
+    "kept": "Postes déjà en place, gardés",
+    "empty": "Aucun poste tiré du CV",
+    "limit": "Limite du jour atteinte",
+    "budget": "Budget du jour atteint",
+    "failed": "Panne du modèle",
 }
 # Au-delà, la fiche d'un compte ne montre que les moments les plus récents
 MAX_JOURNEY_EVENTS = 200
@@ -278,6 +315,53 @@ class UsageService:
             events=events[:MAX_JOURNEY_EVENTS],
         )
 
+    def get_events(self, now: datetime | None = None) -> EventOverview:
+        """Renvoie l'historique du parcours sur les WEEKS_SHOWN dernières semaines, la plus ancienne en premier.
+
+        get_journeys ne compte que les comptes en place : un essai expiré ou repris, un compte supprimé en
+        sortent. Ici, chaque moment reste compté dans sa semaine, sans son compte. Un CV déposé ou une
+        recherche lancée deux fois compte deux fois : sans compte, rien ne dit que c'est le même.
+        """
+        local = (now or datetime.now(UTC)).astimezone(ZoneInfo(LOCAL_TIMEZONE)).date()
+        current = local - timedelta(days=local.weekday())
+        weeks = [current - timedelta(weeks=back) for back in reversed(range(WEEKS_SHOWN))]
+        with self.database.session() as session:
+            events = AccountEventRepository(session)
+            rows = events.summarize(weeks[0].isoformat())
+            first_day = events.get_first_day()
+
+        counts: dict[tuple[str, str], dict[date, int]] = {}
+        deletions: dict[str | None, int] = {}
+        cv_outcomes: dict[str | None, int] = {}
+        for row in rows:
+            day = date.fromisoformat(row.day)
+            by_week = counts.setdefault((row.kind, row.plan), {})
+            week = day - timedelta(days=day.weekday())
+            by_week[week] = by_week.get(week, 0) + row.count
+            if row.kind == ACCOUNT_DELETED:
+                deletions[row.detail] = deletions.get(row.detail, 0) + row.count
+            elif row.kind == CV_DEPOSITED:
+                cv_outcomes[row.detail] = cv_outcomes.get(row.detail, 0) + row.count
+
+        def describe(specs: tuple, plan: str) -> list[EventRow]:
+            described: list[EventRow] = []
+            for label, kind, once in specs:
+                by_week = counts.get((kind, plan), {})
+                values = [by_week.get(week, 0) for week in weeks]
+                base = described[0].total if described else 0
+                rate = round(sum(values) / base, 4) if once and base else None
+                described.append(EventRow(label=label, counts=values, total=sum(values), rate=rate))
+            return described
+
+        return EventOverview(
+            since=None if first_day is None else date.fromisoformat(first_day),
+            weeks=weeks,
+            trials=describe(TRIAL_EVENT_ROWS, TRIAL_PLAN),
+            accounts=describe(ACCOUNT_EVENT_ROWS, DEFAULT_PLAN),
+            deletions=_break_down(deletions, DELETION_REASONS),
+            cv_outcomes=_break_down(cv_outcomes, CV_OUTCOME_LABELS),
+        )
+
     def _describe_accounts(self, session, now: datetime) -> list[AccountJourney]:
         timezone = ZoneInfo(LOCAL_TIMEZONE)
         usage = UsageRepository(session)
@@ -377,6 +461,12 @@ def _consumption(session, since: datetime | None) -> list:
     """Renvoie ce que chaque compte a consommé, par modèle : recherches, questions à l'assistant, lectures de CV."""
     usage = UsageRepository(session)
     return usage.summarize_runs(since) + usage.summarize_assistant(since) + usage.summarize_cv_extractions(since)
+
+
+def _break_down(counts: dict[str | None, int], labels: dict[str, str]) -> list[EventBreakdown]:
+    """Renvoie ces nombres sous leur libellé, le plus fréquent en premier."""
+    ranked = sorted(counts.items(), key=lambda item: -item[1])
+    return [EventBreakdown(label=labels.get(detail or "", "Non précisé"), count=count) for detail, count in ranked]
 
 
 def _count_steps(accounts: list[AccountJourney]) -> list[JourneyStep]:

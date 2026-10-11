@@ -1,0 +1,85 @@
+<section class="app-card">
+  <header>
+    <span class="app-eyebrow">Historique du parcours</span>
+    @if (events(); as events) {
+      @if (events.since) {
+        <p>
+          Ce que les comptes ont fait depuis le {{ events.since | parisDate: 'day' }}, par semaine
+          du lundi au dimanche, comptes supprimés compris. Rien n'était noté avant cette date.
+        </p>
+      } @else {
+        <p>
+          Rien n'a encore été noté. Chaque essai ouvert, CV déposé, recherche lancée ou compte
+          supprimé sera compté ici, et y restera après le départ du compte.
+        </p>
+      }
+    }
+  </header>
+
+  @if (error()) {
+    <p class="error">{{ error() }}</p>
+  } @else if (events(); as events) {
+    @if (events.since) {
+      <div class="groups">
+        @for (group of groups(); track group.title) {
+          <div class="group">
+            <h3>{{ group.title }}</h3>
+            <ul>
+              @for (row of group.rows; track row.label) {
+                <li>
+                  <span class="label">{{ row.label }}</span>
+                  <span class="bars" role="img" [attr.aria-label]="row.label + ' par semaine'">
+                    @for (bar of row.bars; track bar.start) {
+                      <span class="slot" [title]="bar.title">
+                        <i [style.height.%]="bar.height"></i>
+                      </span>
+                    }
+                  </span>
+                  <span class="value">
+                    <strong>{{ row.total | count }}</strong>
+                    @if (row.rate !== null) {
+                      <small>{{ row.rate | share }}</small>
+                    }
+                  </span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      </div>
+
+      @if (events.deletions.length || events.cv_outcomes.length) {
+        <div class="details">
+          @if (events.cv_outcomes.length) {
+            <dl>
+              <dt>Ce qu'un dépôt de CV a fait des postes</dt>
+              @for (item of events.cv_outcomes; track item.label) {
+                <dd>
+                  <span>{{ item.label }}</span><strong>{{ item.count | count }}</strong>
+                </dd>
+              }
+            </dl>
+          }
+          @if (events.deletions.length) {
+            <dl>
+              <dt>Pourquoi les comptes sont partis</dt>
+              @for (item of events.deletions; track item.label) {
+                <dd>
+                  <span>{{ item.label }}</span><strong>{{ item.count | count }}</strong>
+                </dd>
+              }
+            </dl>
+          }
+        </div>
+      }
+
+      <small class="note">
+        Les totaux portent sur les semaines affichées, la dernière barre est la semaine en cours.
+        Un CV déposé deux fois compte deux fois : sans le compte, rien ne dit que c'est le même.
+        Une part se rapporte à la première ligne du groupe. Le propriétaire n'est pas compté.
+      </small>
+    }
+  } @else {
+    <p class="loading">Chargement de l'historique…</p>
+  }
+</section>

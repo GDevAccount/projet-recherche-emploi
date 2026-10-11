@@ -12,6 +12,7 @@ import { BudgetCardComponent } from './budget-card.component';
 import { CorrectionsCardComponent } from './corrections-card.component';
 import { EvaluationCardComponent } from './evaluation-card.component';
 import { HealthCardComponent } from './health-card.component';
+import { EventsCardComponent } from './events-card.component';
 import { JourneysCardComponent } from './journeys-card.component';
 import { OutcomesCardComponent } from './outcomes-card.component';
 import { RunListComponent } from './run-list.component';
@@ -47,6 +48,7 @@ const GROUPS_SHOWN = 8;
     BudgetCardComponent,
     CorrectionsCardComponent,
     EvaluationCardComponent,
+    EventsCardComponent,
     HealthCardComponent,
     JourneysCardComponent,
     OutcomesCardComponent,

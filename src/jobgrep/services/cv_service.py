@@ -12,6 +12,7 @@ from jobgrep.data.repositories.query_repository import QueryRepository
 from jobgrep.data.repositories.rejected_job_repository import RejectedJobRepository
 from jobgrep.errors import InvalidInputError
 from jobgrep.schemas import CvDeposit, CvProgress, CvQueriesOutcome, CvStatus
+from jobgrep.services.account_events import CV_DEPOSITED, record_event
 
 # Un CV pèse quelques centaines de ko : au-delà, ce n'en est pas un, et le fichier est lu en mémoire
 MAX_CV_BYTES = 10 * 1024 * 1024
@@ -117,6 +118,9 @@ class CvService:
         outcome = final.get("outcome") or skipped or "kept"
         if outcome == "failed":
             self.on_failure(user_id, final.get("error_type", "Exception"))
+        # Un PDF refusé n'arrive pas jusqu'ici : le CV est en place, quoi qu'il soit advenu des postes
+        with self.database.session() as session:
+            record_event(session, user_id, CV_DEPOSITED, detail=outcome)
         yield CvDeposit(
             updated_at=self.get_status(user_id).updated_at,
             queries_outcome=outcome,

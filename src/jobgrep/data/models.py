@@ -566,3 +566,24 @@ class ArchivedUsage(Base):
     cache_read_tokens: Mapped[int | None] = mapped_column(Integer)
     cache_write_tokens: Mapped[int | None] = mapped_column(Integer)
     deleted_at: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
+class AccountEvent(Base):
+    """Moment du parcours d'un compte, gardé sans le compte : essai ouvert, CV déposé, recherche lancée, départ.
+
+    Le parcours se lit sinon sur ce qui est en base à l'instant, et un compte supprimé en sort avec tout ce
+    qu'il avait fait. Ces lignes ne sont jamais effacées, et rien n'y désigne une personne : ni identifiant,
+    ni heure, seulement le jour.
+    """
+
+    __tablename__ = "account_events"
+    __table_args__ = (Index("ix_account_events_day", "day"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Jour à l'heure de Paris, « AAAA-MM-JJ »
+    day: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(Text)
+    # Formule du compte à ce moment-là (AccountPlan)
+    plan: Mapped[str] = mapped_column(Text)
+    # Ce qui précise le moment : la cause d'un départ, ce qu'un dépôt de CV a fait des postes
+    detail: Mapped[str | None] = mapped_column(Text)

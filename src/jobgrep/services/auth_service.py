@@ -12,10 +12,12 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from jobgrep.config import (
+    DEFAULT_PLAN,
     DEFAULT_USER_ID,
     LOCAL_TIMEZONE,
     MAX_TRIALS_PER_IP_PER_DAY,
     SESSION_DAYS,
+    TRIAL_PLAN,
     TRIAL_START_DAYS,
     Settings,
 )
@@ -24,6 +26,7 @@ from jobgrep.data.repositories.activity_repository import ActivityRepository
 from jobgrep.data.repositories.user_repository import UserRepository
 from jobgrep.errors import ConfigurationError, NotFoundError, QuotaExceededError
 from jobgrep.schemas import TrialStatus
+from jobgrep.services.account_events import ACCOUNT_CREATED, TRIAL_OPENED, record_event
 
 # Valeur de ALLOWED_EMAILS qui ouvre l'application à tout compte Google
 EVERYONE = "*"
@@ -113,7 +116,11 @@ class AuthService:
             return None
         now = datetime.fromtimestamp(self.clock(), UTC)
         with self.database.session() as session:
-            user_id = UserRepository(session).get_or_create_user_id(email)
+            users = UserRepository(session)
+            created = users.create_user(email)
+            user_id = users.get_user_id(email)
+            if created:
+                record_event(session, user_id, ACCOUNT_CREATED, plan=DEFAULT_PLAN, now=now)
             self._record_visit(session, user_id, now)
             return user_id
 
@@ -181,7 +188,8 @@ class AuthService:
                 )
             users.record_trial_start(ip_hash, now)
             trial_key = secrets.token_urlsafe(TRIAL_KEY_BYTES)
-            users.create_trial_user(trial_key)
+            trial_user_id = users.create_trial_user(trial_key)
+            record_event(session, trial_user_id, TRIAL_OPENED, plan=TRIAL_PLAN, now=now)
         return trial_key
 
     def resolve_trial_user_id(self, trial_key: str) -> int | None:

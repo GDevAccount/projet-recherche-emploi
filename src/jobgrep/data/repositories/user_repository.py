@@ -17,10 +17,18 @@ class UserRepository:
     def __init__(self, session: Session):
         self.session = session
 
+    def create_user(self, email: str) -> bool:
+        """Crée le compte lié à cette adresse, et renvoie faux s'il existait déjà."""
+        new_user = insert(User).values(email=email, last_seen_at=func.current_timestamp())
+        return self.session.execute(new_user.on_conflict_do_nothing()).rowcount == 1
+
     def get_or_create_user_id(self, email: str) -> int:
         """Renvoie l'identifiant du compte lié à cette adresse, en le créant à la première connexion."""
-        new_user = insert(User).values(email=email, last_seen_at=func.current_timestamp())
-        self.session.execute(new_user.on_conflict_do_nothing())
+        self.create_user(email)
+        return self.get_user_id(email)
+
+    def get_user_id(self, email: str) -> int:
+        """Renvoie l'identifiant du compte lié à cette adresse, qui doit exister."""
         return self.session.scalars(select(User.id).where(User.email == email)).one()
 
     def create_trial_user(self, trial_key: str) -> int:
