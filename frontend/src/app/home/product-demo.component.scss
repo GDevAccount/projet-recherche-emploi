@@ -1,0 +1,350 @@
+:host {
+  display: block;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 1.5rem;
+  padding: 0.3rem;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: var(--app-surface);
+  overflow-x: auto;
+
+  button {
+    padding: 0.55rem 1.15rem;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--app-muted);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      color 0.15s,
+      background-color 0.15s;
+
+    &:hover {
+      color: var(--app-text);
+    }
+
+    &[aria-selected='true'] {
+      background: var(--app-text);
+      color: var(--app-bg);
+    }
+  }
+}
+
+.panel {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow);
+  overflow: hidden;
+
+  &:not([hidden]) {
+    animation: panel-in 0.3s ease-out;
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.summary {
+  margin: 0;
+  padding: 1.1rem clamp(1.1rem, 3vw, 1.75rem);
+  border-bottom: 1px solid var(--app-border);
+  font-size: 1.0625rem;
+  text-wrap: balance;
+}
+
+.screen {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: start;
+  gap: 1.25rem;
+  padding: clamp(1.1rem, 3vw, 1.75rem);
+  background: var(--app-bg);
+  user-select: none;
+
+  @media (max-width: 48rem) {
+    grid-template-columns: 1fr;
+  }
+
+  > * {
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-surface);
+  }
+}
+
+small {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--app-muted);
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+// Suivi d'une recherche
+.run {
+  padding: 1.1rem;
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+  }
+}
+
+.signal {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--app-accent-strong);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent), transparent 78%);
+  animation: demo-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes demo-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.clock {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-muted);
+}
+
+.pipeline {
+  display: grid;
+  gap: 0.85rem;
+
+  li {
+    display: flex;
+    gap: 0.75rem;
+    color: var(--app-muted);
+  }
+
+  strong {
+    color: var(--app-text);
+  }
+
+  .node {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 1.6rem;
+    height: 1.6rem;
+    border: 1px solid var(--app-border);
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  [data-status='done'] .node {
+    border-color: transparent;
+    background: var(--app-accent);
+    color: var(--app-accent-ink);
+  }
+
+  [data-status='active'] .node {
+    border-color: var(--app-accent-strong);
+    color: var(--app-text);
+  }
+
+  li:not([data-status]) strong {
+    color: var(--app-muted);
+  }
+}
+
+.feed {
+  li {
+    display: grid;
+    grid-template-columns: 4.6rem minmax(0, 1fr);
+    gap: 0.1rem 0.75rem;
+    padding: 0.7rem 1rem;
+    border-top: 1px solid var(--app-border);
+    font-size: 0.875rem;
+    color: var(--app-muted);
+
+    &:first-child {
+      border-top: 0;
+    }
+  }
+
+  .verdict {
+    grid-row: span 2;
+    align-self: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .site {
+    font-size: 0.75rem;
+  }
+
+  .kept {
+    .verdict {
+      color: color-mix(in srgb, var(--app-accent-strong), var(--app-text) 30%);
+    }
+
+    .title {
+      font-weight: 600;
+      color: var(--app-text);
+    }
+  }
+}
+
+// Répartition des rejets
+.breakdown {
+  padding: 1.1rem;
+
+  ul {
+    display: grid;
+    gap: 0.9rem;
+    margin-top: 1rem;
+  }
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.3rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  i {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--app-accent-strong) var(--w), var(--app-surface-2) var(--w));
+  }
+
+  b {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.page {
+  padding: 1.1rem;
+
+  h4 {
+    margin: 0.5rem 0;
+    font-family: var(--app-display);
+    font-size: 1.125rem;
+    letter-spacing: -0.015em;
+  }
+
+  p {
+    margin: 0 0 1rem;
+    font-size: 0.875rem;
+    color: var(--app-muted);
+  }
+}
+
+.motive {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--app-muted);
+}
+
+.facts,
+.skills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.facts span,
+.skills i {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-style: normal;
+  font-weight: 550;
+}
+
+.facts .restore {
+  margin-left: auto;
+  border-color: transparent;
+  background: var(--app-accent);
+  color: var(--app-accent-ink);
+  font-weight: 650;
+}
+
+// Profil
+.cv {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem;
+}
+
+.doc {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--app-radius-sm);
+  background: color-mix(in srgb, var(--app-accent), transparent 82%);
+  color: color-mix(in srgb, var(--app-accent-strong), var(--app-text) 35%);
+
+  svg {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+}
+
+.queries {
+  li {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.9rem 1.1rem;
+    border-top: 1px solid var(--app-border);
+
+    &:first-child {
+      border-top: 0;
+    }
+  }
+
+  .where {
+    font-size: 0.8125rem;
+    color: var(--app-muted);
+  }
+}
+
+.note {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+  text-align: center;
+  color: var(--app-muted);
+}

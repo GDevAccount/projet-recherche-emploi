@@ -116,6 +116,17 @@ a {
     color: var(--app-text);
   }
 
+  h2 {
+    margin: 2rem 0 0.5rem;
+    font-size: 1.125rem;
+    color: var(--app-text);
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+
   nav {
     display: flex;
     flex-wrap: wrap;

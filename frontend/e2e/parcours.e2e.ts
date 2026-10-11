@@ -34,7 +34,7 @@ test("sans JavaScript, l'accueil décrit l'application et renvoie aux pages lég
   const plain = await context.newPage();
 
   await plain.goto('/');
-  await expect(plain.getByRole('heading', { name: 'JobGrep' })).toBeVisible();
+  await expect(plain.getByRole('heading', { level: 1, name: 'JobGrep' })).toBeVisible();
   await expect(plain.getByText("JobGrep cherche des offres d'emploi")).toBeVisible();
 
   await plain.getByRole('link', { name: 'Règles de confidentialité' }).click();
@@ -44,7 +44,38 @@ test("sans JavaScript, l'accueil décrit l'application et renvoie aux pages lég
   await context.close();
 });
 
-test('sans session, tout mène à la connexion et les données sont refusées', async () => {
+test("sans session, l'accueil présente l'application et mène à la connexion", async () => {
+  await page.goto('/');
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('heading', { level: 1, name: /Trouvez les offres faites pour vous/ })).toBeVisible();
+  // La maquette montre de vraies cartes, mais rien n'y répond : c'est une image
+  await expect(page.locator('app-offers-preview app-job-card').first()).toBeVisible();
+  await expect(page.locator('app-offers-preview').getByRole('button')).toHaveCount(0);
+
+  await page.getByRole('link', { name: 'Découvrir la plateforme' }).click();
+  await expect(page.getByRole('heading', { name: "Vous voyez ce que l'agent fait, et pourquoi" })).toBeInViewport();
+  await page.getByRole('tab', { name: 'Les rejets expliqués' }).click();
+  await expect(page.getByRole('tabpanel', { name: 'Les rejets expliqués' })).toBeVisible();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Votre profil' })).toBeFocused();
+  await expect(page.getByRole('tabpanel', { name: 'Votre profil' })).toBeVisible();
+
+  // Une seule entrée pour se connecter et pour créer son compte : l'écran de connexion
+  await page.getByRole('banner').getByRole('link', { name: 'Se connecter' }).click();
+  await expect(page).toHaveURL(/\/connexion$/);
+  await page.getByRole('link', { name: "JobGrep, retour à l'accueil" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await page.getByRole('main').getByRole('link', { name: 'Commencer gratuitement' }).first().click();
+  await expect(page).toHaveURL(/\/connexion$/);
+
+  // Les pages légales sont à un clic de l'accueil
+  await page.goto('/');
+  await page.getByRole('contentinfo').getByRole('link', { name: 'Règles de confidentialité' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Règles de confidentialité' })).toBeVisible();
+});
+
+test('sans session, un écran de données mène à la connexion et les données sont refusées', async () => {
   await page.goto('/offres');
 
   await expect(page).toHaveURL(/\/connexion$/);
@@ -438,6 +469,14 @@ test('les pages légales prennent le thème choisi dans le site, pas celui du sy
   await page.goto('/offres');
 });
 
+test("avec une session, l'accueil et une adresse inconnue mènent aux offres", async () => {
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/offres$/);
+
+  await page.goto('/adresse-inconnue');
+  await expect(page).toHaveURL(/\/offres$/);
+});
+
 test('la déconnexion ferme la session', async () => {
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
   await expect(page).toHaveURL(/\/connexion$/);
@@ -445,6 +484,12 @@ test('la déconnexion ferme la session', async () => {
   await page.goto('/offres');
   await expect(page).toHaveURL(/\/connexion$/);
   expect((await page.request.get('/api/jobs')).status()).toBe(401);
+
+  // Sans session, une adresse inconnue rend l'accueil, et l'essai s'ouvre depuis l'écran de connexion
+  await page.goto('/adresse-inconnue');
+  await expect(page).toHaveURL(/\/$/);
+  await page.getByRole('main').getByRole('link', { name: 'Commencer gratuitement' }).first().click();
+  await expect(page).toHaveURL(/\/connexion$/);
 });
 
 test("un visiteur essaie sans compte : une seule recherche, puis l'essai est épuisé", async () => {

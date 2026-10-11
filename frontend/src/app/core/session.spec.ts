@@ -6,7 +6,7 @@ import { Observable, firstValueFrom } from 'rxjs';
 
 import { Account } from './api.models';
 import { apiInterceptor } from './api.interceptor';
-import { authGuard, loginGuard } from './auth.guard';
+import { authGuard, homeGuard, loginGuard } from './auth.guard';
 import { SessionService } from './session.service';
 
 const ACCOUNT: Account = {
@@ -87,7 +87,28 @@ describe('session', () => {
     const result = guardResult(loginGuard);
     http.expectOne('/api/me').flush(ACCOUNT);
 
-    expect(router.serializeUrl((await result) as UrlTree)).toBe('/');
+    expect(router.serializeUrl((await result) as UrlTree)).toBe('/offres');
+  });
+
+  it('should show the home page to a visitor without a session', async () => {
+    const result = guardResult(homeGuard);
+    http.expectOne('/api/me').flush({ detail: 'Authentification requise.' }, UNAUTHORIZED);
+
+    expect(await result).toBe(true);
+  });
+
+  it('should take a logged-in user from the home page to their offers', async () => {
+    const result = guardResult(homeGuard);
+    http.expectOne('/api/me').flush(ACCOUNT);
+
+    expect(router.serializeUrl((await result) as UrlTree)).toBe('/offres');
+  });
+
+  it('should not ask the API again for a session it already knows', async () => {
+    session.open('preuve').subscribe();
+    http.expectOne('/api/session').flush(ACCOUNT);
+
+    expect(router.serializeUrl((await guardResult(homeGuard)) as UrlTree)).toBe('/offres');
   });
 
   it('should go back to the login screen when the session expires on a data call', () => {

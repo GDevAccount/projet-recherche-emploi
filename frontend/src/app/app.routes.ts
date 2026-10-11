@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 
-import { adminGuard, authGuard, loginGuard } from './core/auth.guard';
+import { adminGuard, authGuard, homeGuard, loginGuard } from './core/auth.guard';
 import {
   ACCOUNT_PATH,
   JOBS_PATH,
@@ -14,6 +14,14 @@ import { LoginComponent } from './login/login.component';
 const titled = (section: string) => `${section} · JobGrep`;
 
 export const routes: Routes = [
+  // Routes publiques : la page d'accueil et l'écran de connexion. Tout le reste demande une session
+  {
+    path: '',
+    pathMatch: 'full',
+    loadComponent: () => import('./home/home.component').then((module) => module.HomeComponent),
+    canActivate: [homeGuard],
+    title: "JobGrep · Les offres d'emploi qui correspondent à votre CV",
+  },
   { path: LOGIN_PATH, component: LoginComponent, canActivate: [loginGuard], title: titled('Connexion') },
   {
     path: '',
@@ -22,7 +30,6 @@ export const routes: Routes = [
     // Aucun écran de données n'est monté sans session. C'est l'API qui protège ; ceci évite seulement un écran vide
     canActivate: [authGuard],
     children: [
-      { path: '', pathMatch: 'full', redirectTo: JOBS_PATH },
       {
         path: JOBS_PATH,
         loadComponent: () => import('./jobs/jobs.component').then((module) => module.JobsComponent),
@@ -51,5 +58,6 @@ export const routes: Routes = [
       },
     ],
   },
+  // Adresse inconnue : l'accueil, dont la garde mène à ses offres qui a une session
   { path: '**', redirectTo: '' },
 ];

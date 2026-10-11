@@ -20,7 +20,17 @@ export const authGuard: CanActivateFn = () => {
 export const loginGuard: CanActivateFn = () => {
   const session = inject(SessionService);
   const router = inject(Router);
-  return session.refresh().pipe(map((open) => (open ? router.createUrlTree(['/']) : true)));
+  return session.refresh().pipe(map((open) => (open ? router.createUrlTree([JOBS_PATH]) : true)));
+};
+
+/** Montre la page d'accueil au visiteur sans session, et mène les autres à leurs offres. */
+export const homeGuard: CanActivateFn = () => {
+  const session = inject(SessionService);
+  const router = inject(Router);
+  if (session.account()) {
+    return router.createUrlTree([JOBS_PATH]);
+  }
+  return session.refresh().pipe(map((open) => (open ? router.createUrlTree([JOBS_PATH]) : true)));
 };
 
 /**

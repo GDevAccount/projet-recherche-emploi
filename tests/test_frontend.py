@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -6,7 +7,7 @@ from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
 from jobgrep.api.frontend import HASHED_FILE_PATTERN, build_frontend_routes
-from jobgrep.config import Settings
+from jobgrep.config import JOB_SITES, Settings
 
 FRONTEND = Path(__file__).parent.parent / "frontend"
 
@@ -37,6 +38,17 @@ def test_home_page_describes_the_application_without_javascript():
     assert '<link rel="canonical" href="https://jobgrep.fr/">' in page
     assert '<meta property="og:image" content="https://jobgrep.fr/social-card.png">' in page
     assert (FRONTEND / "public" / "social-card.png").is_file()
+
+
+def test_home_page_names_only_sites_that_are_searched():
+    # La page d'accueil du front cite des sites interrogés : la liste réelle est celle de la recherche
+    source = (FRONTEND / "src" / "app" / "home" / "home.component.ts").read_text(encoding="utf-8")
+    listed = re.search(r"export const SITES = \[(.*?)\];", source, re.DOTALL)
+
+    assert listed
+    sites = re.findall(r"'([^']+)'", listed.group(1))
+    assert sites
+    assert [site for site in sites if site not in JOB_SITES] == []
 
 
 def test_public_files_are_not_taken_for_hashed_files():

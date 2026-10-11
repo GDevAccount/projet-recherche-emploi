@@ -1,0 +1,187 @@
+<a class="skip" href="/#contenu" (click)="goTo($event, 'contenu')">Aller au contenu</a>
+
+<app-home-nav />
+
+<main id="contenu" tabindex="-1">
+  <section class="hero">
+    <p class="pill"><span class="dot" aria-hidden="true"></span>Agent de recherche d'emploi · gratuit</p>
+    <h1>Trouvez les offres faites pour vous. <em>Pas des heures à les trier.</em></h1>
+    <p class="lead">
+      JobGrep cherche sur les principaux sites d'emploi, lit chaque annonce à votre place, la compare à votre CV et
+      ne garde que celles qui vous correspondent, avec la raison de son verdict.
+    </p>
+    <div class="calls">
+      <a class="cta" [routerLink]="loginPath">
+        Commencer gratuitement
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </a>
+      <a class="ghost" href="/#apercu" (click)="goTo($event, 'apercu')">Découvrir la plateforme</a>
+    </div>
+    <p class="fine">Connexion avec votre compte Google. Aucun formulaire d'inscription.</p>
+
+    <app-offers-preview class="preview" />
+  </section>
+
+  <section class="sites" aria-label="Sites interrogés">
+    <p>Une recherche interroge notamment</p>
+    <ul>
+      @for (site of sites; track site) {
+        <li>{{ site }}</li>
+      }
+    </ul>
+  </section>
+
+  <section id="fonctionnalites" class="block" tabindex="-1" aria-labelledby="features-title">
+    <header class="intro">
+      <span class="app-eyebrow">Fonctionnalités</span>
+      <h2 id="features-title">Tout ce qu'il faut entre l'annonce et la candidature</h2>
+      <p>De la recherche au suivi, au même endroit. Rien de plus que ce que vous voyez ici.</p>
+    </header>
+    <ul class="features">
+      @for (feature of features; track feature.title) {
+        <li [class.wide]="feature.wide">
+          <span class="glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path [attr.d]="feature.icon" />
+            </svg>
+          </span>
+          <h3>{{ feature.title }}</h3>
+          <p>{{ feature.text }}</p>
+        </li>
+      }
+    </ul>
+  </section>
+
+  <section id="etapes" class="block" tabindex="-1" aria-labelledby="steps-title">
+    <header class="intro">
+      <span class="app-eyebrow">Comment ça marche</span>
+      <h2 id="steps-title">Trois étapes, quelques minutes</h2>
+      <p>Le premier réglage se fait une fois. Ensuite, une recherche tient en un bouton.</p>
+    </header>
+    <ol class="steps">
+      @for (step of steps; track step.title) {
+        <li>
+          <span class="number" aria-hidden="true">{{ $index + 1 }}</span>
+          <h3>{{ step.title }}</h3>
+          <p>{{ step.text }}</p>
+        </li>
+      }
+    </ol>
+    <p class="more"><a href="/fonctionnement">Lire le fonctionnement en détail</a></p>
+  </section>
+
+  <section id="apercu" class="block" tabindex="-1" aria-labelledby="demo-title">
+    <header class="intro">
+      <span class="app-eyebrow">Aperçu</span>
+      <h2 id="demo-title">Vous voyez ce que l'agent fait, et pourquoi</h2>
+      <p>Pas de boîte noire : la recherche se suit en direct, et chaque décision du tri se lit et se corrige.</p>
+    </header>
+    <app-product-demo />
+  </section>
+
+  <section id="donnees" class="block" tabindex="-1" aria-labelledby="trust-title">
+    <div class="trust">
+      <header class="intro left">
+        <span class="app-eyebrow">Vos données</span>
+        <h2 id="trust-title">Un CV, c'est personnel. Il est traité comme tel.</h2>
+        <p>
+          Pas de promesse vague : ce que l'application enregistre, à qui elle le transmet et combien de temps est
+          écrit noir sur blanc.
+        </p>
+        <p class="links">
+          <a href="/confidentialite">Règles de confidentialité</a>
+          <a href="/conditions">Conditions d'utilisation</a>
+        </p>
+      </header>
+      <ul class="commitments">
+        @for (commitment of commitments; track commitment.title) {
+          <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m5 12.5 4.5 4.5L19 7.5" />
+            </svg>
+            <div>
+              <h3>{{ commitment.title }}</h3>
+              <p>{{ commitment.text }}</p>
+            </div>
+          </li>
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section id="questions" class="block narrow" tabindex="-1" aria-labelledby="faq-title">
+    <header class="intro">
+      <span class="app-eyebrow">Questions fréquentes</span>
+      <h2 id="faq-title">Ce qu'on se demande avant de commencer</h2>
+    </header>
+    <div class="faq">
+      @for (item of questions; track item.question) {
+        <details name="faq">
+          <summary>
+            <h3>{{ item.question }}</h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </summary>
+          @for (paragraph of item.answer; track paragraph) {
+            <p>{{ paragraph }}</p>
+          }
+          @if (item.privacy) {
+            <p>Le détail est dans les <a href="/confidentialite">règles de confidentialité</a>.</p>
+          }
+        </details>
+      }
+    </div>
+  </section>
+
+  <section class="closing" aria-labelledby="closing-title">
+    <h2 id="closing-title">Votre prochaine recherche prend une minute.</h2>
+    <p>Déposez votre CV, lancez la recherche, et ne lisez que les annonces qui vous correspondent.</p>
+    <a class="cta" [routerLink]="loginPath">
+      Commencer gratuitement
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 12h14M13 6l6 6-6 6" />
+      </svg>
+    </a>
+  </section>
+</main>
+
+<footer class="bottom">
+  <div class="columns">
+    <div class="about">
+      <span class="brand">
+        <span class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="m16 16 4.5 4.5" />
+          </svg>
+        </span>
+        JobGrep
+      </span>
+      <p>
+        Un agent qui cherche des offres d'emploi, les compare à votre CV et ne garde que celles qui vous
+        correspondent.
+      </p>
+    </div>
+    <nav aria-label="La page">
+      <h2>La page</h2>
+      @for (section of sections; track section.id) {
+        <a [href]="'/#' + section.id" (click)="goTo($event, section.id)">{{ section.label }}</a>
+      }
+    </nav>
+    <nav aria-label="Accès">
+      <h2>Accès</h2>
+      <a [routerLink]="loginPath">Se connecter</a>
+      <a [routerLink]="loginPath">Commencer gratuitement</a>
+    </nav>
+    <nav aria-label="Informations">
+      <h2>Informations</h2>
+      <a href="/fonctionnement">Comment fonctionne JobGrep</a>
+      <a href="/confidentialite">Règles de confidentialité</a>
+      <a href="/conditions">Conditions d'utilisation</a>
+    </nav>
+  </div>
+  <p class="legal">Un projet personnel, mis à disposition gratuitement. Les offres proviennent de sites tiers.</p>
+</footer>
