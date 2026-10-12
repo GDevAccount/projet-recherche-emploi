@@ -722,6 +722,7 @@ Les postes recherchés et le CV se règlent dans l'application. Le reste se règ
 | Recherches par jour pour un invité (`MAX_SEARCHES_PER_DAY`) | `src/jobgrep/config.py` | `2` |
 | Lectures de CV par jour et par compte, pour en tirer les postes (`MAX_CV_EXTRACTIONS_PER_DAY`) | `src/jobgrep/config.py` | `3` |
 | Postes tirés d'un CV, au plus (`MAX_PROFILE_JOBS`) | `src/jobgrep/config.py` | `3` |
+| Compétences tirées d'un CV pour un poste, au plus (`MAX_PROFILE_SKILLS`) | `src/jobgrep/config.py` | `3` |
 | Jours sans activité avant la suppression d'un compte d'invité (`INACTIVE_ACCOUNT_DAYS`) | `src/jobgrep/config.py` | `365` |
 | Essais sans compte ouverts par jour (`MAX_TRIALS_PER_DAY`) | variable d'environnement | `0` : aucun essai |
 | Recherches d'un compte d'essai, en tout (`MAX_TRIAL_SEARCHES`) | `src/jobgrep/config.py` | `1` |

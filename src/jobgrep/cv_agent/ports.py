@@ -11,7 +11,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from jobgrep.config import MAX_PROFILE_JOBS, ContractType
+from jobgrep.config import MAX_PROFILE_JOBS, MAX_PROFILE_SKILLS, ContractType
 
 # Ce qu'il advient des postes recherchés au dépôt d'un CV : créés à partir de lui ; laissés tels quels (« kept ») ;
 # non proposés parce que la limite du jour ou le budget est atteint ; rien à tirer du CV ; modèle en panne
@@ -25,7 +25,9 @@ class DraftedJob(BaseModel):
 
     title: str = Field(description="Intitulé du métier, court, sans contrat ni lieu ni niveau.")
     contract_type: ContractType = Field(description="Contrat que le parcours du CV rend le plus probable.")
-    skills: list[str] = Field(description="Compétences écrites dans le CV qui servent ce métier, cinq au plus.")
+    skills: list[str] = Field(
+        description=f"Compétences écrites dans le CV qui servent ce métier, {MAX_PROFILE_SKILLS} au plus."
+    )
 
 
 class DraftedProfile(BaseModel):

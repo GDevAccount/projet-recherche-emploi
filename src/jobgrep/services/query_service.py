@@ -4,6 +4,7 @@ from jobgrep.config import (
     CONTRACT_TYPES,
     MAX_DRAFTED_TITLE_CHARS,
     MAX_PROFILE_JOBS,
+    MAX_PROFILE_SKILLS,
     MAX_SKILL_CHARS,
     MAX_SKILLS_PER_QUERY,
     SKILL_SUGGESTIONS,
@@ -154,7 +155,7 @@ class QueryService:
                 if title and len(title) <= MAX_DRAFTED_TITLE_CHARS and job.contract_type in CONTRACT_TYPES:
                     skills = [skill for skill in clean_skills(job.skills) if len(skill) <= MAX_SKILL_CHARS]
                     skills = [_capitalize(skill) for skill in skills]
-                    skills = _spell_like_catalog(session, skills[:MAX_SKILLS_PER_QUERY])
+                    skills = _spell_like_catalog(session, skills[:MAX_PROFILE_SKILLS])
                     drafts.append((job.contract_type, title, location, profile.remote, skills))
             if not drafts:
                 return []
