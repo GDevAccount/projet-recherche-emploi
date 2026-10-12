@@ -4,9 +4,11 @@ Les robots de Google ne lisent pas une page qui n'a de contenu qu'une fois son J
 comme celles du front Angular. Ces pages sont donc des routes à part, ajoutées au serveur par api/main.py.
 """
 
+import hashlib
 import html
 import re
 from dataclasses import dataclass
+from datetime import date
 
 import markdown
 from starlette.requests import Request
@@ -22,6 +24,11 @@ class PublicPage:
     title: str
     # Résumé que les moteurs de recherche affichent sous le titre
     description: str
+    # Jour de la dernière modification du texte : affiché sur la page, et déclaré aux moteurs de recherche, qui
+    # n'en tiennent compte que s'il est exact. Il s'écrit à la main, avec l'empreinte du texte ainsi daté
+    # (text_fingerprint) : un test échoue si le texte a changé sans eux, une valeur de config.py comprise.
+    updated: date
+    fingerprint: str
 
 
 # Adresse de la page -> page, dans l'ordre des liens du pied de page. Le texte de chacune est dans texts/
@@ -30,16 +37,30 @@ PAGES = {
         "Comment fonctionne JobGrep",
         "JobGrep cherche des offres d'emploi sur les principaux sites, compare chaque annonce à votre CV "
         "et ne garde que celles qui vous correspondent. Son fonctionnement, étape par étape.",
+        updated=date(2026, 10, 11),
+        fingerprint="276191d7335c",
     ),
     "confidentialite": PublicPage(
         "Règles de confidentialité",
         "Les données que JobGrep enregistre, à qui elles sont transmises, combien de temps, et comment les effacer.",
+        updated=date(2026, 10, 11),
+        fingerprint="ccb29c96dc88",
     ),
     "conditions": PublicPage(
         "Conditions d'utilisation",
         "Les conditions d'utilisation de JobGrep : accès, limites du service et responsabilités.",
+        updated=date(2026, 10, 11),
+        fingerprint="476f5b5024c5",
     ),
 }
+# La page d'accueil n'est pas servie d'ici, mais le plan du site la date aussi : jour de la dernière modification
+# de frontend/src/index.html, et empreinte de ce fichier, tenus comme ceux des autres pages
+HOME_UPDATED = date(2026, 10, 11)
+HOME_FINGERPRINT = "d7959be7c843"
+MONTHS = (
+    "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+)  # fmt: skip
 # Fichiers que les robots demandent d'eux-mêmes, à la racine du site
 ROBOTS_PATH = "/robots.txt"
 SITEMAP_PATH = "/sitemap.xml"
@@ -53,7 +74,7 @@ PAGE_TEMPLATE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} · JobGrep</title>
 <meta name="description" content="{description}">
-{canonical}
+{address}
 <meta name="theme-color" content="#0a0b0d">
 <link rel="icon" href="/favicon.ico">
 <style>{style}</style>
@@ -72,11 +93,27 @@ PAGE_TEMPLATE = """<!doctype html>
 </header>
 <main>
 {body}
+<p class="updated">Dernière mise à jour le <time datetime="{updated_iso}">{updated}</time>.</p>
 </main>
 <nav>{links}</nav>
 </body>
 </html>
 """
+
+# Ce qui demande l'adresse publique du site : où la page se trouve, et l'aperçu affiché quand son lien est partagé.
+# L'image est celle de l'accueil (frontend/public/social-card.png, dimensions et texte repris de index.html).
+ADDRESS_TEMPLATE = """<link rel="canonical" href="{url}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="JobGrep">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:url" content="{url}">
+<meta property="og:title" content="{title} · JobGrep">
+<meta property="og:description" content="{description}">
+<meta property="og:image" content="{site_url}/social-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="JobGrep : les offres qui vous ressemblent, rien d'autre.">
+<meta name="twitter:card" content="summary_large_image">"""
 
 # Les couleurs sont celles du front (variables --app-* de frontend/src/styles.scss), recopiées : cette page est
 # servie même sans le front construit.
@@ -142,6 +179,7 @@ PAGE_STYLE = (
   li { margin: 0.35rem 0; }
   li::marker { color: var(--accent-strong); }
   a { color: var(--link); text-underline-offset: 3px; }
+  .updated { margin: 2.25rem 0 0; font-size: 0.875rem; color: var(--muted); }
   nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; padding: 1.5rem 0.25rem 0; font-size: 0.875rem; }
   nav a { color: var(--muted); }
   nav a:hover { color: var(--text); }
@@ -151,18 +189,36 @@ PAGE_STYLE = (
 )
 
 
+def text_fingerprint(text: str) -> str:
+    """Renvoie l'empreinte d'un texte, pour reconnaître qu'il a changé depuis qu'il a été daté."""
+    return hashlib.sha256(text.encode()).hexdigest()[:12]
+
+
+def format_day(day: date) -> str:
+    """Écrit un jour en toutes lettres, comme « 1er mars 2026 »."""
+    return f"{'1er' if day.day == 1 else day.day} {MONTHS[day.month - 1]} {day.year}"
+
+
 def render_page(path: str, settings: Settings) -> str:
     """Renvoie la page publique demandée, en HTML complet."""
     page = PAGES[path]
     text = read_site_text(path, settings.contact_email)
     links = ['<a href="/">Retour à l\'application</a>']
     links += [f'<a href="/{other}">{html.escape(PAGES[other].title)}</a>' for other in PAGES if other != path]
+    title, description = html.escape(page.title), html.escape(page.description)
     # Sans adresse publique réglée, la page ne dit pas où elle se trouve : rien à déclarer aux moteurs
-    canonical = f'<link rel="canonical" href="{html.escape(settings.site_url)}/{path}">' if settings.site_url else ""
+    address = ""
+    if settings.site_url:
+        site_url = html.escape(settings.site_url)
+        address = ADDRESS_TEMPLATE.format(
+            url=f"{site_url}/{path}", site_url=site_url, title=title, description=description
+        )
     return PAGE_TEMPLATE.format(
-        title=html.escape(page.title),
-        description=html.escape(page.description),
-        canonical=canonical,
+        title=title,
+        description=description,
+        address=address,
+        updated=format_day(page.updated),
+        updated_iso=page.updated.isoformat(),
         style=PAGE_STYLE,
         # « toc » donne une ancre à chaque titre : l'assistant renvoie à la section d'où vient sa réponse
         body=markdown.markdown(text, extensions=["toc"]),
@@ -180,7 +236,11 @@ def render_robots(site_url: str) -> str:
 
 def render_sitemap(site_url: str) -> str:
     """Renvoie le plan du site : l'accueil et les pages publiques, seules adresses lisibles sans connexion."""
-    urls = "".join(f"<url><loc>{html.escape(f'{site_url}/{path}')}</loc></url>" for path in ("", *PAGES))
+    updated = {"": HOME_UPDATED} | {path: page.updated for path, page in PAGES.items()}
+    urls = "".join(
+        f"<url><loc>{html.escape(f'{site_url}/{path}')}</loc><lastmod>{day.isoformat()}</lastmod></url>"
+        for path, day in updated.items()
+    )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'

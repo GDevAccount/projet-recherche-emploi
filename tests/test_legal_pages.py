@@ -1,8 +1,18 @@
+from datetime import date
+from pathlib import Path
+
 import pytest
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
-from jobgrep.api.public_pages import PAGES, build_routes
+from jobgrep.api.public_pages import (
+    HOME_FINGERPRINT,
+    HOME_UPDATED,
+    PAGES,
+    build_routes,
+    format_day,
+    text_fingerprint,
+)
 from jobgrep.assistant.passages import split_text
 from jobgrep.config import (
     INACTIVE_ACCOUNT_DAYS,
@@ -15,6 +25,10 @@ from jobgrep.config import (
     Settings,
 )
 from jobgrep.site_texts import read_site_text, section_anchor
+
+HOME_PAGE = Path(__file__).parent.parent / "frontend" / "src" / "index.html"
+# Ce qu'il faut faire quand une empreinte ne correspond plus
+STALE_DATE = "Le texte de {page} a changé : mettre à jour sa date et son empreinte ({fingerprint}) dans public_pages.py"
 
 
 def client(**settings: str) -> TestClient:
@@ -90,12 +104,46 @@ def test_site_address_is_declared_to_search_engines():
     assert "Sitemap: https://jobgrep.exemple/sitemap.xml" in site.get("/robots.txt").text
     sitemap = site.get("/sitemap.xml")
     assert sitemap.headers["content-type"].startswith("application/xml")
-    for path in ("", "fonctionnement", "confidentialite", "conditions"):
-        assert f"<loc>https://jobgrep.exemple/{path}</loc>" in sitemap.text
+    assert f"<loc>https://jobgrep.exemple/</loc><lastmod>{HOME_UPDATED.isoformat()}</lastmod>" in sitemap.text
+    for path, public_page in PAGES.items():
+        dated = f"<loc>https://jobgrep.exemple/{path}</loc><lastmod>{public_page.updated.isoformat()}</lastmod>"
+        assert dated in sitemap.text
     assert "/api" not in sitemap.text
     page = site.get("/fonctionnement").text
     assert '<link rel="canonical" href="https://jobgrep.exemple/fonctionnement">' in page
-    assert "canonical" not in client().get("/fonctionnement").text
+    # L'aperçu d'un lien partagé : le titre et le résumé de la page, l'image de l'accueil
+    assert '<meta property="og:url" content="https://jobgrep.exemple/fonctionnement">' in page
+    assert '<meta property="og:title" content="Comment fonctionne JobGrep · JobGrep">' in page
+    assert '<meta property="og:image" content="https://jobgrep.exemple/social-card.png">' in page
+    local = client().get("/fonctionnement").text
+    assert "canonical" not in local and "og:" not in local
+
+
+@pytest.mark.parametrize("path", PAGES)
+def test_public_page_shows_the_day_its_text_last_changed(path):
+    page = PAGES[path]
+
+    text = client().get(f"/{path}").text
+
+    day = f'<time datetime="{page.updated.isoformat()}">{format_day(page.updated)}</time>'
+    assert f"Dernière mise à jour le {day}." in text
+    assert format_day(date(2026, 3, 1)) == "1er mars 2026" and format_day(date(2026, 8, 15)) == "15 août 2026"
+
+
+@pytest.mark.parametrize("path", PAGES)
+def test_public_page_is_dated_again_when_its_text_changes(path):
+    # Le texte tel qu'il est servi : un quota ou une liste de sites qui change dans config.py le change aussi
+    fingerprint = text_fingerprint(read_site_text(path))
+
+    assert fingerprint == PAGES[path].fingerprint, STALE_DATE.format(page=f"/{path}", fingerprint=fingerprint)
+    assert PAGES[path].updated <= date.today()
+
+
+def test_home_page_is_dated_again_when_its_text_changes():
+    fingerprint = text_fingerprint(HOME_PAGE.read_text(encoding="utf-8"))
+
+    assert fingerprint == HOME_FINGERPRINT, STALE_DATE.format(page="l'accueil", fingerprint=fingerprint)
+    assert HOME_UPDATED <= date.today()
 
 
 def test_site_address_must_be_complete():

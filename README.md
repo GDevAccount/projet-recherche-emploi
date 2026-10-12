@@ -317,11 +317,13 @@ Tout le reste demande une session, et `/robots.txt` écarte l'API. Un robot n'ou
 
 `SITE_URL` donne au site son adresse publique. Une fois réglée :
 
-- `/sitemap.xml` liste ces quatre pages, et `/robots.txt` l'annonce ;
-- chaque page publique déclare son adresse canonique ;
+- `/sitemap.xml` liste ces quatre pages avec le jour de leur dernière modification, et `/robots.txt` l'annonce ;
+- chaque page publique déclare son adresse canonique, et l'aperçu affiché quand son lien est partagé (`og:…`) ;
 - toute page demandée à une autre adresse de l'instance (celle en `fly.dev`) est renvoyée vers `SITE_URL` (301), pour que le site ne soit pas référencé deux fois. L'API n'est pas concernée : la sonde de disponibilité peut garder l'ancienne adresse.
 
 Sur Fly.io, elle est écrite dans `fly.toml` (section `[env]`) : ce n'est pas un secret. L'adresse canonique et l'aperçu de partage de la page d'accueil (`og:…`) sont, eux, écrits en dur dans `frontend/src/index.html` : les changer avec l'adresse du site.
+
+Le jour de la dernière modification d'une page s'écrit à la main dans `src/jobgrep/api/public_pages.py`, avec l'empreinte de son texte : `PAGES` pour les trois pages servies par le serveur, qui l'affichent aussi (« Dernière mise à jour le … »), `HOME_UPDATED` et `HOME_FINGERPRINT` pour l'accueil (`frontend/src/index.html`). Quand un texte change, un test échoue et donne la nouvelle empreinte : la recopier, et mettre la date du jour.
 
 Reste à déclarer le site, à la main :
 
