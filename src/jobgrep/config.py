@@ -130,6 +130,9 @@ MAX_PAGE_CHARS = 8000
 PROFILE_MODEL = FILTER_MODEL
 # Postes tirés d'un CV, au plus : chacun est une recherche payée de plus à chaque lancement
 MAX_PROFILE_JOBS = 3
+# Compétences tirées d'un CV pour un poste, au plus : chacune resserre la recherche, et l'utilisateur garde de la
+# place pour ajouter les siennes jusqu'à MAX_SKILLS_PER_QUERY
+MAX_PROFILE_SKILLS = 3
 # Extractions par jour et par compte (le propriétaire n'est pas limité) : au-delà, le CV est enregistré sans elle
 MAX_CV_EXTRACTIONS_PER_DAY = 3
 # Longueur du CV donnée au modèle : au-delà, la suite n'apprend plus rien sur le métier

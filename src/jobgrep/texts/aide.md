@@ -12,7 +12,7 @@ Pour remplacer votre CV, déposez-en un nouveau au même endroit. Il prend la pl
 
 ## Postes recherchés préparés à partir du CV
 
-Quand vous déposez votre CV, JobGrep prépare vos postes recherchés à votre place : un modèle d'intelligence artificielle lit votre CV, sans vos coordonnées, et en tire jusqu'à {max_profile_jobs} postes, avec pour chacun le métier, les compétences du CV qui le servent, le contrat le plus probable et le département ou la région où vous vivez. Ils apparaissent aussitôt dans la carte « Postes recherchés », où vous pouvez les modifier, les supprimer ou en ajouter d'autres. L'écran montre les étapes du dépôt à mesure qu'elles se font.
+Quand vous déposez votre CV, JobGrep prépare vos postes recherchés à votre place : un modèle d'intelligence artificielle lit votre CV, sans vos coordonnées, et en tire jusqu'à {max_profile_jobs} postes, avec pour chacun le métier, jusqu'à {max_profile_skills} compétences du CV qui le servent, le contrat le plus probable et le département ou la région où vous vivez. Ils apparaissent aussitôt dans la carte « Postes recherchés », où vous pouvez les modifier, les supprimer ou en ajouter d'autres. En modifiant un poste, vous pouvez lui ajouter vos propres compétences, jusqu'à {max_skills} en tout. L'écran montre les étapes du dépôt à mesure qu'elles se font.
 
 Si vous avez déjà des postes recherchés, JobGrep vous demande d'abord quoi en faire : « Remplacer mes postes » les efface et met à leur place ceux tirés du nouveau CV, « Garder mes postes » les laisse tels quels. Dans les deux cas, le CV est enregistré.
 

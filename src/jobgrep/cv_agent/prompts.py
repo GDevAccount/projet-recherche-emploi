@@ -2,7 +2,7 @@ import hashlib
 
 from langchain_core.prompts import ChatPromptTemplate
 
-from jobgrep.config import MAX_PROFILE_JOBS, MAX_SKILLS_PER_QUERY
+from jobgrep.config import MAX_PROFILE_JOBS, MAX_PROFILE_SKILLS
 
 PROFILE_PROMPT = ChatPromptTemplate.from_messages(
     [
@@ -43,7 +43,7 @@ PROFILE_PROMPT = ChatPromptTemplate.from_messages(
 
 def render_prompt(cv: str) -> dict:
     """Renvoie ce que le prompt attend, avec les limites en vigueur."""
-    return {"cv": cv, "max_jobs": MAX_PROFILE_JOBS, "max_skills": MAX_SKILLS_PER_QUERY}
+    return {"cv": cv, "max_jobs": MAX_PROFILE_JOBS, "max_skills": MAX_PROFILE_SKILLS}
 
 
 def prompt_version() -> str:

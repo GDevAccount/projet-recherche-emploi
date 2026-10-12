@@ -12,7 +12,7 @@ from jobgrep.config import (
     MAX_CV_EXTRACTIONS_PER_DAY,
     MAX_DRAFTED_TITLE_CHARS,
     MAX_PROFILE_JOBS,
-    MAX_SKILLS_PER_QUERY,
+    MAX_PROFILE_SKILLS,
 )
 from jobgrep.cv_agent.ports import DraftedJob, DraftedProfile
 from jobgrep.cv_agent.prompts import prompt_version
@@ -91,7 +91,7 @@ def test_searched_jobs_already_there_are_replaced_only_on_request(container, pro
 
 
 def test_what_the_model_proposes_follows_the_rules_of_a_typed_job(container, profile_extractor, valid_pdf):
-    many_skills = [f"Compétence {index}" for index in range(MAX_SKILLS_PER_QUERY + 2)]
+    many_skills = [f"Compétence {index}" for index in range(MAX_PROFILE_SKILLS + 2)]
     profile_extractor.profile = profile(
         drafted("comptable", skills=[*many_skills]),
         drafted("   "),
@@ -107,7 +107,7 @@ def test_what_the_model_proposes_follows_the_rules_of_a_typed_job(container, pro
 
     # Ni titre vide ou démesuré, ni doublon, ni compétence en trop ; un lieu qui n'en est pas un vaut toute la France
     assert summary(container, BOB) == [
-        ("CDI", "Comptable", "", False, many_skills[:MAX_SKILLS_PER_QUERY]),
+        ("CDI", "Comptable", "", False, many_skills[:MAX_PROFILE_SKILLS]),
         ("CDI", "Auditeur", "", False, ["SAP"]),
     ]
     assert len(summary(container, BOB)) <= MAX_PROFILE_JOBS
