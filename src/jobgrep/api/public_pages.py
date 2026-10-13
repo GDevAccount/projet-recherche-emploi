@@ -37,14 +37,14 @@ PAGES = {
         "Comment fonctionne JobGrep",
         "JobGrep cherche des offres d'emploi sur les principaux sites, compare chaque annonce à votre CV "
         "et ne garde que celles qui vous correspondent. Son fonctionnement, étape par étape.",
-        updated=date(2026, 10, 11),
-        fingerprint="276191d7335c",
+        updated=date(2026, 10, 13),
+        fingerprint="b6eb29c88b4d",
     ),
     "confidentialite": PublicPage(
         "Règles de confidentialité",
         "Les données que JobGrep enregistre, à qui elles sont transmises, combien de temps, et comment les effacer.",
-        updated=date(2026, 10, 11),
-        fingerprint="ccb29c96dc88",
+        updated=date(2026, 10, 13),
+        fingerprint="81803fcd66aa",
     ),
     "conditions": PublicPage(
         "Conditions d'utilisation",

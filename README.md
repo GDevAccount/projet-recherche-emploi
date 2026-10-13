@@ -376,7 +376,7 @@ La recherche est un graph [LangGraph](https://langchain-ai.github.io/langgraph/)
 | Étape | Rôle |
 |---|---|
 | `searchJobs` | Lance une recherche Tavily par poste recherché enregistré, limitée aux sites d'emploi et aux annonces de la dernière semaine, puis supprime les doublons. |
-| `FilterDuplicates` | Écarte les pages dont l'URL est déjà en base, offres supprimées et pages rejetées comprises, pour ne pas les faire évaluer à nouveau. |
+| `FilterDuplicates` | Écarte les pages dont l'URL est déjà en base, offres supprimées et pages rejetées comprises, pour ne pas les faire évaluer à nouveau. Écarte aussi, sans la faire évaluer, une page qui reprend une annonce déjà vue sur un autre site, reconnue à son texte (`agent/duplicates.py`) : elle est rangée parmi les pages rejetées, avec le motif « Déjà vue sur un autre site ». |
 | `FilterJobs` | Lit le texte du CV, enregistré sans coordonnées, et demande à un modèle OpenAI, pour chaque page restante, ce qu'elle dit (sa nature : offre, liste d'offres, article, fiche métier, page d'accueil, offre expirée, formation ou autre ; contrat, lieu, mode de travail) et trois avis : le métier est-il l'un de ceux des recherches enregistrées, le CV couvre-t-il les compétences principales, le niveau d'expérience est-il compatible. Le graph applique ensuite les règles de contrat et de lieu : une offre n'est retenue que si tous les critères sont remplis. |
 | `InsertJobs` | Enregistre les offres retenues et les pages rejetées dans la base SQLite `jobs.db`. |
 
@@ -441,6 +441,7 @@ Table `jobs`, les offres retenues :
 | `work_location` | Ville lue sur l'annonce par le modèle, suivie du pays hors de France. Pour un poste en télétravail complet : `Remote`, suivi entre parenthèses de la ville de l'employeur si l'annonce la donne. Vide si l'annonce ne le dit pas, et pour les offres trouvées avant l'ajout de la colonne |
 | `query` | Recherche qui a trouvé l'offre |
 | `match_reason` | Justification du modèle pour avoir retenu l'offre |
+| `text_fingerprint` | Empreinte du texte de l'annonce (une liste d'entiers en JSON), qui sert à la reconnaître quand un autre site la reprend. Vide pour les offres d'avant son ajout, et quand le moteur de recherche n'a rendu qu'un extrait de la page |
 | `status` | État de la candidature : `todo` (à traiter), `applied` (postulée), `interview` (entretien obtenu) ou `rejected` (refusée par l'employeur) |
 | `applied_at` | Date de candidature (UTC), vide tant que vous n'avez pas postulé |
 | `interview_at` | Date à laquelle l'entretien a été noté (UTC), vide sans entretien |
@@ -449,7 +450,7 @@ Table `jobs`, les offres retenues :
 | `created_at` | Date d'insertion (UTC) |
 | `deleted` | `1` si vous avez supprimé l'offre : elle n'est plus affichée, mais sa ligne reste pour qu'elle ne soit pas réinsérée |
 
-Table `rejected_jobs`, les pages rejetées par le modèle. Elle sert à ne pas payer une nouvelle évaluation pour une page déjà rejetée. Elle est vidée quand un nouveau CV est enregistré.
+Table `rejected_jobs`, les pages rejetées par le modèle, et celles écartées sans évaluation parce qu'elles reprennent une annonce déjà vue sur un autre site (`duplicate` à `1`, critères vides). Elle sert à ne pas payer une nouvelle évaluation pour une page déjà rejetée. Elle est vidée quand un nouveau CV est enregistré.
 
 | Colonne | Contenu |
 |---|---|

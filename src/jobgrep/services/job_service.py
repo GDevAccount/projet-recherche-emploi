@@ -129,15 +129,17 @@ class JobService:
             # Aucune ligne ajoutée : l'adresse est celle d'une offre déjà en base, peut-être supprimée
             if jobs.insert_jobs([offer]) == 0:
                 raise ConflictError("Cette page est déjà passée par vos offres.")
-            correction = {
-                "kind": CORRECTION_RESTORED,
-                "url": rejected.url,
-                "title": rejected.title,
-                "query": rejected.query,
-                "model_reason": rejected.reject_reason,
-                **{field: getattr(rejected, field) for field in VERDICT_FIELDS},
-            }
-            self._record_correction(session, user_id, correction)
+            # Une copie d'une annonce déjà vue n'a pas été jugée par le tri : la remettre ne le contredit pas
+            if not rejected.duplicate:
+                correction = {
+                    "kind": CORRECTION_RESTORED,
+                    "url": rejected.url,
+                    "title": rejected.title,
+                    "query": rejected.query,
+                    "model_reason": rejected.reject_reason,
+                    **{field: getattr(rejected, field) for field in VERDICT_FIELDS},
+                }
+                self._record_correction(session, user_id, correction)
             rejected_jobs.delete_rejected_job(url)
             return _read(jobs.get_job_by_url(url))
 

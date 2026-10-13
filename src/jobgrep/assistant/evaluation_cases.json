@@ -283,6 +283,19 @@
     "consults": false
   },
   {
+    "id": "rejet-deja-vue",
+    "question": "Que veut dire le motif « Déjà vue sur un autre site » dans mes rejets ?",
+    "outcome": "answered",
+    "sections": [
+      [
+        "aide",
+        "Retrouver une offre écartée à tort"
+      ]
+    ],
+    "reference": "La page reprend une annonce déjà passée dans vos offres, publiée sur un autre site : JobGrep la reconnaît à son texte et ne la garde qu'une fois. Si ce n'est pas la même annonce, « C'était une bonne offre » la remet dans vos offres.",
+    "consults": false
+  },
+  {
     "id": "aucune-offre",
     "question": "Ma recherche n'a retenu aucune offre, pourquoi ?",
     "outcome": "answered",

@@ -61,6 +61,19 @@ class StringList(TypeDecorator):
         return None if value is None else json.loads(value)
 
 
+class IntList(TypeDecorator):
+    """Liste d'entiers enregistrée en JSON."""
+
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value: list[int] | None, dialect) -> str | None:
+        return None if value is None else json.dumps(list(value), separators=(",", ":"))
+
+    def process_result_value(self, value: str | None, dialect) -> list[int] | None:
+        return None if value is None else json.loads(value)
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -81,6 +94,9 @@ class Job(Base):
     work_location: Mapped[str | None] = mapped_column(Text)
     query: Mapped[str | None] = mapped_column(Text)
     match_reason: Mapped[str | None] = mapped_column(Text)
+    # Empreinte du texte de l'annonce, pour la reconnaître sur un autre site (agent/duplicates.py) ; vide pour
+    # une offre d'avant cette colonne, ou dont le moteur de recherche n'a rendu que l'extrait
+    text_fingerprint: Mapped[list[int] | None] = mapped_column(IntList)
     # État de la candidature : todo, applied, interview ou rejected (JobStatus de schemas.py)
     status: Mapped[str] = mapped_column(Text, server_default=text("'todo'"))
     # Date de chaque étape franchie ; vide tant qu'elle ne l'est pas
@@ -116,6 +132,8 @@ class RejectedJob(Base):
     matches_location: Mapped[bool | None] = mapped_column(IntBool)
     work_location: Mapped[str | None] = mapped_column(Text)
     reject_reason: Mapped[str | None] = mapped_column(Text)
+    # Vrai pour une page écartée sans évaluation, parce que la même annonce a déjà été vue sur un autre site
+    duplicate: Mapped[bool | None] = mapped_column(IntBool)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=text("CURRENT_TIMESTAMP"))
 
 
