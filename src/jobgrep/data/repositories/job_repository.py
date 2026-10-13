@@ -7,7 +7,17 @@ from sqlalchemy.orm import Session
 
 from jobgrep.data.models import Job
 
-INSERTED_FIELDS = ("url", "title", "content", "score", "contract_type", "work_location", "query", "match_reason")
+INSERTED_FIELDS = (
+    "url",
+    "title",
+    "content",
+    "score",
+    "contract_type",
+    "work_location",
+    "query",
+    "match_reason",
+    "text_fingerprint",
+)
 
 
 class JobRepository:
@@ -61,6 +71,11 @@ class JobRepository:
     def list_known_urls(self) -> set[str]:
         """Renvoie les URL de toutes les offres en base, y compris celles supprimées."""
         return set(self.session.scalars(select(Job.url).where(Job.user_id == self.user_id)))
+
+    def list_fingerprinted(self) -> list[Job]:
+        """Renvoie les offres dont le texte a une empreinte, y compris celles supprimées."""
+        statement = select(Job).where(Job.user_id == self.user_id, Job.text_fingerprint.is_not(None))
+        return list(self.session.scalars(statement))
 
     def mark_opened(self, job_id: int, now: datetime) -> bool:
         """Date la première ouverture de l'annonce, et renvoie faux si elle l'était déjà ou si l'offre est inconnue."""

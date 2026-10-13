@@ -1,5 +1,5 @@
 import operator
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, NotRequired, TypedDict
 
 
 class FoundPage(TypedDict):
@@ -13,6 +13,8 @@ class FoundPage(TypedDict):
     query: str
     # Rang, dans le lancement, de l'appel au moteur qui l'a rendue le premier (« searches » de l'état)
     search_index: int
+    # Empreinte du texte entier de la page (agent/duplicates.py) ; None quand le moteur n'a rendu que l'extrait
+    text_fingerprint: NotRequired[list[int] | None]
 
 
 class KeptJob(FoundPage):
@@ -35,6 +37,8 @@ class RejectedPage(FoundPage):
     matches_level: bool
     matches_location: bool
     reject_reason: str
+    # Vrai pour une page écartée sans évaluation : la même annonce a déjà été vue sur un autre site
+    duplicate: NotRequired[bool]
 
 
 class JobSearchState(TypedDict, total=False):
@@ -47,6 +51,8 @@ class JobSearchState(TypedDict, total=False):
     # Ce que l'utilisateur cherche, toutes recherches confondues (SearchCriteria de ports.py)
     criteria: Any
     new_jobs: list[FoundPage]
+    # Pages qui reprennent une annonce déjà vue sur un autre site : écartées sans être évaluées
+    duplicates: list[RejectedPage]
     filtered_jobs: list[KeptJob]
     rejected_jobs: list[RejectedPage]
     inserted_count: int

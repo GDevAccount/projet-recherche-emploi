@@ -17,6 +17,8 @@ REJECT_CRITERIA = {
     "matches_level": "Niveau d'expérience incompatible",
     "matches_location": "Hors lieu recherché",
 }
+# Motif d'une page écartée sans évaluation : la même annonce est déjà passée, publiée sur un autre site
+REJECT_DUPLICATE = "Déjà vue sur un autre site"
 # Motif d'une page qui n'est pas une offre, selon sa nature (PageKind)
 REJECT_PAGE_KINDS = {
     "liste d'offres": "Liste ou page de résultats",
@@ -89,12 +91,16 @@ class RejectedJobRead(_FromRow):
     matches_location: bool | None
     work_location: str | None
     reject_reason: str | None
+    # Sert au motif, et n'est pas servi : les interfaces lisent le motif
+    duplicate: bool | None = Field(default=None, exclude=True)
     created_at: datetime
 
     @computed_field
     @property
     def failed_criteria(self) -> list[str]:
         """Motifs du rejet, le principal en premier."""
+        if self.duplicate:
+            return [REJECT_DUPLICATE]
         # Une page qui n'est pas une offre n'a ni métier ni profil à comparer
         if not self.is_real_offer:
             return [REJECT_PAGE_KINDS.get(self.page_kind, REJECT_NOT_AN_OFFER)]

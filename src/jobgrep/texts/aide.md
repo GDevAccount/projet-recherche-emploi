@@ -60,6 +60,8 @@ Dans la rubrique Offres, « Supprimer cette annonce » retire une offre. L'appli
 
 La rubrique Rejets liste les pages écartées, avec le motif de chacune. Si une bonne offre s'y trouve, « C'était une bonne offre » la remet dans vos offres.
 
+Le motif « Déjà vue sur un autre site » veut dire que la page reprend une annonce que vous avez déjà eue dans vos offres, publiée ailleurs : beaucoup de sites recopient les annonces des autres. JobGrep la reconnaît à son texte et ne la garde qu'une fois, même si vous avez supprimé la première. Si ce n'est pas la même annonce, « C'était une bonne offre » la remet dans vos offres.
+
 ## Aucune offre retenue après une recherche
 
 Cela arrive quand aucune annonce récente ne correspond à la fois à votre CV et à vos postes recherchés. Regardez les motifs dans la rubrique Rejets : s'ils disent souvent « Autre métier que ceux recherchés », reformulez votre poste recherché ; s'ils disent « Hors lieu recherché », élargissez le lieu. Vous pouvez aussi ajouter un poste voisin.

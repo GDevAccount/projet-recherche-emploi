@@ -123,6 +123,15 @@ REMOTE_JOB_SITES = [
     "jobgether.com",
 ]
 
+# Sites qui republient les annonces des autres : entre deux pages de la même annonce, c'est l'autre qui est gardée
+AGGREGATOR_SITES = frozenset({"jobijoba.com"})
+# Reconnaître la même annonce sur deux sites (agent/duplicates.py) : longueur des suites de mots comparées,
+# part gardée dans l'empreinte (une sur quatre), et nombre de suites gardées communes à partir duquel deux pages
+# sont la même annonce. Mesuré le 2026-10-13 : plus de 100 pour une annonce reprise, moins de 10 sinon
+SHINGLE_WORDS = 5
+FINGERPRINT_SAMPLING = 4
+DUPLICATE_MIN_SHARED = 25
+
 FILTER_MODEL = "gpt-6-luna"
 MAX_PAGE_CHARS = 8000
 

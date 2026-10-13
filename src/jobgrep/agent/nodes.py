@@ -5,6 +5,7 @@ from collections.abc import Iterable
 
 from langgraph.config import get_stream_writer
 
+from jobgrep.agent.duplicates import SeenOffer, site_of, split_duplicates
 from jobgrep.agent.ports import (
     CvReader,
     EvaluationUsage,
@@ -45,6 +46,7 @@ LOCATION_REJECT_REASON = "Lieu de travail hors des lieux recherchés"
 UNKNOWN_PLACE = "lieu non précisé"
 CONTRACT_REJECT_REASON = "Contrat non recherché"
 RESTRICTED_REMOTE_REASON = "Télétravail réservé aux candidats d'un pays ou d'une zone sans la France"
+DUPLICATE_REJECT_REASON = "Même annonce qu'une page déjà vue sur"
 
 
 def _fold(text: str) -> str:
@@ -217,6 +219,21 @@ def format_work_location(evaluation: JobEvaluation) -> str | None:
     return place_text or None
 
 
+def describe_duplicate(page: FoundPage, original_site: str) -> dict:
+    """Renvoie la ligne d'une page écartée sans évaluation : la même annonce a déjà été vue sur un autre site."""
+    return {
+        **page,
+        # Rien n'a été lu sur la page : ni contrat, ni lieu, ni critère
+        "contract_type": None,
+        "work_location": None,
+        "is_real_offer": True,
+        "page_kind": None,
+        "matches_cv": True,
+        "duplicate": True,
+        "reject_reason": f"{DUPLICATE_REJECT_REASON} {original_site}",
+    }
+
+
 # Nombres de jetons d'un appel (EvaluationUsage), additionnés pour le lancement
 TOKEN_COUNTS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens")
 
@@ -346,22 +363,29 @@ class SearchNodes:
         started = time.perf_counter()
         user_id = get_user_id(state)
         with self.database.session() as session:
-            known_urls = (
-                JobRepository(session, user_id).list_known_urls()
-                | RejectedJobRepository(session, user_id).list_known_urls()
-            )
+            job_repository = JobRepository(session, user_id)
+            known_urls = job_repository.list_known_urls() | RejectedJobRepository(session, user_id).list_known_urls()
+            # Les offres supprimées comptent ici aussi : la copie d'une offre supprimée ne doit pas revenir
+            seen = [
+                SeenOffer(site_of(job.url), frozenset(job.text_fingerprint))
+                for job in job_repository.list_fingerprinted()
+            ]
         jobs = state["jobs"]
-        new_jobs = [job for job in jobs if job["url"] not in known_urls]
-        logger.info("%d page(s) nouvelle(s) sur %d trouvée(s)", len(new_jobs), len(jobs))
-        get_stream_writer()(
-            {
-                "message": f"{len(new_jobs)} page(s) nouvelle(s) sur {len(jobs)} trouvée(s)",
-                "step": "dedupe",
-                "found": len(jobs),
-                "new": len(new_jobs),
-            }
+        unknown_jobs = [job for job in jobs if job["url"] not in known_urls]
+        # Une annonce reprise par un autre site a une autre adresse : c'est son texte qui la fait reconnaître
+        new_jobs, copies = split_duplicates(unknown_jobs, seen)
+        duplicates = [describe_duplicate(page, original_site) for page, original_site in copies]
+        logger.info(
+            "%d page(s) nouvelle(s) sur %d trouvée(s), %d déjà vue(s) sur un autre site",
+            len(new_jobs),
+            len(jobs),
+            len(duplicates),
         )
-        return {"new_jobs": new_jobs, "metrics": {"dedupe_ms": elapsed_ms(started)}}
+        message = f"{len(new_jobs)} page(s) nouvelle(s) sur {len(jobs)} trouvée(s)"
+        if duplicates:
+            message += f", {len(duplicates)} déjà vue(s) sur un autre site"
+        get_stream_writer()({"message": message, "step": "dedupe", "found": len(jobs), "new": len(new_jobs)})
+        return {"new_jobs": new_jobs, "duplicates": duplicates, "metrics": {"dedupe_ms": elapsed_ms(started)}}
 
     def filter_jobs(self, state: JobSearchState) -> dict:
         started = time.perf_counter()
@@ -435,7 +459,8 @@ class SearchNodes:
         started = time.perf_counter()
         user_id = get_user_id(state)
         filtered_jobs = state["filtered_jobs"]
-        rejected_jobs = state["rejected_jobs"]
+        # Les copies d'une annonce déjà vue sont mémorisées avec les rejets : leur adresse ne sera plus comparée
+        rejected_jobs = [*state["rejected_jobs"], *state.get("duplicates", [])]
         message = f"Enregistrement de {len(filtered_jobs)} offre(s) et de {len(rejected_jobs)} page(s) rejetée(s)"
         get_stream_writer()({"message": message, "step": "save"})
         # Une seule transaction : une page évaluée finit dans l'une des deux tables, ou dans aucune,

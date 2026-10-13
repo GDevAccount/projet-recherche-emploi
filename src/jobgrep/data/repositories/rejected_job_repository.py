@@ -21,6 +21,7 @@ INSERTED_FIELDS = (
     "matches_level",
     "matches_location",
     "reject_reason",
+    "duplicate",
 )
 
 

@@ -18,7 +18,7 @@ Pour chaque poste ajouté à la main, vous indiquez le métier, les compétences
 
 Une recherche prend environ une minute. JobGrep interroge les sites d'emploi, puis un modèle d'intelligence artificielle lit chaque annonce trouvée et relève ce qu'elle dit : le métier, les compétences demandées, le niveau d'expérience, le contrat et le lieu. Une annonce n'est retenue que si tous ces points correspondent à votre CV et à vos postes recherchés.
 
-Vous voyez chaque annonce passer, retenue ou écartée. À la recherche suivante, seules les nouvelles annonces sont lues.
+Vous voyez chaque annonce passer, retenue ou écartée. À la recherche suivante, seules les nouvelles annonces sont lues. Une annonce que vous avez déjà, reprise par un autre site, est reconnue à son texte et écartée sans être relue.
 
 Les sites consultés : {job_sites}. Une recherche en télétravail complet est aussi menée en anglais, sur des sites spécialisés.
 

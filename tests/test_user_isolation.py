@@ -31,6 +31,15 @@ def test_each_user_sees_only_their_jobs(session):
     assert bob.list_known_urls() == {"https://b/1"}
 
 
+def test_each_user_compares_new_pages_to_their_own_offers_only(session):
+    alice, bob = JobRepository(session, ALICE), JobRepository(session, BOB)
+    alice.insert_jobs([{**job("https://a/1"), "text_fingerprint": [4, 8]}, job("https://a/2")])
+    bob.insert_jobs([{**job("https://b/1"), "text_fingerprint": [12]}])
+
+    assert [(row.url, row.text_fingerprint) for row in alice.list_fingerprinted()] == [("https://a/1", [4, 8])]
+    assert [(row.url, row.text_fingerprint) for row in bob.list_fingerprinted()] == [("https://b/1", [12])]
+
+
 def test_same_offer_can_be_kept_by_two_users(session):
     alice, bob = JobRepository(session, ALICE), JobRepository(session, BOB)
 
