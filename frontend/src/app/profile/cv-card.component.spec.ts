@@ -97,6 +97,8 @@ describe('CvCardComponent', () => {
     const input = element().querySelector<HTMLInputElement>('input[type=file]')!;
     Object.defineProperty(input, 'files', { value: [file], configurable: true });
     input.dispatchEvent(new Event('change'));
+    // Le fichier est lu en mémoire avant d'être affiché
+    await new Promise((resolve) => setTimeout(resolve));
     await fixture.whenStable();
   }
 
@@ -145,6 +147,20 @@ describe('CvCardComponent', () => {
     expect(text()).not.toContain('mon-cv.pdf');
   });
 
+  it('should say at once when the chosen file cannot be read, as a file left in an online storage', async () => {
+    await serveStatus(null);
+    const unreadable = new File(['%PDF-1.4'], 'cv-drive.pdf', { type: 'application/pdf' });
+    unreadable.arrayBuffer = () => Promise.reject(new DOMException('Lecture refusée', 'NotReadableError'));
+
+    await chooseFile(unreadable);
+
+    expect(text()).toContain("Ce fichier n'a pas pu être lu");
+    expect(text()).toContain("enregistrez-le d'abord sur votre appareil");
+    expect(text()).not.toContain('cv-drive.pdf');
+    expect(button('Enregistrer ce CV')).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('should follow the deposit step by step, then show the searched jobs drawn from the CV', async () => {
     const stream = controlledStream();
     fetchMock.mockResolvedValue(stream.response);
@@ -156,7 +172,10 @@ describe('CvCardComponent', () => {
 
     button('Enregistrer ce CV').click();
     await settle();
-    expect(sent()).toEqual({ url: '/api/cv/stream', file: PDF, replace: 'false' });
+    expect(sent()).toEqual({ url: '/api/cv/stream', file: expect.any(File), replace: 'false' });
+    // C'est la copie lue au choix qui part, avec le contenu et le nom du fichier
+    const file = sent().file as File;
+    expect([file.name, file.type, await file.text()]).toEqual(['mon-cv.pdf', 'application/pdf', '%PDF-1.4']);
 
     stream.push(event('progress', { step: 'read' }) + event('progress', { step: 'anonymize' }));
     await settle();
@@ -287,7 +306,7 @@ describe('CvCardComponent', () => {
     const drop = new Event('drop') as DragEvent;
     Object.defineProperty(drop, 'dataTransfer', { value: { files: [PDF] } });
     element().querySelector('.drop')!.dispatchEvent(drop);
-    await fixture.whenStable();
+    await settle();
 
     expect(text()).toContain('mon-cv.pdf');
   });
