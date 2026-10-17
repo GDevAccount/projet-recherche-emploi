@@ -23,6 +23,10 @@ const STEP_LABELS: Record<CvStep, string> = {
   queries: 'Création de vos postes recherchés',
 };
 
+const UNREADABLE_FILE =
+  "Ce fichier n'a pas pu être lu. S'il est dans un espace en ligne (Drive, OneDrive…), enregistrez-le d'abord " +
+  'sur votre appareil, puis choisissez-le de nouveau.';
+
 /**
  * CV en place et dépôt d'un nouveau. Le fichier choisi n'est envoyé qu'à la confirmation : il remplace l'ancien,
  * et le serveur en tire les postes recherchés, à la place de ceux en place si l'utilisateur le demande.
@@ -50,6 +54,8 @@ export class CvCardComponent {
   protected readonly stepLabels = STEP_LABELS;
   protected readonly deposit = signal<CvDeposit | null>(null);
   protected readonly error = signal('');
+  // Le dernier choix de fichier : un fichier plus lent à lire qu'un autre choisi après lui ne le remplace pas
+  private selection = 0;
 
   /** Nombre de postes recherchés en place : s'il y en a, c'est à l'utilisateur de dire s'ils sont remplacés. */
   protected readonly queryCount = computed(() => this.queryService.queries()?.length ?? 0);
@@ -96,7 +102,7 @@ export class CvCardComponent {
   }
 
   protected choose(input: HTMLInputElement): void {
-    this.select(input.files?.[0]);
+    void this.select(input.files?.[0]);
     // Sans cela, rechoisir le même fichier après une annulation ne déclencherait rien
     input.value = '';
   }
@@ -104,7 +110,7 @@ export class CvCardComponent {
   protected drop(event: DragEvent): void {
     event.preventDefault();
     this.dragging.set(false);
-    this.select(event.dataTransfer?.files[0]);
+    void this.select(event.dataTransfer?.files[0]);
   }
 
   protected dragOver(event: DragEvent): void {
@@ -114,6 +120,7 @@ export class CvCardComponent {
   }
 
   protected cancel(): void {
+    this.selection++;
     this.file.set(null);
     this.error.set('');
   }
@@ -153,12 +160,29 @@ export class CvCardComponent {
     return megabytes >= 1 ? `${megabytes.toFixed(1).replace('.', ',')} Mo` : `${Math.ceil(file.size / 1024)} ko`;
   }
 
-  private select(file: File | undefined): void {
-    if (file) {
-      this.file.set(file);
-      this.deposit.set(null);
-      this.replaceQueries.set(null);
-      this.error.set('');
+  /**
+   * Garde une copie en mémoire du fichier choisi. Sur un téléphone, un fichier pris dans un espace en ligne
+   * n'est qu'un lien que le navigateur ne lit qu'à l'envoi, et qui peut ne plus valoir après la question des
+   * postes : l'envoi échouait alors sans même atteindre le serveur. Lu ici, le fichier part tel quel, et un
+   * fichier illisible est signalé dès son choix.
+   */
+  private async select(file: File | undefined): Promise<void> {
+    if (!file) {
+      return;
     }
+    const selection = ++this.selection;
+    let copy: File | null;
+    try {
+      copy = new File([await file.arrayBuffer()], file.name, { type: file.type });
+    } catch {
+      copy = null;
+    }
+    if (selection !== this.selection) {
+      return;
+    }
+    this.file.set(copy);
+    this.deposit.set(null);
+    this.replaceQueries.set(null);
+    this.error.set(copy ? '' : UNREADABLE_FILE);
   }
 }
